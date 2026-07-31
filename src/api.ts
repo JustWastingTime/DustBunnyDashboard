@@ -1,0 +1,26 @@
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: response.statusText }))
+    throw new Error(body.error || `Request failed with ${response.status}`)
+  }
+  return response.status === 204 ? undefined as T : response.json()
+}
+
+export const api = {
+  state: () => request<import('./types').DashboardState>('/api/state'),
+  sync: () => request<import('./types').DashboardState>('/api/sync', { method: 'POST' }),
+  addClub: (body: unknown) => request('/api/clubs', { method: 'POST', body: JSON.stringify(body) }),
+  updateClub: (id: string, body: unknown) => request(`/api/clubs/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteClub: (id: string) => request(`/api/clubs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  addApplicant: (body: unknown) => request('/api/applicants', { method: 'POST', body: JSON.stringify(body) }),
+  updateApplicant: (id: string, body: unknown) => request(`/api/applicants/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteApplicant: (id: string) => request(`/api/applicants/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  savePlan: (assignments: import('./types').Assignment[]) => request('/api/planning', { method: 'PUT', body: JSON.stringify({ assignments }) }),
+  confirmPlan: () => request('/api/planning/confirm', { method: 'POST' }),
+  preview: () => request<{ previous: unknown; next: unknown }>('/api/publication/preview'),
+  publish: () => request<{ destination: string }>('/api/publication/publish', { method: 'POST' }),
+}
