@@ -2,13 +2,14 @@ name: Refresh and deploy dashboard
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "public-data/input.json"
       - "src/**"
       - "scripts/**"
       - "package-lock.json"
       - "vite.config.ts"
+      - ".github/workflows/pages.yml"
   schedule:
     - cron: "17 */3 * * *"
   workflow_dispatch:

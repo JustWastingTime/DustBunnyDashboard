@@ -250,8 +250,15 @@ function PublicDashboard() {
   const [error, setError] = useState('')
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}data/dashboard.json`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Dashboard data has not been published yet.')))
-      .then(setData).catch((reason) => setError(reason.message))
+      .then(async (response) => {
+        if (response.ok) return response.json()
+        throw new Error(
+          `Could not load ${import.meta.env.BASE_URL}data/dashboard.json (${response.status}). ` +
+            'Run the GitHub Actions deploy workflow so it generates public dashboard data.',
+        )
+      })
+      .then(setData)
+      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
   }, [])
   if (error) return <main className="center-message"><h1>Club dashboard</h1><p>{error}</p></main>
   if (!data) return <main className="center-message"><h1>Club dashboard</h1><p>Loading latest report…</p></main>

@@ -4,8 +4,11 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const repository = env.GITHUB_REPOSITORY?.split('/')[1]
-  const pagesBase = repository ? `/${repository}/` : '/'
+  // CI sets GITHUB_REPOSITORY on process.env; loadEnv only reads .env files.
+  const repository = String(process.env.GITHUB_REPOSITORY || env.GITHUB_REPOSITORY || '')
+    .split('/')
+    .pop()
+  const pagesBase = repository ? `/${repository}/` : '/DustBunnyDashboard/'
 
   return {
     base: mode === 'public' ? pagesBase : '/',
