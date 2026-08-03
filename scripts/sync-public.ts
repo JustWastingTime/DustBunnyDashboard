@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import { getActiveCutoffMs, isMemberActive } from '../server/performance.ts'
+import { getActiveCutoffMs, isMemberActive } from '../server/performance.js'
 
 const inputSchema = z.object({
   schemaVersion: z.literal(1),

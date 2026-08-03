@@ -1,6 +1,7 @@
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
   if (!response.ok) {
@@ -10,7 +11,31 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? undefined as T : response.json()
 }
 
+export type SessionUser = {
+  discordId: string
+  username: string
+  globalName: string | null
+  avatar: string | null
+  clubIds: string[]
+  label: string | null
+}
+
 export const api = {
+  // Online (Vercel) endpoints
+  publicDashboard: () => request<import('./types').PublicData>('/api/public/dashboard'),
+  applyClubs: () => request<{ clubs: Array<{ circleId: string; name: string }> }>('/api/apply'),
+  submitApplication: (body: unknown) => request<{ ok: true }>('/api/apply', { method: 'POST', body: JSON.stringify(body) }),
+  me: () => request<{ authenticated: boolean; user?: SessionUser }>('/api/auth/me'),
+  logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  staffApplicants: () => request<{ applicants: import('./types').Applicant[]; user: SessionUser }>('/api/applicants'),
+  staffClubs: () => request<{ clubs: Array<{ circleId: string; name: string }>; user: SessionUser }>('/api/clubs'),
+  staffAddApplicant: (body: unknown) => request('/api/applicants', { method: 'POST', body: JSON.stringify(body) }),
+  staffUpdateApplicant: (umaId: string, body: unknown) =>
+    request(`/api/applicants?umaId=${encodeURIComponent(umaId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  staffDeleteApplicant: (umaId: string) =>
+    request<void>(`/api/applicants?umaId=${encodeURIComponent(umaId)}`, { method: 'DELETE' }),
+
+  // Local SQLite workspace endpoints
   state: () => request<import('./types').DashboardState>('/api/state'),
   sync: () => request<import('./types').DashboardState>('/api/sync', { method: 'POST' }),
   addClub: (body: unknown) => request('/api/clubs', { method: 'POST', body: JSON.stringify(body) }),

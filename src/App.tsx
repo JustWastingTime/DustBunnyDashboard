@@ -42,11 +42,33 @@ function BandBadge({ band, reason }: { band?: Band | null; reason?: string | nul
 function Header({ children, publicMode = false }: { children?: ReactNode; publicMode?: boolean }) {
   return <header className="site-header">
     <div>
-      <p className="eyebrow">{publicMode ? 'Public performance report' : 'Local management workspace'}</p>
+      <p className="eyebrow">{publicMode ? 'Club performance' : 'Local management workspace'}</p>
       <h1>Club operations</h1>
     </div>
     {children}
   </header>
+}
+
+function usePath() {
+  const [path, setPath] = useState(() => window.location.pathname)
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+  const navigate = (to: string) => {
+    if (to === path) return
+    window.history.pushState({}, '', to)
+    setPath(to)
+  }
+  return { path, navigate }
+}
+
+function SiteNav({ path, navigate }: { path: string; navigate: (to: string) => void }) {
+  return <nav className="tabs public-nav" aria-label="Site sections">
+    <button type="button" className={path === '/' ? 'active' : ''} onClick={() => navigate('/')}>Overview</button>
+    <button type="button" className={path.startsWith('/apply') ? 'active' : ''} onClick={() => navigate('/apply')}>Apply</button>
+  </nav>
 }
 
 function ClubSummary({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
@@ -245,21 +267,24 @@ function PublicApplicants({ applicants, clubs }: { applicants: Applicant[]; club
   </section>
 }
 
-function PublicDashboard() {
+function PublicDashboard({ navigate }: { navigate: (to: string) => void }) {
   const [data, setData] = useState<PublicData | null>(null)
   const [error, setError] = useState('')
+  const pagesOnly = import.meta.env.VITE_PUBLIC_ONLY === 'true'
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}data/dashboard.json`)
-      .then(async (response) => {
-        if (response.ok) return response.json()
+    const load = pagesOnly
+      ? fetch(`${import.meta.env.BASE_URL}data/dashboard.json`).then(async (response) => {
+        if (response.ok) return response.json() as Promise<PublicData>
         throw new Error(
           `Could not load ${import.meta.env.BASE_URL}data/dashboard.json (${response.status}). ` +
             'Run the GitHub Actions deploy workflow so it generates public dashboard data.',
         )
       })
+      : api.publicDashboard()
+    load
       .then(setData)
       .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
-  }, [])
+  }, [pagesOnly])
   if (error) return <main className="center-message"><h1>Club dashboard</h1><p>{error}</p></main>
   if (!data) return <main className="center-message"><h1>Club dashboard</h1><p>Loading latest report…</p></main>
   const members = data.clubs.flatMap((club) => club.members)
@@ -268,7 +293,13 @@ function PublicDashboard() {
     return result
   }, { promotion: 0, meeting: 0, under: 0, severe: 0, inactive: 0 })
   return <main className="shell">
-    <Header publicMode><Freshness date={data.generatedAt} /></Header>
+    <Header publicMode>
+      <div className="button-row">
+        <Freshness date={data.generatedAt} />
+        {!pagesOnly && <button type="button" className="primary" onClick={() => navigate('/apply')}>Apply to a club</button>}
+      </div>
+    </Header>
+    {!pagesOnly && <SiteNav path="/" navigate={navigate} />}
     <section className="summary-grid">
       <article><span>Active clubs</span><strong>{data.clubs.length}</strong></article>
       <article><span>Tracked members</span><strong>{members.length}</strong></article>
@@ -284,6 +315,270 @@ function PublicDashboard() {
     <MemberTable clubs={data.clubs} />
     <PublicApplicants applicants={data.applicants} clubs={data.clubs} />
     <footer>Source: uma.moe · Generated {new Date(data.generatedAt).toLocaleString()}</footer>
+  </main>
+}
+
+function ApplyPage({ navigate }: { navigate: (to: string) => void }) {
+  const [clubs, setClubs] = useState<Array<{ circleId: string; name: string }>>([])
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    api.applyClubs()
+      .then((payload) => setClubs(payload.clubs))
+      .catch((reason) => setError((reason as Error).message))
+  }, [])
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    setMessage('')
+    const form = new FormData(event.currentTarget)
+    try {
+      await api.submitApplication({
+        umaId: String(form.get('umaId') || '').trim(),
+        discordUsername: String(form.get('discordUsername') || '').trim(),
+        targetClubId: String(form.get('targetClubId') || ''),
+        notes: String(form.get('notes') || ''),
+      })
+      setMessage('Application received. Managers will review it privately.')
+      event.currentTarget.reset()
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <main className="shell">
+    <Header publicMode />
+    <SiteNav path="/apply" navigate={navigate} />
+    <section className="panel form-stack apply-form">
+      <div>
+        <p className="eyebrow">Recruitment</p>
+        <h2>Apply to a club</h2>
+        <p className="muted">Enter your Uma ID and Discord username. Managers can see Discord details; the public overview never shows them.</p>
+      </div>
+      <form className="form-stack" onSubmit={submit}>
+        <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required placeholder="123456789" /></label>
+        <label>Discord username<input name="discordUsername" required minLength={2} maxLength={64} placeholder="name or name#0000" /></label>
+        <label>Club<select name="targetClubId" required defaultValue="">
+          <option value="" disabled>Select a club</option>
+          {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
+        </select></label>
+        <label>Notes for managers<textarea name="notes" rows={4} maxLength={2000} placeholder="Optional" /></label>
+        <div className="button-row">
+          <button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit application'}</button>
+          <button type="button" onClick={() => navigate('/')}>Back to overview</button>
+        </div>
+      </form>
+      {message && <p className="notice">{message}</p>}
+      {error && <p className="notice error">{error}</p>}
+    </section>
+  </main>
+}
+
+function StaffApplicants({
+  applicants,
+  clubs,
+  reload,
+}: {
+  applicants: Applicant[]
+  clubs: Array<{ circleId: string; name: string }>
+  reload: () => Promise<void>
+}) {
+  const [editing, setEditing] = useState<Applicant | null>(null)
+  const [statusFilter, setStatusFilter] = useState<Status | 'all'>('pending')
+  const clubNames = new Map(clubs.map((club) => [club.circleId, club.name]))
+  const statusCounts = applicants.reduce<Record<string, number>>((counts, applicant) => {
+    counts[applicant.status] = (counts[applicant.status] || 0) + 1
+    return counts
+  }, {})
+  const filtered = applicants.filter((applicant) => statusFilter === 'all' || applicant.status === statusFilter)
+  const setStatus = async (applicant: Applicant, status: Status) => {
+    await api.staffUpdateApplicant(applicant.umaId, { status })
+    await reload()
+  }
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const body = {
+      umaId: String(form.get('umaId')),
+      discordUsername: String(form.get('discordUsername') || ''),
+      targetClubId: String(form.get('targetClubId')),
+      status: String(form.get('status')),
+      privateNotes: String(form.get('privateNotes') || ''),
+      publishPublicly: form.get('publishPublicly') === 'on',
+    }
+    if (editing) {
+      await api.staffUpdateApplicant(editing.umaId, {
+        ...body,
+        refresh: true,
+      })
+    } else {
+      await api.staffAddApplicant(body)
+    }
+    setEditing(null)
+    event.currentTarget.reset()
+    await reload()
+  }
+  return <section className="split-layout applicants-layout">
+    <form className="panel form-stack" onSubmit={submit} key={editing?.umaId || 'new-applicant'}>
+      <div><p className="eyebrow">Intake</p><h2>{editing ? 'Edit applicant' : 'Add applicant'}</h2></div>
+      <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required readOnly={Boolean(editing)} defaultValue={editing?.umaId} /></label>
+      <label>Discord username<input name="discordUsername" defaultValue={editing?.discordUsername || ''} /></label>
+      <label>Applying to<select name="targetClubId" required defaultValue={editing?.targetClubId}><option value="">Select a club</option>{clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}</select></label>
+      <label>Status<select name="status" defaultValue={editing?.status || 'pending'}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></label>
+      <label>Private notes<textarea name="privateNotes" rows={4} defaultValue={editing?.privateNotes} /></label>
+      <label className="check"><input name="publishPublicly" type="checkbox" defaultChecked={editing?.publishPublicly ?? true} /> Show on public overview</label>
+      <div className="button-row"><button className="primary">{editing ? 'Save applicant' : 'Resolve and add'}</button>{editing && <button type="button" onClick={() => setEditing(null)}>Cancel</button>}</div>
+    </form>
+    <section className="panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Recruitment</p>
+          <h2>{filtered.length} applicants</h2>
+          <p>{statusFilter === 'all' ? `${applicants.length} total` : `${statusCounts[statusFilter] || 0} ${statusFilter}`}</p>
+        </div>
+      </div>
+      <div className="band-filter-row" role="group" aria-label="Filter applicants by status">
+        <button type="button" className={`band-chip ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>
+          All<span>{applicants.length}</span>
+        </button>
+        {statusOptions.map((status) => (
+          <button
+            key={status}
+            type="button"
+            className={`band-chip status-chip status-${status} ${statusFilter === status ? 'active' : ''}`}
+            onClick={() => setStatusFilter(status)}
+          >
+            {status}<span>{statusCounts[status] || 0}</span>
+          </button>
+        ))}
+      </div>
+      <div className="applicant-cards">{filtered.length === 0 ? (
+        <p className="muted empty-applicants">No applicants in this status.</p>
+      ) : filtered.map((applicant) => <article key={applicant.umaId}>
+        <div><strong>{applicant.ign}</strong><small className="id">{applicant.umaId}</small></div>
+        <span className={`status status-${applicant.status}`}>{applicant.status}</span>
+        <dl>
+          <div><dt>Discord</dt><dd>{applicant.discordUsername || '—'}</dd></div>
+          <div><dt>Daily average</dt><dd>{number.format(applicant.dailyAverage)}</dd></div>
+          <div><dt>Applying to</dt><dd>{clubNames.get(applicant.targetClubId) || applicant.targetClubId}</dd></div>
+          <div><dt>Current club</dt><dd>{applicant.currentClubName || '—'}</dd></div>
+          <div><dt>Monthly</dt><dd>{number.format(applicant.monthlyGain)}</dd></div>
+        </dl>
+        <div className="applicant-trend">
+          <p className="trend-label">30-day fans</p>
+          <TrendChart label={applicant.ign} dailyGains={applicant.dailyGains} height={96} className="applicant-chart" />
+        </div>
+        <p>{applicant.privateNotes || 'No private notes'}</p>
+        <div className="button-row">
+          {applicant.status !== 'approved' && (
+            <button className="primary" onClick={async () => { await setStatus(applicant, 'approved') }}>Approve</button>
+          )}
+          {applicant.status !== 'waitlisted' && (
+            <button onClick={async () => { await setStatus(applicant, 'waitlisted') }}>Waitlist</button>
+          )}
+          <button onClick={() => setEditing(applicant)}>Edit</button>
+          <button className="danger-link" onClick={async () => { if (confirm(`Delete ${applicant.ign}?`)) { await api.staffDeleteApplicant(applicant.umaId); await reload() } }}>Delete</button>
+        </div>
+      </article>)}</div>
+    </section>
+  </section>
+}
+
+function StaffPage() {
+  const [auth, setAuth] = useState<'loading' | 'guest' | 'user'>('loading')
+  const [userLabel, setUserLabel] = useState('')
+  const [tab, setTab] = useState<'overview' | 'applicants'>('applicants')
+  const [dashboard, setDashboard] = useState<PublicData | null>(null)
+  const [applicants, setApplicants] = useState<Applicant[]>([])
+  const [clubs, setClubs] = useState<Array<{ circleId: string; name: string }>>([])
+  const [error, setError] = useState('')
+  const params = new URLSearchParams(window.location.search)
+  const loginError = params.get('error')
+
+  const reload = async () => {
+    const me = await api.me()
+    if (!me.authenticated || !me.user) {
+      setAuth('guest')
+      return
+    }
+    setAuth('user')
+    setUserLabel(me.user.label || me.user.globalName || me.user.username)
+    const [dash, staff, clubPayload] = await Promise.all([
+      api.publicDashboard(),
+      api.staffApplicants(),
+      api.staffClubs(),
+    ])
+    setDashboard(dash)
+    setApplicants(staff.applicants)
+    setClubs(clubPayload.clubs.map((club) => ({ circleId: club.circleId, name: club.name })))
+  }
+
+  useEffect(() => {
+    reload().catch((reason) => {
+      setAuth('guest')
+      setError((reason as Error).message)
+    })
+  }, [])
+
+  if (auth === 'loading') {
+    return <main className="center-message"><h1>Staff</h1><p>Checking Discord session…</p></main>
+  }
+
+  if (auth === 'guest') {
+    return <main className="center-message staff-login">
+      <h1>Staff login</h1>
+      <p>Sign in with Discord. Only allowlisted managers can open applicants.</p>
+      {(loginError === 'unauthorized' || loginError === 'login_failed') && (
+        <p className="notice error">
+          {loginError === 'unauthorized'
+            ? 'That Discord account is not in config/access.json.'
+            : 'Discord login failed. Try again.'}
+        </p>
+      )}
+      {error && <p className="notice error">{error}</p>}
+      <div className="button-row">
+        <a className="primary button-link" href="/api/auth/login">Log in with Discord</a>
+        <a href="/">Public overview</a>
+      </div>
+    </main>
+  }
+
+  return <main className="shell local-shell">
+    <Header>
+      <div className="button-row">
+        <span className="muted">{userLabel}</span>
+        <button type="button" onClick={async () => { await api.logout(); window.location.href = '/staff' }}>Log out</button>
+      </div>
+    </Header>
+    {error && <p className="notice error">{error}</p>}
+    <nav className="tabs" aria-label="Staff sections">
+      <button type="button" className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>overview</button>
+      <button type="button" className={tab === 'applicants' ? 'active' : ''} onClick={() => setTab('applicants')}>applicants</button>
+    </nav>
+    {tab === 'overview' && dashboard && (
+      <>
+        <ClubSummary clubs={dashboard.clubs} />
+        <MemberTable clubs={dashboard.clubs} />
+        <PublicApplicants applicants={dashboard.applicants} clubs={dashboard.clubs} />
+      </>
+    )}
+    {tab === 'applicants' && (
+      <StaffApplicants
+        applicants={applicants}
+        clubs={clubs}
+        reload={async () => {
+          try {
+            await reload()
+            setError('')
+          } catch (reason) {
+            setError((reason as Error).message)
+          }
+        }}
+      />
+    )}
   </main>
 }
 
@@ -642,5 +937,16 @@ function LocalWorkspace() {
 }
 
 export default function App() {
-  return import.meta.env.VITE_PUBLIC_ONLY === 'true' ? <PublicDashboard /> : <LocalWorkspace />
+  if (import.meta.env.VITE_LOCAL_WORKSPACE === 'true') return <LocalWorkspace />
+  if (import.meta.env.VITE_PUBLIC_ONLY === 'true') {
+    return <PublicDashboard navigate={() => undefined} />
+  }
+  return <OnlineApp />
+}
+
+function OnlineApp() {
+  const { path, navigate } = usePath()
+  if (path.startsWith('/staff')) return <StaffPage />
+  if (path.startsWith('/apply')) return <ApplyPage navigate={navigate} />
+  return <PublicDashboard navigate={navigate} />
 }

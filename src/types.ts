@@ -33,6 +33,7 @@ export type Member = {
 export type Applicant = {
   umaId: string
   ign: string
+  discordUsername?: string
   targetClubId: string
   status: Status
   privateNotes?: string

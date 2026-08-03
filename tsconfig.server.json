@@ -8,9 +8,8 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "verbatimModuleSyntax": true,
-    "resolveJsonModule": true,
-    "allowImportingTsExtensions": true
+    "esModuleInterop": true,
+    "resolveJsonModule": true
   },
-  "include": ["server/**/*.ts", "scripts/**/*.ts", "vite.config.ts"]
+  "include": ["server/**/*.ts", "scripts/**/*.ts", "api/**/*.ts", "vite.config.ts"]
 }
