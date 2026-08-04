@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
@@ -1269,7 +1269,6 @@ function PlannerCardFace({
   fromLabel,
   originClass,
   kind,
-  showCopy = true,
 }: {
   name: string
   meta: string
@@ -1278,30 +1277,19 @@ function PlannerCardFace({
   fromLabel?: string | null
   originClass?: string
   kind: 'member' | 'applicant'
-  showCopy?: boolean
 }) {
-  const copyId = async (event: MouseEvent) => {
-    event.stopPropagation()
-    event.preventDefault()
-    try {
-      await navigator.clipboard.writeText(umaId)
-    } catch {
-      // Clipboard may be unavailable in some environments; selection still helps.
-    }
-  }
-  return <>
+  const tag = moved && fromLabel
+    ? <em className={`move-tag ${originClass || ''}`}>{fromLabel.replace(/ Bunny$/i, '')}</em>
+    : kind === 'applicant' && !moved
+      ? <em className="move-tag origin-applicant">applicant</em>
+      : null
+  return <div className="drag-card-top">
     <div className="drag-main">
-      <strong>{name}</strong>
+      <strong title={umaId}>{name}</strong>
       <span>{meta}</span>
-      {moved && showCopy ? (
-        <button type="button" className="id-copy" title="Copy Uma ID" onPointerDown={(event) => event.stopPropagation()} onClick={copyId}>
-          {umaId}
-        </button>
-      ) : null}
     </div>
-    {moved && fromLabel ? <em className={`move-tag ${originClass || ''}`}>{fromLabel.replace(/ Bunny$/i, '')}</em> : null}
-    {kind === 'applicant' && !moved ? <em className="move-tag origin-applicant">applicant</em> : null}
-  </>
+    {tag}
+  </div>
 }
 
 function DraggableCard({
@@ -1368,7 +1356,6 @@ function DragCardOverlay({
       fromLabel={fromLabel}
       originClass={originClass}
       kind={kind}
-      showCopy={false}
     />
   </article>
 }
