@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
-import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
@@ -785,6 +785,7 @@ function StaffPlanner({
   const [checklistFilter, setChecklistFilter] = useState<string | 'all'>('all')
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
   const [busy, setBusy] = useState(false)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
   useEffect(() => {
     setAssignments(initialAssignments.map((item) => (
@@ -845,7 +846,12 @@ function StaffPlanner({
     }
   }
 
+  const onDragStart = ({ active }: DragStartEvent) => {
+    setActiveDragId(String(active.id))
+  }
+
   const onDragEnd = async ({ active, over }: DragEndEvent) => {
+    setActiveDragId(null)
     if (!over) return
     const [entityType, entityId] = String(active.id).split(':') as ['member' | 'applicant', string]
     const next = assignments.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
@@ -857,6 +863,8 @@ function StaffPlanner({
     })
     await persist(next)
   }
+
+  const onDragCancel = () => setActiveDragId(null)
 
   const focusClub = clubs.find((club) => club.circleId === focusClubId) || clubs[0]
   const boardLanes = focusClub
@@ -881,6 +889,7 @@ function StaffPlanner({
     })
 
   const movedCount = entities.filter((entity) => destination(entity) !== entity.fallback).length
+  const activeEntity = activeDragId ? entities.find((entity) => entity.key === activeDragId) : null
 
   return <section className="planner staff-planner">
     <div className="planner-heading">
@@ -949,7 +958,7 @@ function StaffPlanner({
     </div>
 
     {focusClub && (
-      <DndContext onDragEnd={onDragEnd}>
+      <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
         <div className="lanes staff-lanes">
           {boardLanes.map((lane) => {
             const cards = cardsFor(lane.id)
@@ -973,6 +982,19 @@ function StaffPlanner({
             </Lane>
           })}
         </div>
+        <DragOverlay dropAnimation={null}>
+          {activeEntity ? (
+            <DragCardOverlay
+              name={activeEntity.name}
+              meta={activeEntity.meta}
+              umaId={activeEntity.umaId}
+              kind={activeEntity.kind}
+              moved={destination(activeEntity) !== activeEntity.fallback}
+              fromLabel={destination(activeEntity) !== activeEntity.fallback ? originLabel(activeEntity.fallback) : null}
+              originClass={originTone(activeEntity.fallback, clubNames.get(activeEntity.fallback))}
+            />
+          ) : null}
+        </DragOverlay>
       </DndContext>
     )}
   </section>
@@ -1237,6 +1259,49 @@ function originTone(sourceId: string, clubName?: string | null) {
   return 'origin-other'
 }
 
+function PlannerCardFace({
+  name,
+  meta,
+  umaId,
+  moved,
+  fromLabel,
+  originClass,
+  kind,
+  showCopy = true,
+}: {
+  name: string
+  meta: string
+  umaId: string
+  moved: boolean
+  fromLabel?: string | null
+  originClass?: string
+  kind: 'member' | 'applicant'
+  showCopy?: boolean
+}) {
+  const copyId = async (event: MouseEvent) => {
+    event.stopPropagation()
+    event.preventDefault()
+    try {
+      await navigator.clipboard.writeText(umaId)
+    } catch {
+      // Clipboard may be unavailable in some environments; selection still helps.
+    }
+  }
+  return <>
+    <div className="drag-main">
+      <strong>{name}</strong>
+      <span>{meta}</span>
+      {moved && showCopy ? (
+        <button type="button" className="id-copy" title="Copy Uma ID" onPointerDown={(event) => event.stopPropagation()} onClick={copyId}>
+          {umaId}
+        </button>
+      ) : null}
+    </div>
+    {moved && fromLabel ? <em className={`move-tag ${originClass || ''}`}>from {fromLabel}</em> : null}
+    {kind === 'applicant' && !moved ? <em className="move-tag origin-applicant">applicant</em> : null}
+  </>
+}
+
 function DraggableCard({
   id,
   name,
@@ -1256,34 +1321,53 @@ function DraggableCard({
   originClass?: string
   kind: 'member' | 'applicant'
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id })
-  const copyId = async (event: MouseEvent) => {
-    event.stopPropagation()
-    event.preventDefault()
-    try {
-      await navigator.clipboard.writeText(umaId)
-    } catch {
-      // Clipboard may be unavailable in some environments; selection still helps.
-    }
-  }
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
   return <article
     ref={setNodeRef}
     className={`drag-card ${kind} ${moved ? 'moved' : ''} ${originClass || ''} ${isDragging ? 'dragging' : ''}`}
-    style={{ transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined }}
     {...listeners}
     {...attributes}
   >
-    <div className="drag-main">
-      <strong>{name}</strong>
-      <span>{meta}</span>
-      {moved ? (
-        <button type="button" className="id-copy" title="Copy Uma ID" onPointerDown={(event) => event.stopPropagation()} onClick={copyId}>
-          {umaId}
-        </button>
-      ) : null}
-    </div>
-    {moved && fromLabel ? <em className={`move-tag ${originClass || ''}`}>from {fromLabel}</em> : null}
-    {kind === 'applicant' && !moved ? <em className="move-tag origin-applicant">applicant</em> : null}
+    <PlannerCardFace
+      name={name}
+      meta={meta}
+      umaId={umaId}
+      moved={moved}
+      fromLabel={fromLabel}
+      originClass={originClass}
+      kind={kind}
+    />
+  </article>
+}
+
+function DragCardOverlay({
+  name,
+  meta,
+  umaId,
+  moved,
+  fromLabel,
+  originClass,
+  kind,
+}: {
+  name: string
+  meta: string
+  umaId: string
+  moved: boolean
+  fromLabel?: string | null
+  originClass?: string
+  kind: 'member' | 'applicant'
+}) {
+  return <article className={`drag-card drag-overlay-card ${kind} ${moved ? 'moved' : ''} ${originClass || ''}`}>
+    <PlannerCardFace
+      name={name}
+      meta={meta}
+      umaId={umaId}
+      moved={moved}
+      fromLabel={fromLabel}
+      originClass={originClass}
+      kind={kind}
+      showCopy={false}
+    />
   </article>
 }
 
@@ -1327,6 +1411,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     })),
   ], [state])
   const [assignments, setAssignments] = useState<Assignment[]>(state.assignments)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   useEffect(() => {
     setAssignments(state.assignments.map((item) => (
       item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
@@ -1344,7 +1429,10 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     { id: 'applicants', title: 'Applicants' },
   ]
   const movedEntities = entities.filter((entity) => destination(entity) !== entity.fallback)
+  const onDragStart = ({ active }: DragStartEvent) => setActiveDragId(String(active.id))
+  const onDragCancel = () => setActiveDragId(null)
   const onDragEnd = async ({ active, over }: DragEndEvent) => {
+    setActiveDragId(null)
     if (!over) return
     const [entityType, entityId] = String(active.id).split(':') as ['member' | 'applicant', string]
     const next = assignments.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
@@ -1356,6 +1444,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     if (fallback === 'applicants' || fallback === 'unassigned') return 'Applicants'
     return clubNames.get(fallback) || fallback
   }
+  const activeEntity = activeDragId ? entities.find((entity) => entity.key === activeDragId) : null
   return <section className="planner">
     <div className="planner-heading">
       <div>
@@ -1368,7 +1457,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
         <button className="primary" onClick={async () => { await api.confirmPlan(); await reload() }}>Confirm plan</button>
       </div>
     </div>
-    <DndContext onDragEnd={onDragEnd}>
+    <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
       <div className="lanes">{lanes.map((lane) => {
         const cards = entities
           .filter((entity) => destination(entity) === lane.id)
@@ -1397,6 +1486,19 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
           })}
         </Lane>
       })}</div>
+      <DragOverlay dropAnimation={null}>
+        {activeEntity ? (
+          <DragCardOverlay
+            name={activeEntity.name}
+            meta={activeEntity.meta}
+            umaId={activeEntity.umaId}
+            kind={activeEntity.kind}
+            moved={destination(activeEntity) !== activeEntity.fallback}
+            fromLabel={destination(activeEntity) !== activeEntity.fallback ? originLabel(activeEntity.fallback) : null}
+            originClass={originTone(activeEntity.fallback, clubNames.get(activeEntity.fallback))}
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   </section>
 }
