@@ -347,52 +347,33 @@ function PublicApplicants({ applicants, clubs }: { applicants: Applicant[]; club
   </section>
 }
 
-function PublicDashboard({ navigate }: { navigate: (to: string) => void }) {
-  const [data, setData] = useState<PublicData | null>(null)
-  const [error, setError] = useState('')
-  const pagesOnly = import.meta.env.VITE_PUBLIC_ONLY === 'true'
-  useEffect(() => {
-    const load = pagesOnly
-      ? fetch(`${import.meta.env.BASE_URL}data/dashboard.json`).then(async (response) => {
-        if (response.ok) return response.json() as Promise<PublicData>
-        throw new Error(
-          `Could not load ${import.meta.env.BASE_URL}data/dashboard.json (${response.status}). ` +
-            'Run the GitHub Actions deploy workflow so it generates public dashboard data.',
-        )
-      })
-      : api.publicDashboard()
-    load
-      .then(setData)
-      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
-  }, [pagesOnly])
-  if (error) return <main className="center-message"><h1>Bunny clubs</h1><p>{error}</p></main>
-  if (!data) return <main className="center-message"><h1>Bunny clubs</h1><p>Gathering the latest club vibes…</p></main>
-  return <main className="shell">
-    <Header publicMode>
-      <div className="button-row">
-        <Freshness date={data.generatedAt} />
-        {!pagesOnly && <button type="button" className="primary" onClick={() => navigate('/apply')}>Apply to a club</button>}
-      </div>
-    </Header>
-    {!pagesOnly && <SiteNav path="/" navigate={navigate} />}
+function loadPublicDashboard(): Promise<PublicData> {
+  if (import.meta.env.VITE_PUBLIC_ONLY === 'true') {
+    return fetch(`${import.meta.env.BASE_URL}data/dashboard.json`).then(async (response) => {
+      if (response.ok) return response.json() as Promise<PublicData>
+      throw new Error(
+        `Could not load ${import.meta.env.BASE_URL}data/dashboard.json (${response.status}). ` +
+          'Run the GitHub Actions deploy workflow so it generates public dashboard data.',
+      )
+    })
+  }
+  return api.publicDashboard()
+}
+
+function OverviewBody({ data }: { data: PublicData }) {
+  return <>
     <section className="club-grid">{data.clubs.map((club) => <ClubOverviewCard key={club.circleId} club={club} />)}</section>
     <ClubSummary clubs={data.clubs} />
     <MemberTable clubs={data.clubs} />
     <PublicApplicants applicants={data.applicants} clubs={data.clubs} />
-    <footer>Source: uma.moe · Updated {new Date(data.generatedAt).toLocaleString()}</footer>
-  </main>
+  </>
 }
 
-function ApplyPage({ navigate }: { navigate: (to: string) => void }) {
-  const [clubs, setClubs] = useState<Array<{ circleId: string; name: string }>>([])
+function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  useEffect(() => {
-    api.applyClubs()
-      .then((payload) => setClubs(payload.clubs))
-      .catch((reason) => setError((reason as Error).message))
-  }, [])
+  const [selectedClubId, setSelectedClubId] = useState(clubs[0]?.circleId || '')
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setBusy(true)
@@ -408,38 +389,103 @@ function ApplyPage({ navigate }: { navigate: (to: string) => void }) {
       })
       setMessage('Application received. Managers will review it privately.')
       event.currentTarget.reset()
+      setSelectedClubId(clubs[0]?.circleId || '')
     } catch (reason) {
       setError((reason as Error).message)
     } finally {
       setBusy(false)
     }
   }
-  return <main className="shell">
-    <Header publicMode />
-    <SiteNav path="/apply" navigate={navigate} />
-    <section className="panel form-stack apply-form">
+  return <>
+    <section className="apply-intro">
       <div>
         <p className="eyebrow">Recruitment</p>
-        <h2>Apply to a club</h2>
-        <p className="muted">Enter your Uma ID and Discord username. Managers can see Discord details; the public overview never shows them.</p>
+        <h2>Pick a club, then apply</h2>
+        <p className="muted">Compare ranks and requirements below, then send your Uma ID and Discord username.</p>
+      </div>
+    </section>
+    <section className="club-grid">{clubs.map((club) => (
+      <div
+        key={club.circleId}
+        role="button"
+        tabIndex={0}
+        className={`club-pick ${selectedClubId === club.circleId ? 'selected' : ''}`}
+        onClick={() => setSelectedClubId(club.circleId)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setSelectedClubId(club.circleId)
+          }
+        }}
+        aria-pressed={selectedClubId === club.circleId}
+      >
+        <ClubOverviewCard club={club} />
+      </div>
+    ))}</section>
+    <section className="panel form-stack apply-form">
+      <div>
+        <p className="eyebrow">Your application</p>
+        <h2>Apply to {clubs.find((club) => club.circleId === selectedClubId)?.name || 'a club'}</h2>
+        <p className="muted">Managers can see Discord details; the public overview never shows them.</p>
       </div>
       <form className="form-stack" onSubmit={submit}>
         <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required placeholder="123456789" /></label>
         <label>Discord username<input name="discordUsername" required minLength={2} maxLength={64} placeholder="name or name#0000" /></label>
-        <label>Club<select name="targetClubId" required defaultValue="">
-          <option value="" disabled>Select a club</option>
-          {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
-        </select></label>
+        <label>Club
+          <select
+            name="targetClubId"
+            required
+            value={selectedClubId}
+            onChange={(event) => setSelectedClubId(event.target.value)}
+          >
+            {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
+          </select>
+        </label>
         <label>Notes for managers<textarea name="notes" rows={4} maxLength={2000} placeholder="Optional" /></label>
         <div className="button-row">
           <button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit application'}</button>
-          <button type="button" onClick={() => navigate('/')}>Back to overview</button>
         </div>
       </form>
       {message && <p className="notice">{message}</p>}
       {error && <p className="notice error">{error}</p>}
     </section>
+  </>
+}
+
+function PublicSite({ path, navigate }: { path: string; navigate: (to: string) => void }) {
+  const [data, setData] = useState<PublicData | null>(null)
+  const [error, setError] = useState('')
+  const pagesOnly = import.meta.env.VITE_PUBLIC_ONLY === 'true'
+  const isApply = !pagesOnly && path.startsWith('/apply')
+
+  useEffect(() => {
+    let cancelled = false
+    loadPublicDashboard()
+      .then((payload) => { if (!cancelled) setData(payload) })
+      .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)) })
+    return () => { cancelled = true }
+  }, [])
+
+  if (error) return <main className="center-message"><h1>Bunny clubs</h1><p>{error}</p></main>
+  if (!data) return <main className="center-message"><h1>Bunny clubs</h1><p>Gathering the latest club vibes…</p></main>
+
+  return <main className="shell">
+    <Header publicMode>
+      <div className="button-row">
+        <Freshness date={data.generatedAt} />
+        {!pagesOnly && !isApply && (
+          <button type="button" className="primary" onClick={() => navigate('/apply')}>Apply to a club</button>
+        )}
+      </div>
+    </Header>
+    {!pagesOnly && <SiteNav path={isApply ? '/apply' : '/'} navigate={navigate} />}
+    {isApply ? <ApplyBody clubs={data.clubs} /> : <OverviewBody data={data} />}
+    <footer>Source: uma.moe · Updated {new Date(data.generatedAt).toLocaleString()}</footer>
   </main>
+}
+
+function PublicDashboard({ navigate }: { navigate: (to: string) => void }) {
+  return <PublicSite path="/" navigate={navigate} />
 }
 
 function StaffApplicants({
@@ -1417,6 +1463,5 @@ export default function App() {
 function OnlineApp() {
   const { path, navigate } = usePath()
   if (path.startsWith('/staff')) return <StaffPage />
-  if (path.startsWith('/apply')) return <ApplyPage navigate={navigate} />
-  return <PublicDashboard navigate={navigate} />
+  return <PublicSite path={path} navigate={navigate} />
 }
