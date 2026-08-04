@@ -119,8 +119,11 @@ function BandBadge({ band, reason }: { band?: Band | null; reason?: string | nul
 function Header({ children, publicMode = false }: { children?: ReactNode; publicMode?: boolean }) {
   return <header className="site-header">
     <div>
-      <p className="eyebrow">{publicMode ? 'Club performance' : 'Local management workspace'}</p>
-      <h1>Club operations</h1>
+      <p className="eyebrow">{publicMode ? 'Dust · Dirt · Damp' : 'Local management workspace'}</p>
+      <h1>{publicMode ? 'Bunny clubs' : 'Club operations'}</h1>
+      {publicMode ? (
+        <p className="lede">A cozy look at how our clubs are doing — ranks, fans, and who’s applying next.</p>
+      ) : null}
     </div>
     {children}
   </header>
@@ -362,13 +365,8 @@ function PublicDashboard({ navigate }: { navigate: (to: string) => void }) {
       .then(setData)
       .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
   }, [pagesOnly])
-  if (error) return <main className="center-message"><h1>Club dashboard</h1><p>{error}</p></main>
-  if (!data) return <main className="center-message"><h1>Club dashboard</h1><p>Loading latest report…</p></main>
-  const members = data.clubs.flatMap((club) => club.members)
-  const counts = members.reduce<Record<Band, number>>((result, member) => {
-    result[member.band] += 1
-    return result
-  }, { promotion: 0, meeting: 0, under: 0, severe: 0, inactive: 0 })
+  if (error) return <main className="center-message"><h1>Bunny clubs</h1><p>{error}</p></main>
+  if (!data) return <main className="center-message"><h1>Bunny clubs</h1><p>Gathering the latest club vibes…</p></main>
   return <main className="shell">
     <Header publicMode>
       <div className="button-row">
@@ -377,17 +375,11 @@ function PublicDashboard({ navigate }: { navigate: (to: string) => void }) {
       </div>
     </Header>
     {!pagesOnly && <SiteNav path="/" navigate={navigate} />}
-    <section className="summary-grid">
-      <article><span>Active clubs</span><strong>{data.clubs.length}</strong></article>
-      <article><span>Tracked members</span><strong>{members.length}</strong></article>
-      <article><span>Promotion candidates</span><strong>{counts.promotion}</strong></article>
-      <article><span>Needs attention</span><strong>{counts.severe + counts.inactive}</strong></article>
-    </section>
     <section className="club-grid">{data.clubs.map((club) => <ClubOverviewCard key={club.circleId} club={club} />)}</section>
     <ClubSummary clubs={data.clubs} />
     <MemberTable clubs={data.clubs} />
     <PublicApplicants applicants={data.applicants} clubs={data.clubs} />
-    <footer>Source: uma.moe · Generated {new Date(data.generatedAt).toLocaleString()}</footer>
+    <footer>Source: uma.moe · Updated {new Date(data.generatedAt).toLocaleString()}</footer>
   </main>
 }
 
