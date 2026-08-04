@@ -155,15 +155,13 @@ for (const configured of input.clubs) {
   const monthlyFans = livePoints ?? (typeof circle?.monthly_point === 'number' ? circle.monthly_point : null)
   const rankGrade = (() => {
     if (monthlyFans == null) return null
-    if (monthlyFans >= 3_000_000_000) return 'SS'
-    if (monthlyFans >= 1_500_000_000) return 'S'
-    if (monthlyFans >= 400_000_000) return 'A'
-    if (monthlyFans >= 150_000_000) return 'B'
-    if (monthlyFans >= 50_000_000) return 'C'
-    if (monthlyFans >= 20_000_000) return 'D'
-    if (monthlyFans >= 5_000_000) return 'E'
-    if (monthlyFans >= 1_000_000) return 'F'
-    return 'G'
+    if (monthlyFans >= 2_500_000_000) return 'ss'
+    if (monthlyFans >= 1_500_000_000) return 'splus'
+    if (monthlyFans >= 1_000_000_000) return 's'
+    if (monthlyFans >= 700_000_000) return 'aplus'
+    if (monthlyFans >= 400_000_000) return 'a'
+    if (monthlyFans >= 200_000_000) return 'bplus'
+    return 'b'
   })()
 
   clubs.push({

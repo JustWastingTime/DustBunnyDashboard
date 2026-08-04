@@ -22,7 +22,7 @@ function Freshness({ date }: { date?: string | null }) {
 function ClubRankBadge({ grade }: { grade?: string | null }) {
   const [failed, setFailed] = useState(false)
   if (!grade) return null
-  const src = `${import.meta.env.BASE_URL}club-ranks/${grade}.png`
+  const src = `${import.meta.env.BASE_URL}club-ranks/${grade}.webp`
   if (!failed) {
     return <img
       className="club-rank-image"

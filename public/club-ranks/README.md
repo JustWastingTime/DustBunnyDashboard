@@ -1,9 +1,15 @@
 # Club rank badge images
 
-Drop PNG files here named by grade letter. The overview cards load:
+Filenames (lowercase) loaded as `/{grade}.webp`:
 
-- `SS.png`, `S.png`, `A.png`, `B.png`, `C.png`, `D.png`, `E.png`, `F.png`, `G.png`
+| File | Grade |
+| --- | --- |
+| `ss.webp` | SS |
+| `splus.webp` | S+ |
+| `s.webp` | S |
+| `aplus.webp` | A+ |
+| `a.webp` | A |
+| `bplus.webp` | B+ |
+| `b.webp` | B |
 
-If a file is missing, the card shows a text badge fallback.
-
-Grade is estimated from monthly fan total (`live_points`). If your assets use different names or thresholds, say so and we can adjust.
+Grade is estimated from monthly fan total (`live_points`). If a badge looks wrong for a club, tell us the correct thresholds and we can adjust.
