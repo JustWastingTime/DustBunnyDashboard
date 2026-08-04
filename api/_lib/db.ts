@@ -20,6 +20,7 @@ export type ClubRow = {
   severeRatio: number
   inactiveDays: number
   promotionEnabled: boolean
+  rankGrade: string | null
   sortOrder: number
 }
 
@@ -45,6 +46,7 @@ function mapClub(row: any): ClubRow {
     severeRatio: Number(row.severe_ratio || 0.5),
     inactiveDays: Number(row.inactive_days || 3),
     promotionEnabled: row.promotion_enabled !== false && row.promotion_enabled !== 0,
+    rankGrade: row.rank_grade == null || row.rank_grade === '' ? null : String(row.rank_grade),
     sortOrder: Number(row.sort_order || 0),
   }
 }
@@ -108,10 +110,12 @@ export async function ensureSchema() {
           severe_ratio DOUBLE PRECISION NOT NULL DEFAULT 0.5,
           inactive_days INTEGER NOT NULL DEFAULT 3,
           promotion_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          rank_grade TEXT,
           sort_order INTEGER NOT NULL DEFAULT 0,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `
+      await db`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rank_grade TEXT`
       await db`
         CREATE TABLE IF NOT EXISTS planning_boards (
           id INTEGER PRIMARY KEY,
@@ -204,6 +208,7 @@ export async function updateClub(
     severeRatio: number
     inactiveDays: number
     promotionEnabled: boolean
+    rankGrade: string | null
   },
 ) {
   await ensureSchema()
@@ -217,6 +222,7 @@ export async function updateClub(
       severe_ratio = ${input.severeRatio},
       inactive_days = ${input.inactiveDays},
       promotion_enabled = ${input.promotionEnabled},
+      rank_grade = ${input.rankGrade},
       updated_at = NOW()
     WHERE circle_id = ${circleId} AND circle_id = ANY(${clubIds})
     RETURNING *

@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { listClubs, updateClub } from './_lib/db.js'
 import { requireManager, sendError } from './_lib/shared.js'
 
+const rankGrades = ['ss', 'splus', 's', 'aplus', 'a', 'bplus', 'b'] as const
+
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   dailyTarget: z.number().int().nonnegative(),
@@ -10,6 +12,7 @@ const updateSchema = z.object({
   severeRatio: z.number().min(0).max(1),
   inactiveDays: z.number().int().positive(),
   promotionEnabled: z.boolean(),
+  rankGrade: z.enum(rankGrades).nullable(),
 })
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -19,7 +22,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (request.method === 'GET') {
       const clubs = await listClubs(user.clubIds)
-      return response.json({ clubs, user })
+      return response.json({ clubs, user, rankGrades })
     }
 
     if (request.method === 'PUT' || request.method === 'PATCH') {

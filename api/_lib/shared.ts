@@ -20,6 +20,7 @@ export type ClubConfig = {
   severeRatio: number
   inactiveDays: number
   promotionEnabled?: boolean
+  rankGrade?: string | null
 }
 
 export type ManagerAccess = {
@@ -73,6 +74,7 @@ export async function loadClubs(clubIds?: string[]): Promise<ClubConfig[]> {
         severeRatio: club.severeRatio,
         inactiveDays: club.inactiveDays,
         promotionEnabled: club.promotionEnabled,
+        rankGrade: club.rankGrade,
       }))
     }
   } catch (error) {
@@ -277,20 +279,8 @@ export async function buildPublicClub(club: ClubConfig) {
     monthlyFans,
     fansSinceYesterday:
       livePoints != null && yesterdayPoints != null ? livePoints - yesterdayPoints : null,
-    rankGrade: circleRankGrade(monthlyFans),
+    rankGrade: club.rankGrade || null,
     sourceUpdatedAt: circle.last_live_update ?? circle.last_updated ?? null,
     members,
   }
-}
-
-/** Map monthly fan total to badge filenames in public/club-ranks/*.webp */
-export function circleRankGrade(monthlyFans: number | null | undefined): string | null {
-  if (monthlyFans == null || !Number.isFinite(monthlyFans)) return null
-  if (monthlyFans >= 2_500_000_000) return 'ss'
-  if (monthlyFans >= 1_500_000_000) return 'splus'
-  if (monthlyFans >= 1_000_000_000) return 's'
-  if (monthlyFans >= 700_000_000) return 'aplus'
-  if (monthlyFans >= 400_000_000) return 'a'
-  if (monthlyFans >= 200_000_000) return 'bplus'
-  return 'b'
 }

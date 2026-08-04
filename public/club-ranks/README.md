@@ -12,4 +12,4 @@ Filenames (lowercase) loaded as `/{grade}.webp`:
 | `bplus.webp` | B+ |
 | `b.webp` | B |
 
-Grade is estimated from monthly fan total (`live_points`). If a badge looks wrong for a club, tell us the correct thresholds and we can adjust.
+Set each club's badge in **Staff → Settings → Club rank badge**. It is not auto-calculated from fans.

@@ -13,6 +13,7 @@ const inputSchema = z.object({
     severeRatio: z.number().min(0).max(1).default(0.5),
     inactiveDays: z.number().int().positive().default(3),
     promotionEnabled: z.boolean().default(true),
+    rankGrade: z.enum(['ss', 'splus', 's', 'aplus', 'a', 'bplus', 'b']).nullable().optional(),
   })),
   applicants: z.array(z.object({
     umaId: z.string().min(1),
@@ -153,16 +154,6 @@ for (const configured of input.clubs) {
   const livePoints = typeof circle?.live_points === 'number' ? circle.live_points : null
   const yesterdayPoints = typeof circle?.yesterday_points === 'number' ? circle.yesterday_points : null
   const monthlyFans = livePoints ?? (typeof circle?.monthly_point === 'number' ? circle.monthly_point : null)
-  const rankGrade = (() => {
-    if (monthlyFans == null) return null
-    if (monthlyFans >= 2_500_000_000) return 'ss'
-    if (monthlyFans >= 1_500_000_000) return 'splus'
-    if (monthlyFans >= 1_000_000_000) return 's'
-    if (monthlyFans >= 700_000_000) return 'aplus'
-    if (monthlyFans >= 400_000_000) return 'a'
-    if (monthlyFans >= 200_000_000) return 'bplus'
-    return 'b'
-  })()
 
   clubs.push({
     circleId: configured.circleId,
@@ -174,7 +165,7 @@ for (const configured of input.clubs) {
     monthlyFans,
     fansSinceYesterday:
       livePoints != null && yesterdayPoints != null ? livePoints - yesterdayPoints : null,
-    rankGrade,
+    rankGrade: configured.rankGrade ?? null,
     dailyTarget: configured.dailyTarget,
     promotionRatio: configured.promotionRatio,
     severeRatio: configured.severeRatio,

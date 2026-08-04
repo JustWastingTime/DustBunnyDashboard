@@ -12,6 +12,19 @@ import './App.css'
 const number = new Intl.NumberFormat('en-US')
 const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 const statusOptions: Status[] = ['pending', 'approved', 'waitlisted', 'rejected']
+const rankGradeOptions = [
+  { value: 'ss', label: 'SS' },
+  { value: 'splus', label: 'S+' },
+  { value: 's', label: 'S' },
+  { value: 'aplus', label: 'A+' },
+  { value: 'a', label: 'A' },
+  { value: 'bplus', label: 'B+' },
+  { value: 'b', label: 'B' },
+] as const
+
+function rankGradeLabel(grade?: string | null) {
+  return rankGradeOptions.find((option) => option.value === grade)?.label || grade || 'Unset'
+}
 
 function Freshness({ date }: { date?: string | null }) {
   if (!date) return <span className="freshness stale">Not synced</span>
@@ -568,6 +581,7 @@ function StaffClubSettings({
         severeRatio: Number(form.get('severeRatio')),
         inactiveDays: Number(form.get('inactiveDays')),
         promotionEnabled: form.get('promotionEnabled') === 'on',
+        rankGrade: String(form.get('rankGrade') || '') || null,
       })
       setMessage(`Saved ${String(form.get('name'))}.`)
       await reload()
@@ -591,6 +605,15 @@ function StaffClubSettings({
         </select>
       </label>
       <label>Display name<input name="name" required defaultValue={current.name} /></label>
+      <label>Club rank badge
+        <select name="rankGrade" defaultValue={current.rankGrade || ''}>
+          <option value="">No badge</option>
+          {rankGradeOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <p className="muted">Shown on the public overview card. Uses images from /club-ranks.</p>
       <label>Daily requirement<input name="dailyTarget" type="number" min="0" required defaultValue={current.dailyTarget} /></label>
       <div className="field-row">
         <label>Promotion ratio<input name="promotionRatio" type="number" min="1" step=".05" defaultValue={current.promotionRatio || 1.25} /></label>
@@ -608,6 +631,7 @@ function StaffClubSettings({
         <div>
           <strong>{club.name}</strong>
           <small className="id">{club.circleId}</small>
+          <small className="id">Rank {rankGradeLabel(club.rankGrade)}</small>
           <small className="id">{club.promotionEnabled === false ? 'Promotion disabled' : 'Promotion enabled'}</small>
         </div>
         <span>{number.format(club.dailyTarget)} / day</span>
