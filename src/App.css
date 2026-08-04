@@ -105,7 +105,15 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
 .checklist-columns li { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
 .checklist-columns li strong { font-size: .8rem; }
 .checklist-columns li small { color: var(--muted); font-size: .68rem; }
-.staff-lanes { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.staff-lanes-top {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+.staff-lanes-top .lane-cards { max-height: min(40vh, 380px); }
+.staff-lanes-bottom {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+.staff-lanes-bottom .lane-cards { max-height: min(48vh, 460px); }
 .staff-planner .band-filter-row { margin-bottom: 12px; }
 button:disabled { opacity: .6; cursor: wait; }.danger-link { color: var(--danger); }
 .table-scroll { overflow-x: auto; }table { width: 100%; border-collapse: collapse; min-width: 850px; }
@@ -185,10 +193,13 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   .club-card-stats { grid-template-columns: 1fr 1fr; }
   .chart-panel, .split-layout { grid-template-columns: 1fr; }.form-stack { position: static; }
   .lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); }.json-grid { grid-template-columns: 1fr; }
+  .staff-lanes-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .staff-lanes-bottom { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   .shell { width: min(100% - 24px, 1480px); padding-top: 16px; }.site-header, .section-heading, .planner-heading { align-items: flex-start; flex-direction: column; }
   .summary-grid { grid-template-columns: 1fr 1fr; }.summary-grid article { min-height: 105px; padding: 16px; }.summary-grid strong { font-size: 2rem; }
   .panel { padding: 16px; }.lanes { display: grid; grid-template-columns: 1fr; }.applicant-cards { grid-template-columns: 1fr; }
+  .staff-lanes-top { grid-template-columns: 1fr; }
   .stack-list article { grid-template-columns: 1fr auto; }.filters { width: 100%; }.filters input, .filters select { width: 100%; }
 }

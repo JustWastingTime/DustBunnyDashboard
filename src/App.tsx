@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
@@ -781,23 +781,20 @@ function StaffPlanner({
   reload: () => Promise<void>
 }) {
   const clubNames = useMemo(() => new Map(clubs.map((club) => [club.circleId, club.name])), [clubs])
-  const [focusClubId, setFocusClubId] = useState(clubs[0]?.circleId || '')
   const [checklistFilter, setChecklistFilter] = useState<string | 'all'>('all')
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
+  const assignmentsRef = useRef(assignments)
+  const saveChainRef = useRef(Promise.resolve())
   const [busy, setBusy] = useState(false)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
   useEffect(() => {
-    setAssignments(initialAssignments.map((item) => (
+    const next = initialAssignments.map((item) => (
       item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
-    )))
+    ))
+    setAssignments(next)
+    assignmentsRef.current = next
   }, [initialAssignments])
-
-  useEffect(() => {
-    if (focusClubId && !clubs.some((club) => club.circleId === focusClubId)) {
-      setFocusClubId(clubs[0]?.circleId || '')
-    }
-  }, [clubs, focusClubId])
 
   const entities = useMemo<PlannerEntity[]>(() => [
     ...members.map((member) => ({
@@ -833,17 +830,31 @@ function StaffPlanner({
     return clubNames.get(fallback) || fallback
   }
 
-  const persist = async (next: Assignment[]) => {
+  const persist = (next: Assignment[]) => {
     setAssignments(next)
+    assignmentsRef.current = next
     setBusy(true)
-    try {
-      await api.staffSavePlan(next)
-    } catch (error) {
-      alert((error as Error).message)
-      setAssignments(assignments)
-    } finally {
-      setBusy(false)
-    }
+    const run = saveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await api.staffSavePlan(assignmentsRef.current)
+        } catch (error) {
+          alert((error as Error).message)
+          await reload()
+        }
+      })
+    saveChainRef.current = run
+    void run.finally(() => {
+      if (saveChainRef.current === run) setBusy(false)
+    })
+    return run
+  }
+
+  const resolveDropDestination = (overId: string) => {
+    if (!overId.includes(':')) return overId
+    const overEntity = entities.find((entity) => entity.key === overId)
+    return overEntity ? destination(overEntity) : null
   }
 
   const onDragStart = ({ active }: DragStartEvent) => {
@@ -853,31 +864,37 @@ function StaffPlanner({
   const onDragEnd = async ({ active, over }: DragEndEvent) => {
     setActiveDragId(null)
     if (!over) return
-    const [entityType, entityId] = String(active.id).split(':') as ['member' | 'applicant', string]
-    const next = assignments.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
-    next.push({
-      entityType,
-      entityId,
-      destination: String(over.id),
-      position: next.filter((item) => item.destination === over.id).length,
-    })
+    const activeKey = String(active.id)
+    const entity = entities.find((item) => item.key === activeKey)
+    if (!entity) return
+    const dest = resolveDropDestination(String(over.id))
+    if (!dest) return
+    const current = destination(entity)
+    if (dest === current) return
+
+    const [entityType, entityId] = activeKey.split(':') as ['member' | 'applicant', string]
+    const next = assignmentsRef.current.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
+    if (dest !== entity.fallback) {
+      next.push({
+        entityType,
+        entityId,
+        destination: dest,
+        position: next.filter((item) => item.destination === dest).length,
+      })
+    }
     await persist(next)
   }
 
   const onDragCancel = () => setActiveDragId(null)
 
-  const focusClub = clubs.find((club) => club.circleId === focusClubId) || clubs[0]
-  const boardLanes = focusClub
-    ? [
-      { id: focusClub.circleId, title: focusClub.name },
-      { id: 'kick', title: 'Kick / remove' },
-      { id: 'waitlist', title: 'Waitlist' },
-      { id: 'applicants', title: 'Applicants' },
-      ...clubs
-        .filter((club) => club.circleId !== focusClub.circleId)
-        .map((club) => ({ id: club.circleId, title: `→ ${club.name}` })),
-    ]
-    : []
+  const topLanes = [
+    ...clubs.map((club) => ({ id: club.circleId, title: club.name })),
+    { id: 'kick', title: 'Kick / remove' },
+  ]
+  const bottomLanes = [
+    { id: 'applicants', title: 'Applicants' },
+    { id: 'waitlist', title: 'Waitlist' },
+  ]
 
   const cardsFor = (laneId: string) => entities
     .filter((entity) => destination(entity) === laneId)
@@ -888,6 +905,28 @@ function StaffPlanner({
       return b.sortValue - a.sortValue
     })
 
+  const renderLane = (lane: { id: string; title: string }) => {
+    const cards = cardsFor(lane.id)
+    const movedInLane = cards.filter((entity) => destination(entity) !== entity.fallback).length
+    return <Lane key={lane.id} id={lane.id} title={lane.title} count={cards.length} movedCount={movedInLane}>
+      {cards.map((entity) => {
+        const moved = destination(entity) !== entity.fallback
+        const originClass = originTone(entity.fallback, clubNames.get(entity.fallback))
+        return <DraggableCard
+          key={entity.key}
+          id={entity.key}
+          name={entity.name}
+          meta={entity.meta}
+          umaId={entity.umaId}
+          kind={entity.kind}
+          moved={moved}
+          fromLabel={moved ? originLabel(entity.fallback) : null}
+          originClass={originClass}
+        />
+      })}
+    </Lane>
+  }
+
   const movedCount = entities.filter((entity) => destination(entity) !== entity.fallback).length
   const activeEntity = activeDragId ? entities.find((entity) => entity.key === activeDragId) : null
 
@@ -896,7 +935,7 @@ function StaffPlanner({
       <div>
         <p className="eyebrow">Draft assignments · {boardStatus}</p>
         <h2>Transfer planner</h2>
-        <p>Focus one club at a time. Drag to invite or kick. Checklist above is what leaders execute in game.</p>
+        <p>Drag between clubs, kick, applicants, or waitlist. Checklist above is what leaders execute in game.</p>
       </div>
       <div className="planner-actions">
         <span className="move-summary">{movedCount} planned move{movedCount === 1 ? '' : 's'}</span>
@@ -906,6 +945,7 @@ function StaffPlanner({
           onClick={async () => {
             setBusy(true)
             try {
+              await saveChainRef.current.catch(() => undefined)
               await api.staffConfirmPlan()
               await reload()
             } catch (error) {
@@ -944,59 +984,23 @@ function StaffPlanner({
       focusClubId={checklistFilter}
     />
 
-    <div className="band-filter-row" role="group" aria-label="Planner focus club">
-      {clubs.map((club) => (
-        <button
-          key={`focus-${club.circleId}`}
-          type="button"
-          className={`band-chip ${focusClubId === club.circleId ? 'active' : ''}`}
-          onClick={() => setFocusClubId(club.circleId)}
-        >
-          Edit {club.name}
-        </button>
-      ))}
-    </div>
-
-    {focusClub && (
-      <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
-        <div className="lanes staff-lanes">
-          {boardLanes.map((lane) => {
-            const cards = cardsFor(lane.id)
-            const movedInLane = cards.filter((entity) => destination(entity) !== entity.fallback).length
-            return <Lane key={lane.id} id={lane.id} title={lane.title} count={cards.length} movedCount={movedInLane}>
-              {cards.map((entity) => {
-                const moved = destination(entity) !== entity.fallback
-                const originClass = originTone(entity.fallback, clubNames.get(entity.fallback))
-                return <DraggableCard
-                  key={entity.key}
-                  id={entity.key}
-                  name={entity.name}
-                  meta={entity.meta}
-                  umaId={entity.umaId}
-                  kind={entity.kind}
-                  moved={moved}
-                  fromLabel={moved ? originLabel(entity.fallback) : null}
-                  originClass={originClass}
-                />
-              })}
-            </Lane>
-          })}
-        </div>
-        <DragOverlay dropAnimation={null}>
-          {activeEntity ? (
-            <DragCardOverlay
-              name={activeEntity.name}
-              meta={activeEntity.meta}
-              umaId={activeEntity.umaId}
-              kind={activeEntity.kind}
-              moved={destination(activeEntity) !== activeEntity.fallback}
-              fromLabel={destination(activeEntity) !== activeEntity.fallback ? originLabel(activeEntity.fallback) : null}
-              originClass={originTone(activeEntity.fallback, clubNames.get(activeEntity.fallback))}
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-    )}
+    <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
+      <div className="lanes staff-lanes-top">{topLanes.map(renderLane)}</div>
+      <div className="lanes staff-lanes-bottom">{bottomLanes.map(renderLane)}</div>
+      <DragOverlay dropAnimation={null}>
+        {activeEntity ? (
+          <DragCardOverlay
+            name={activeEntity.name}
+            meta={activeEntity.meta}
+            umaId={activeEntity.umaId}
+            kind={activeEntity.kind}
+            moved={destination(activeEntity) !== activeEntity.fallback}
+            fromLabel={destination(activeEntity) !== activeEntity.fallback ? originLabel(activeEntity.fallback) : null}
+            originClass={originTone(activeEntity.fallback, clubNames.get(activeEntity.fallback))}
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   </section>
 }
 
@@ -1411,40 +1415,88 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     })),
   ], [state])
   const [assignments, setAssignments] = useState<Assignment[]>(state.assignments)
+  const assignmentsRef = useRef(assignments)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   useEffect(() => {
-    setAssignments(state.assignments.map((item) => (
+    const next = state.assignments.map((item) => (
       item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
-    )))
+    ))
+    setAssignments(next)
+    assignmentsRef.current = next
   }, [state.assignments])
   const destination = (entity: typeof entities[number]) => {
     const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
     if (!assigned) return entity.fallback
     return assigned === 'unassigned' ? 'applicants' : assigned
   }
-  const lanes = [
+  const topLanes = [
     ...state.clubs.map((club) => ({ id: club.circleId, title: club.name })),
-    { id: 'waitlist', title: 'Waitlist' },
     { id: 'kick', title: 'Kick / remove' },
+  ]
+  const bottomLanes = [
     { id: 'applicants', title: 'Applicants' },
+    { id: 'waitlist', title: 'Waitlist' },
   ]
   const movedEntities = entities.filter((entity) => destination(entity) !== entity.fallback)
   const onDragStart = ({ active }: DragStartEvent) => setActiveDragId(String(active.id))
   const onDragCancel = () => setActiveDragId(null)
+  const resolveDropDestination = (overId: string) => {
+    if (!overId.includes(':')) return overId
+    const overEntity = entities.find((entity) => entity.key === overId)
+    return overEntity ? destination(overEntity) : null
+  }
   const onDragEnd = async ({ active, over }: DragEndEvent) => {
     setActiveDragId(null)
     if (!over) return
-    const [entityType, entityId] = String(active.id).split(':') as ['member' | 'applicant', string]
-    const next = assignments.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
-    next.push({ entityType, entityId, destination: String(over.id), position: next.filter((item) => item.destination === over.id).length })
+    const activeKey = String(active.id)
+    const entity = entities.find((item) => item.key === activeKey)
+    if (!entity) return
+    const dest = resolveDropDestination(String(over.id))
+    if (!dest) return
+    const current = destination(entity)
+    if (dest === current) return
+    const [entityType, entityId] = activeKey.split(':') as ['member' | 'applicant', string]
+    const next = assignmentsRef.current.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
+    if (dest !== entity.fallback) {
+      next.push({ entityType, entityId, destination: dest, position: next.filter((item) => item.destination === dest).length })
+    }
     setAssignments(next)
-    try { await api.savePlan(next) } catch (error) { alert((error as Error).message); setAssignments(assignments) }
+    assignmentsRef.current = next
+    try { await api.savePlan(next) } catch (error) { alert((error as Error).message); await reload() }
   }
   const originLabel = (fallback: string) => {
     if (fallback === 'applicants' || fallback === 'unassigned') return 'Applicants'
     return clubNames.get(fallback) || fallback
   }
   const activeEntity = activeDragId ? entities.find((entity) => entity.key === activeDragId) : null
+  const renderLane = (lane: { id: string; title: string }) => {
+    const cards = entities
+      .filter((entity) => destination(entity) === lane.id)
+      .sort((a, b) => {
+        const aMoved = destination(a) !== a.fallback ? 1 : 0
+        const bMoved = destination(b) !== b.fallback ? 1 : 0
+        if (aMoved !== bMoved) return bMoved - aMoved
+        return b.sortValue - a.sortValue
+      })
+    const movedCount = cards.filter((entity) => destination(entity) !== entity.fallback).length
+    return <Lane key={lane.id} id={lane.id} title={lane.title} count={cards.length} movedCount={movedCount}>
+      {cards.map((entity) => {
+        const moved = destination(entity) !== entity.fallback
+        const originClass = originTone(entity.fallback, clubNames.get(entity.fallback))
+        return <DraggableCard
+          key={entity.key}
+          id={entity.key}
+          name={entity.name}
+          meta={entity.meta}
+          umaId={entity.umaId}
+          kind={entity.kind}
+          moved={moved}
+          fromLabel={moved ? originLabel(entity.fallback) : null}
+          originClass={originClass}
+        />
+      })}
+    </Lane>
+  }
   return <section className="planner">
     <div className="planner-heading">
       <div>
@@ -1458,34 +1510,8 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       </div>
     </div>
     <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
-      <div className="lanes">{lanes.map((lane) => {
-        const cards = entities
-          .filter((entity) => destination(entity) === lane.id)
-          .sort((a, b) => {
-            const aMoved = destination(a) !== a.fallback ? 1 : 0
-            const bMoved = destination(b) !== b.fallback ? 1 : 0
-            if (aMoved !== bMoved) return bMoved - aMoved
-            return b.sortValue - a.sortValue
-          })
-        const movedCount = cards.filter((entity) => destination(entity) !== entity.fallback).length
-        return <Lane key={lane.id} id={lane.id} title={lane.title} count={cards.length} movedCount={movedCount}>
-          {cards.map((entity) => {
-            const moved = destination(entity) !== entity.fallback
-            const originClass = originTone(entity.fallback, clubNames.get(entity.fallback))
-            return <DraggableCard
-              key={entity.key}
-              id={entity.key}
-              name={entity.name}
-              meta={entity.meta}
-              umaId={entity.umaId}
-              kind={entity.kind}
-              moved={moved}
-              fromLabel={moved ? originLabel(entity.fallback) : null}
-              originClass={originClass}
-            />
-          })}
-        </Lane>
-      })}</div>
+      <div className="lanes staff-lanes-top">{topLanes.map(renderLane)}</div>
+      <div className="lanes staff-lanes-bottom">{bottomLanes.map(renderLane)}</div>
       <DragOverlay dropAnimation={null}>
         {activeEntity ? (
           <DragCardOverlay

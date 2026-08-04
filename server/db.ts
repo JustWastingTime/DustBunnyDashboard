@@ -245,10 +245,12 @@ export function createStore(filename = process.env.DATABASE_PATH || 'data/dashbo
     getAssignments: () => db.prepare('SELECT entity_type AS entityType, entity_id AS entityId, destination, position, updated_at AS updatedAt FROM planning_assignments ORDER BY destination, position').all(),
     saveAssignments(assignments: Array<{ entityType: string; entityId: string; destination: string; position: number }>) {
       const now = new Date().toISOString()
+      const unique = new Map<string, { entityType: string; entityId: string; destination: string; position: number }>()
+      for (const item of assignments) unique.set(`${item.entityType}:${item.entityId}`, item)
       db.transaction(() => {
         db.prepare('DELETE FROM planning_assignments').run()
         const insert = db.prepare('INSERT INTO planning_assignments(entity_type,entity_id,destination,position,updated_at) VALUES(?,?,?,?,?)')
-        assignments.forEach((item) => insert.run(item.entityType, item.entityId, item.destination, item.position, now))
+        for (const item of unique.values()) insert.run(item.entityType, item.entityId, item.destination, item.position, now)
         db.prepare("UPDATE planning_boards SET status='draft',updated_at=?,confirmed_at=NULL WHERE id=1").run(now)
       })()
     },

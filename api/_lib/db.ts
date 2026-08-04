@@ -256,18 +256,23 @@ export async function listAssignments() {
 export async function saveAssignments(assignments: AssignmentRow[]) {
   await ensureSchema()
   const db = getSql()
-  await db`DELETE FROM planning_assignments`
+  const unique = new Map<string, AssignmentRow>()
   for (const item of assignments) {
-    await db`
+    unique.set(`${item.entityType}:${item.entityId}`, item)
+  }
+  const rows = [...unique.values()]
+  await db.transaction((tx) => [
+    tx`DELETE FROM planning_assignments`,
+    ...rows.map((item) => tx`
       INSERT INTO planning_assignments (entity_type, entity_id, destination, position, updated_at)
       VALUES (${item.entityType}, ${item.entityId}, ${item.destination}, ${item.position}, NOW())
-    `
-  }
-  await db`
-    UPDATE planning_boards
-    SET status = 'draft', updated_at = NOW()
-    WHERE id = 1
-  `
+    `),
+    tx`
+      UPDATE planning_boards
+      SET status = 'draft', updated_at = NOW()
+      WHERE id = 1
+    `,
+  ])
   return listAssignments()
 }
 
