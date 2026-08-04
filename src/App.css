@@ -25,11 +25,11 @@
 }
 .club-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .club-card-heading h2 { margin: 0; font-size: 1.55rem; line-height: 1.12; color: var(--club-text); }
-.club-card .eyebrow { color: #9fd4c4; }
+.club-card .eyebrow { color: var(--club-accent); }
 .club-id { margin: 6px 0 0; color: var(--club-muted); font-size: .68rem; font-family: ui-monospace, Consolas, monospace; }
 .club-live-rank { display: inline-flex; align-items: center; gap: 8px; }
 .rank-delta { font-size: .78rem; font-weight: 800; letter-spacing: 0; text-transform: none; }
-.rank-delta.up { color: #7ddea8; }
+.rank-delta.up { color: var(--gain); }
 .rank-delta.down { color: #f0a0a0; }
 .rank-delta.flat { color: var(--club-muted); }
 .club-rank-image { width: 64px; height: 64px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 4px 10px rgba(0,0,0,.25)); }
@@ -41,15 +41,15 @@
 .club-card-stats { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 12px; }
 .club-card-stats span { display: block; color: var(--club-muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
 .club-card-stats strong { font-size: 1.08rem; font-variant-numeric: tabular-nums; line-height: 1.2; color: var(--club-text); }
-.club-card-stats strong.gain { color: #7ddea8; }
+.club-card-stats strong.gain { color: var(--gain); }
 .club-card-stats strong.requirement { font-size: .95rem; }
 .club-card-stats strong small { font-size: .65rem; color: var(--club-muted); font-weight: 600; margin-left: 2px; }
 .club-band {
   display: flex; justify-content: space-between; align-items: center;
-  border-top: 1px solid rgba(255,248,242,.12); padding-top: 14px;
+  border-top: 1px solid rgba(255,247,250,.12); padding-top: 14px;
   color: var(--club-muted); font-size: .82rem; margin-top: auto;
 }
-.club-card .freshness { color: #9fd4c4; }
+.club-card .freshness { color: var(--club-accent); }
 .club-card .freshness.stale { color: #e0b56a; }
 .panel { padding: 24px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 8px 20px rgba(44, 58, 54, 0.05); }
 .chart-panel { display: grid; grid-template-columns: minmax(220px, .55fr) minmax(0, 1.45fr); align-items: center; gap: 30px; }
@@ -63,13 +63,13 @@ input:focus, select:focus, textarea:focus { outline: 3px solid var(--accent-soft
 .band-chip { display: inline-flex; align-items: center; gap: 8px; border-radius: 12px; padding: 7px 12px; font-size: .78rem; }
 .band-chip span { color: var(--muted); font-variant-numeric: tabular-nums; }
 .band-chip.active { border-color: var(--accent-dark); background: var(--accent-soft); color: var(--accent-dark); }
-.chip-promotion { background: #d7eee8; }.chip-meeting { background: #e0eddb; }.chip-under { background: #f5e9ca; }
-.chip-severe { background: #f3dddd; }.chip-inactive { background: #e4e7e8; }
+.chip-promotion { background: #ffe0ea; }.chip-meeting { background: #ddefff; }.chip-under { background: #fff0d4; }
+.chip-severe { background: #f3dddd; }.chip-inactive { background: #ebe4e8; }
 .plan-status { display: inline-block; padding: 5px 9px; border-radius: 4px; font-size: .7rem; font-weight: 800; }
 .plan-move { background: #f3dfc4; color: #8a4b16; }
 .plan-kick { background: #f3dddd; color: #8d3030; }
 .plan-waitlist { background: #f5e9ca; color: #835816; }
-.plan-applicant { background: #dcece8; color: #14564d; }
+.plan-applicant { background: #ffe0ea; color: #c45d7a; }
 button { border: 1px solid var(--line); border-radius: 12px; padding: 9px 16px; color: var(--ink); background: var(--surface); font-weight: 700; }
 button:hover { border-color: var(--accent); }button.primary { color: #fff; border-color: var(--accent-dark); background: var(--accent-dark); }
 a.button-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; border: 1px solid var(--accent-dark); border-radius: 12px; padding: 9px 16px; color: #fff; background: var(--accent-dark); font-weight: 700; }
@@ -83,7 +83,7 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
 .checklist-club > header span { color: var(--muted); font-size: .72rem; font-weight: 700; }
 .checklist-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .checklist-columns h4 { margin: 0 0 6px; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
-.checklist-invite { color: #0f5b4f; }
+.checklist-invite { color: #c45d7a; }
 .checklist-remove { color: #8d3030; }
 .checklist-columns ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .checklist-columns li { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
