@@ -230,6 +230,7 @@ export async function resolveUmaProfile(umaId: string) {
 
 export async function buildPublicClub(club: ClubConfig) {
   const data = await fetchUmaJson<any>(`https://uma.moe/api/v4/circles?circle_id=${encodeURIComponent(club.circleId)}`)
+  const circle = data?.circle || {}
   const roster = data?.members || []
   const cutoff = getActiveCutoffMs(roster)
   const members = roster
@@ -258,11 +259,40 @@ export async function buildPublicClub(club: ClubConfig) {
         reason: decision.reason,
       }
     })
+
+  const liveRank = circle.live_rank ?? circle.monthly_rank ?? null
+  const yesterdayRank = circle.yesterday_rank ?? null
+  const livePoints = typeof circle.live_points === 'number' ? circle.live_points : null
+  const yesterdayPoints = typeof circle.yesterday_points === 'number' ? circle.yesterday_points : null
+  const monthlyFans = livePoints ?? (typeof circle.monthly_point === 'number' ? circle.monthly_point : null)
+  const rankDelta =
+    liveRank != null && yesterdayRank != null ? yesterdayRank - liveRank : null
+
   return {
     ...club,
-    rank: data?.circle?.live_rank || data?.circle?.monthly_rank || null,
-    lastMonthRank: data?.circle?.last_month_rank ?? null,
-    sourceUpdatedAt: data?.circle?.last_updated ?? null,
+    rank: liveRank,
+    yesterdayRank,
+    rankDelta,
+    lastMonthRank: circle.last_month_rank ?? null,
+    monthlyFans,
+    fansSinceYesterday:
+      livePoints != null && yesterdayPoints != null ? livePoints - yesterdayPoints : null,
+    rankGrade: circleRankGrade(monthlyFans),
+    sourceUpdatedAt: circle.last_live_update ?? circle.last_updated ?? null,
     members,
   }
+}
+
+/** Map monthly fan total to the in-game style letter used for badge art. */
+export function circleRankGrade(monthlyFans: number | null | undefined): string | null {
+  if (monthlyFans == null || !Number.isFinite(monthlyFans)) return null
+  if (monthlyFans >= 3_000_000_000) return 'SS'
+  if (monthlyFans >= 1_500_000_000) return 'S'
+  if (monthlyFans >= 400_000_000) return 'A'
+  if (monthlyFans >= 150_000_000) return 'B'
+  if (monthlyFans >= 50_000_000) return 'C'
+  if (monthlyFans >= 20_000_000) return 'D'
+  if (monthlyFans >= 5_000_000) return 'E'
+  if (monthlyFans >= 1_000_000) return 'F'
+  return 'G'
 }

@@ -19,6 +19,70 @@ function Freshness({ date }: { date?: string | null }) {
   return <span className={`freshness ${hours > 24 ? 'stale' : ''}`}>{hours < 1 ? 'Updated recently' : `Updated ${Math.floor(hours)}h ago`}</span>
 }
 
+function ClubRankBadge({ grade }: { grade?: string | null }) {
+  const [failed, setFailed] = useState(false)
+  if (!grade) return null
+  const src = `${import.meta.env.BASE_URL}club-ranks/${grade}.png`
+  if (!failed) {
+    return <img
+      className="club-rank-image"
+      src={src}
+      alt={`Club rank ${grade}`}
+      width={56}
+      height={56}
+      onError={() => setFailed(true)}
+    />
+  }
+  return <span className={`club-rank-fallback grade-${grade.toLowerCase()}`} aria-label={`Club rank ${grade}`}>{grade}</span>
+}
+
+function RankDelta({ delta }: { delta?: number | null }) {
+  if (delta == null || !Number.isFinite(delta) || delta === 0) {
+    return <span className="rank-delta flat">—</span>
+  }
+  if (delta > 0) return <span className="rank-delta up" title="Positions gained today">▲ {delta}</span>
+  return <span className="rank-delta down" title="Positions lost today">▼ {Math.abs(delta)}</span>
+}
+
+function ClubOverviewCard({ club }: { club: Club & { members?: Member[] } }) {
+  const memberCount = club.members?.length ?? 0
+  return <article className="club-card">
+    <div className="club-card-top">
+      <div className="club-card-heading">
+        <p className="eyebrow club-live-rank">
+          Rank {club.rank != null ? `#${club.rank}` : 'unavailable'}
+          <RankDelta delta={club.rankDelta} />
+        </p>
+        <h2>{club.name}</h2>
+        <p className="club-id">ID: {club.circleId}</p>
+      </div>
+      <ClubRankBadge key={club.rankGrade || 'none'} grade={club.rankGrade} />
+    </div>
+    <div className="club-card-stats">
+      <div>
+        <span>Fans this month</span>
+        <strong>{club.monthlyFans != null ? number.format(club.monthlyFans) : '—'}</strong>
+      </div>
+      <div>
+        <span>Since yesterday</span>
+        <strong className={club.fansSinceYesterday != null && club.fansSinceYesterday > 0 ? 'gain' : ''}>
+          {club.fansSinceYesterday != null
+            ? `${club.fansSinceYesterday >= 0 ? '+' : ''}${number.format(club.fansSinceYesterday)}`
+            : '—'}
+        </strong>
+      </div>
+      <div>
+        <span>Requirement</span>
+        <strong className="requirement">{compact.format(club.dailyTarget)}<small>/mem/day</small></strong>
+      </div>
+    </div>
+    <div className="club-band">
+      <span>{memberCount}/30 members</span>
+      <Freshness date={club.sourceUpdatedAt} />
+    </div>
+  </article>
+}
+
 const bandOptions: Array<{ value: Band | 'all'; label: string }> = [
   { value: 'all', label: 'All assessments' },
   { value: 'promotion', label: 'Promotion candidate' },
@@ -306,11 +370,7 @@ function PublicDashboard({ navigate }: { navigate: (to: string) => void }) {
       <article><span>Promotion candidates</span><strong>{counts.promotion}</strong></article>
       <article><span>Needs attention</span><strong>{counts.severe + counts.inactive}</strong></article>
     </section>
-    <section className="club-grid">{data.clubs.map((club) => <article className="club-card" key={club.circleId}>
-      <div><p className="eyebrow">Rank {club.rank ? `#${club.rank}` : 'unavailable'}</p><h2>{club.name}</h2></div>
-      <strong>{compact.format(club.dailyTarget)}<small> fans / member / day</small></strong>
-      <div className="club-band"><span>{club.members.length}/30 members</span><Freshness date={club.sourceUpdatedAt} /></div>
-    </article>)}</section>
+    <section className="club-grid">{data.clubs.map((club) => <ClubOverviewCard key={club.circleId} club={club} />)}</section>
     <ClubSummary clubs={data.clubs} />
     <MemberTable clubs={data.clubs} />
     <PublicApplicants applicants={data.applicants} clubs={data.clubs} />

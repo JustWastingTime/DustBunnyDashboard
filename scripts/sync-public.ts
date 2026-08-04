@@ -37,7 +37,12 @@ type CirclePayload = {
     live_rank?: number
     monthly_rank?: number
     last_month_rank?: number
+    yesterday_rank?: number
+    live_points?: number
+    yesterday_points?: number
+    monthly_point?: number
     last_updated?: string
+    last_live_update?: string
   }
   members?: CircleMember[]
 }
@@ -142,16 +147,41 @@ for (const configured of input.clubs) {
       }
     }).filter((member) => member.umaId)
 
+  const circle = data.circle
+  const liveRank = circle?.live_rank ?? circle?.monthly_rank ?? null
+  const yesterdayRank = circle?.yesterday_rank ?? null
+  const livePoints = typeof circle?.live_points === 'number' ? circle.live_points : null
+  const yesterdayPoints = typeof circle?.yesterday_points === 'number' ? circle.yesterday_points : null
+  const monthlyFans = livePoints ?? (typeof circle?.monthly_point === 'number' ? circle.monthly_point : null)
+  const rankGrade = (() => {
+    if (monthlyFans == null) return null
+    if (monthlyFans >= 3_000_000_000) return 'SS'
+    if (monthlyFans >= 1_500_000_000) return 'S'
+    if (monthlyFans >= 400_000_000) return 'A'
+    if (monthlyFans >= 150_000_000) return 'B'
+    if (monthlyFans >= 50_000_000) return 'C'
+    if (monthlyFans >= 20_000_000) return 'D'
+    if (monthlyFans >= 5_000_000) return 'E'
+    if (monthlyFans >= 1_000_000) return 'F'
+    return 'G'
+  })()
+
   clubs.push({
     circleId: configured.circleId,
     name: data.circle?.name || configured.name,
-    rank: data.circle?.live_rank || data.circle?.monthly_rank || null,
+    rank: liveRank,
+    yesterdayRank,
+    rankDelta: liveRank != null && yesterdayRank != null ? yesterdayRank - liveRank : null,
     lastMonthRank: data.circle?.last_month_rank || null,
+    monthlyFans,
+    fansSinceYesterday:
+      livePoints != null && yesterdayPoints != null ? livePoints - yesterdayPoints : null,
+    rankGrade,
     dailyTarget: configured.dailyTarget,
     promotionRatio: configured.promotionRatio,
     severeRatio: configured.severeRatio,
     inactiveDays: configured.inactiveDays,
-    sourceUpdatedAt: data.circle?.last_updated || null,
+    sourceUpdatedAt: circle?.last_live_update || circle?.last_updated || null,
     members,
   })
 }

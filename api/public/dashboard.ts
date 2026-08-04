@@ -12,7 +12,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         clubs.push(await buildPublicClub(club))
       } catch (error) {
         console.error(`Failed to load club ${club.circleId}`, error)
-        clubs.push({ ...club, members: [], rank: null, lastMonthRank: null, sourceUpdatedAt: null })
+        clubs.push({ ...club, members: [], rank: null, yesterdayRank: null, rankDelta: null, lastMonthRank: null, monthlyFans: null, fansSinceYesterday: null, rankGrade: null, sourceUpdatedAt: null })
       }
     }
     const applicants = await listPublicApplicants()

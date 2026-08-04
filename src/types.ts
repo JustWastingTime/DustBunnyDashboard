@@ -10,7 +10,16 @@ export type Club = {
   inactiveDays: number
   promotionEnabled?: boolean
   rank?: number | null
+  yesterdayRank?: number | null
+  /** Positions gained today (positive = rose). live vs yesterday. */
+  rankDelta?: number | null
   lastMonthRank?: number | null
+  /** Current monthly fan total (live_points). */
+  monthlyFans?: number | null
+  /** Fans gained since yesterday (live_points - yesterday_points). */
+  fansSinceYesterday?: number | null
+  /** Letter grade for rank badge image (SS/S/A/…). */
+  rankGrade?: string | null
   sourceUpdatedAt?: string | null
   syncedAt?: string | null
   members?: Member[]
