@@ -487,13 +487,384 @@ function StaffApplicants({
   </section>
 }
 
+function StaffClubSettings({
+  clubs,
+  reload,
+}: {
+  clubs: Club[]
+  reload: () => Promise<void>
+}) {
+  const [editing, setEditing] = useState<Club | null>(clubs[0] || null)
+  const [message, setMessage] = useState('')
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editing) return
+    const form = new FormData(event.currentTarget)
+    try {
+      await api.staffUpdateClub(editing.circleId, {
+        name: String(form.get('name')),
+        dailyTarget: Number(form.get('dailyTarget')),
+        promotionRatio: Number(form.get('promotionRatio')),
+        severeRatio: Number(form.get('severeRatio')),
+        inactiveDays: Number(form.get('inactiveDays')),
+        promotionEnabled: form.get('promotionEnabled') === 'on',
+      })
+      setMessage(`Saved ${String(form.get('name'))}.`)
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    }
+  }
+  if (!clubs.length) {
+    return <section className="panel"><p className="muted">No managed clubs in your ACL.</p></section>
+  }
+  const current = editing && clubs.find((club) => club.circleId === editing.circleId) || clubs[0]
+  return <section className="split-layout">
+    <form className="panel form-stack" onSubmit={submit} key={current.circleId}>
+      <div><p className="eyebrow">Configuration</p><h2>Edit club settings</h2></div>
+      <label>Club
+        <select
+          value={current.circleId}
+          onChange={(event) => setEditing(clubs.find((club) => club.circleId === event.target.value) || null)}
+        >
+          {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
+        </select>
+      </label>
+      <label>Display name<input name="name" required defaultValue={current.name} /></label>
+      <label>Daily requirement<input name="dailyTarget" type="number" min="0" required defaultValue={current.dailyTarget} /></label>
+      <div className="field-row">
+        <label>Promotion ratio<input name="promotionRatio" type="number" min="1" step=".05" defaultValue={current.promotionRatio || 1.25} /></label>
+        <label>Severe ratio<input name="severeRatio" type="number" min="0" max="1" step=".05" defaultValue={current.severeRatio || .5} /></label>
+      </div>
+      <label>Inactive after days<input name="inactiveDays" type="number" min="1" defaultValue={current.inactiveDays || 3} /></label>
+      <label className="check"><input name="promotionEnabled" type="checkbox" defaultChecked={current.promotionEnabled ?? true} /> Enable promotion-candidate assessments for this club</label>
+      <p className="muted">Turn this off for your main club where members cannot be promoted further.</p>
+      <div className="button-row"><button className="primary">Save club</button></div>
+      {message && <p className="notice">{message}</p>}
+    </form>
+    <section className="panel">
+      <div className="section-heading"><div><p className="eyebrow">Requirements</p><h2>Managed clubs</h2></div></div>
+      <div className="stack-list">{clubs.map((club) => <article key={club.circleId}>
+        <div>
+          <strong>{club.name}</strong>
+          <small className="id">{club.circleId}</small>
+          <small className="id">{club.promotionEnabled === false ? 'Promotion disabled' : 'Promotion enabled'}</small>
+        </div>
+        <span>{number.format(club.dailyTarget)} / day</span>
+        <button type="button" onClick={() => setEditing(club)}>Edit</button>
+      </article>)}</div>
+    </section>
+  </section>
+}
+
+type PlannerEntity = {
+  key: string
+  kind: 'member' | 'applicant'
+  umaId: string
+  name: string
+  meta: string
+  fallback: string
+  sortValue: number
+}
+
+function copyUmaId(umaId: string) {
+  void navigator.clipboard.writeText(umaId).catch(() => undefined)
+}
+
+function ActionChecklist({
+  clubs,
+  entities,
+  destination,
+  originLabel,
+  focusClubId,
+}: {
+  clubs: Club[]
+  entities: PlannerEntity[]
+  destination: (entity: PlannerEntity) => string
+  originLabel: (fallback: string) => string
+  focusClubId: string | 'all'
+}) {
+  const visibleClubs = focusClubId === 'all' ? clubs : clubs.filter((club) => club.circleId === focusClubId)
+  return <section className="panel action-checklist">
+    <div className="section-heading">
+      <div>
+        <p className="eyebrow">Execute in game</p>
+        <h2>Kick / invite checklist</h2>
+        <p>At-a-glance lists for club leaders. Click an Uma ID to copy it.</p>
+      </div>
+    </div>
+    <div className="checklist-grid">
+      {visibleClubs.map((club) => {
+        const invites = entities.filter((entity) => {
+          const dest = destination(entity)
+          return dest === club.circleId && entity.fallback !== club.circleId
+        })
+        const removals = entities.filter((entity) => {
+          if (entity.fallback !== club.circleId) return false
+          const dest = destination(entity)
+          return dest === 'kick' || (dest !== club.circleId && !['waitlist', 'applicants', 'unassigned'].includes(dest))
+        })
+        return <article key={club.circleId} className="checklist-club">
+          <header>
+            <h3>{club.name}</h3>
+            <span>{invites.length} invite · {removals.length} remove</span>
+          </header>
+          <div className="checklist-columns">
+            <div>
+              <h4 className="checklist-invite">Invite ({invites.length})</h4>
+              {invites.length === 0 ? <p className="muted">None</p> : (
+                <ul>{invites.map((entity) => (
+                  <li key={entity.key}>
+                    <strong>{entity.name}</strong>
+                    <button type="button" className="id-copy" onClick={() => copyUmaId(entity.umaId)}>{entity.umaId}</button>
+                    <small>from {originLabel(entity.fallback)}</small>
+                  </li>
+                ))}</ul>
+              )}
+            </div>
+            <div>
+              <h4 className="checklist-remove">Kick / transfer out ({removals.length})</h4>
+              {removals.length === 0 ? <p className="muted">None</p> : (
+                <ul>{removals.map((entity) => {
+                  const dest = destination(entity)
+                  const label = dest === 'kick' ? 'Kick / remove' : `Transfer → ${originLabel(dest)}`
+                  return <li key={entity.key}>
+                    <strong>{entity.name}</strong>
+                    <button type="button" className="id-copy" onClick={() => copyUmaId(entity.umaId)}>{entity.umaId}</button>
+                    <small>{label}</small>
+                  </li>
+                })}</ul>
+              )}
+            </div>
+          </div>
+        </article>
+      })}
+    </div>
+  </section>
+}
+
+function StaffPlanner({
+  clubs,
+  members,
+  applicants,
+  initialAssignments,
+  boardStatus,
+  reload,
+}: {
+  clubs: Club[]
+  members: Member[]
+  applicants: Applicant[]
+  initialAssignments: Assignment[]
+  boardStatus: string
+  reload: () => Promise<void>
+}) {
+  const clubNames = useMemo(() => new Map(clubs.map((club) => [club.circleId, club.name])), [clubs])
+  const [focusClubId, setFocusClubId] = useState(clubs[0]?.circleId || '')
+  const [checklistFilter, setChecklistFilter] = useState<string | 'all'>('all')
+  const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setAssignments(initialAssignments.map((item) => (
+      item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
+    )))
+  }, [initialAssignments])
+
+  useEffect(() => {
+    if (focusClubId && !clubs.some((club) => club.circleId === focusClubId)) {
+      setFocusClubId(clubs[0]?.circleId || '')
+    }
+  }, [clubs, focusClubId])
+
+  const entities = useMemo<PlannerEntity[]>(() => [
+    ...members.map((member) => ({
+      key: `member:${member.umaId}`,
+      kind: 'member' as const,
+      umaId: member.umaId,
+      name: member.ign,
+      meta: `${number.format(member.dailyAverage)} / day`,
+      fallback: member.circleId || 'applicants',
+      sortValue: member.dailyAverage,
+    })),
+    ...applicants
+      .filter((applicant) => applicant.status !== 'rejected')
+      .map((applicant) => ({
+        key: `applicant:${applicant.umaId}`,
+        kind: 'applicant' as const,
+        umaId: applicant.umaId,
+        name: applicant.ign,
+        meta: `${number.format(applicant.dailyAverage)} / day · ${applicant.status}`,
+        fallback: 'applicants',
+        sortValue: applicant.dailyAverage,
+      })),
+  ], [members, applicants])
+
+  const destination = (entity: PlannerEntity) => {
+    const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
+    if (!assigned) return entity.fallback
+    return assigned === 'unassigned' ? 'applicants' : assigned
+  }
+
+  const originLabel = (fallback: string) => {
+    if (fallback === 'applicants' || fallback === 'unassigned') return 'Applicants'
+    return clubNames.get(fallback) || fallback
+  }
+
+  const persist = async (next: Assignment[]) => {
+    setAssignments(next)
+    setBusy(true)
+    try {
+      await api.staffSavePlan(next)
+    } catch (error) {
+      alert((error as Error).message)
+      setAssignments(assignments)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onDragEnd = async ({ active, over }: DragEndEvent) => {
+    if (!over) return
+    const [entityType, entityId] = String(active.id).split(':') as ['member' | 'applicant', string]
+    const next = assignments.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
+    next.push({
+      entityType,
+      entityId,
+      destination: String(over.id),
+      position: next.filter((item) => item.destination === over.id).length,
+    })
+    await persist(next)
+  }
+
+  const focusClub = clubs.find((club) => club.circleId === focusClubId) || clubs[0]
+  const boardLanes = focusClub
+    ? [
+      { id: focusClub.circleId, title: focusClub.name },
+      { id: 'kick', title: 'Kick / remove' },
+      { id: 'waitlist', title: 'Waitlist' },
+      { id: 'applicants', title: 'Applicants' },
+      ...clubs
+        .filter((club) => club.circleId !== focusClub.circleId)
+        .map((club) => ({ id: club.circleId, title: `→ ${club.name}` })),
+    ]
+    : []
+
+  const cardsFor = (laneId: string) => entities
+    .filter((entity) => destination(entity) === laneId)
+    .sort((a, b) => {
+      const aMoved = destination(a) !== a.fallback ? 1 : 0
+      const bMoved = destination(b) !== b.fallback ? 1 : 0
+      if (aMoved !== bMoved) return bMoved - aMoved
+      return b.sortValue - a.sortValue
+    })
+
+  const movedCount = entities.filter((entity) => destination(entity) !== entity.fallback).length
+
+  return <section className="planner staff-planner">
+    <div className="planner-heading">
+      <div>
+        <p className="eyebrow">Draft assignments · {boardStatus}</p>
+        <h2>Transfer planner</h2>
+        <p>Focus one club at a time. Drag to invite or kick. Checklist above is what leaders execute in game.</p>
+      </div>
+      <div className="planner-actions">
+        <span className="move-summary">{movedCount} planned move{movedCount === 1 ? '' : 's'}</span>
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await api.staffConfirmPlan()
+              await reload()
+            } catch (error) {
+              alert((error as Error).message)
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Confirm plan
+        </button>
+      </div>
+    </div>
+
+    <div className="band-filter-row" role="group" aria-label="Checklist club filter">
+      <button type="button" className={`band-chip ${checklistFilter === 'all' ? 'active' : ''}`} onClick={() => setChecklistFilter('all')}>
+        All clubs<span>{clubs.length}</span>
+      </button>
+      {clubs.map((club) => (
+        <button
+          key={`check-${club.circleId}`}
+          type="button"
+          className={`band-chip ${checklistFilter === club.circleId ? 'active' : ''}`}
+          onClick={() => setChecklistFilter(club.circleId)}
+        >
+          {club.name}
+        </button>
+      ))}
+    </div>
+
+    <ActionChecklist
+      clubs={clubs}
+      entities={entities}
+      destination={destination}
+      originLabel={originLabel}
+      focusClubId={checklistFilter}
+    />
+
+    <div className="band-filter-row" role="group" aria-label="Planner focus club">
+      {clubs.map((club) => (
+        <button
+          key={`focus-${club.circleId}`}
+          type="button"
+          className={`band-chip ${focusClubId === club.circleId ? 'active' : ''}`}
+          onClick={() => setFocusClubId(club.circleId)}
+        >
+          Edit {club.name}
+        </button>
+      ))}
+    </div>
+
+    {focusClub && (
+      <DndContext onDragEnd={onDragEnd}>
+        <div className="lanes staff-lanes">
+          {boardLanes.map((lane) => {
+            const cards = cardsFor(lane.id)
+            const movedInLane = cards.filter((entity) => destination(entity) !== entity.fallback).length
+            return <Lane key={lane.id} id={lane.id} title={lane.title} count={cards.length} movedCount={movedInLane}>
+              {cards.map((entity) => {
+                const moved = destination(entity) !== entity.fallback
+                const originClass = originTone(entity.fallback, clubNames.get(entity.fallback))
+                return <DraggableCard
+                  key={entity.key}
+                  id={entity.key}
+                  name={entity.name}
+                  meta={entity.meta}
+                  umaId={entity.umaId}
+                  kind={entity.kind}
+                  moved={moved}
+                  fromLabel={moved ? originLabel(entity.fallback) : null}
+                  originClass={originClass}
+                />
+              })}
+            </Lane>
+          })}
+        </div>
+      </DndContext>
+    )}
+  </section>
+}
+
 function StaffPage() {
   const [auth, setAuth] = useState<'loading' | 'guest' | 'user'>('loading')
   const [userLabel, setUserLabel] = useState('')
-  const [tab, setTab] = useState<'overview' | 'applicants'>('applicants')
+  const [tab, setTab] = useState<'overview' | 'applicants' | 'planner' | 'settings'>('applicants')
   const [dashboard, setDashboard] = useState<PublicData | null>(null)
   const [applicants, setApplicants] = useState<Applicant[]>([])
-  const [clubs, setClubs] = useState<Array<{ circleId: string; name: string }>>([])
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [boardStatus, setBoardStatus] = useState('draft')
   const [error, setError] = useState('')
   const params = new URLSearchParams(window.location.search)
   const loginError = params.get('error')
@@ -506,14 +877,17 @@ function StaffPage() {
     }
     setAuth('user')
     setUserLabel(me.user.label || me.user.globalName || me.user.username)
-    const [dash, staff, clubPayload] = await Promise.all([
+    const [dash, staff, clubPayload, plan] = await Promise.all([
       api.publicDashboard(),
       api.staffApplicants(),
       api.staffClubs(),
+      api.staffPlan(),
     ])
     setDashboard(dash)
     setApplicants(staff.applicants)
-    setClubs(clubPayload.clubs.map((club) => ({ circleId: club.circleId, name: club.name })))
+    setClubs(clubPayload.clubs)
+    setAssignments(plan.assignments)
+    setBoardStatus(plan.board.status || 'draft')
   }
 
   useEffect(() => {
@@ -546,6 +920,18 @@ function StaffPage() {
     </main>
   }
 
+  const members = (dashboard?.clubs || []).flatMap((club) =>
+    (club.members || []).map((member) => ({ ...member, circleId: club.circleId })),
+  )
+  const safeReload = async () => {
+    try {
+      await reload()
+      setError('')
+    } catch (reason) {
+      setError((reason as Error).message)
+    }
+  }
+
   return <main className="shell local-shell">
     <Header>
       <div className="button-row">
@@ -555,29 +941,32 @@ function StaffPage() {
     </Header>
     {error && <p className="notice error">{error}</p>}
     <nav className="tabs" aria-label="Staff sections">
-      <button type="button" className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>overview</button>
-      <button type="button" className={tab === 'applicants' ? 'active' : ''} onClick={() => setTab('applicants')}>applicants</button>
+      {(['overview', 'applicants', 'planner', 'settings'] as const).map((item) => (
+        <button type="button" key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
+      ))}
     </nav>
     {tab === 'overview' && dashboard && (
       <>
         <ClubSummary clubs={dashboard.clubs} />
-        <MemberTable clubs={dashboard.clubs} />
+        <MemberTable clubs={dashboard.clubs} assignments={assignments} />
         <PublicApplicants applicants={dashboard.applicants} clubs={dashboard.clubs} />
       </>
     )}
     {tab === 'applicants' && (
-      <StaffApplicants
-        applicants={applicants}
+      <StaffApplicants applicants={applicants} clubs={clubs} reload={safeReload} />
+    )}
+    {tab === 'planner' && (
+      <StaffPlanner
         clubs={clubs}
-        reload={async () => {
-          try {
-            await reload()
-            setError('')
-          } catch (reason) {
-            setError((reason as Error).message)
-          }
-        }}
+        members={members}
+        applicants={applicants}
+        initialAssignments={assignments}
+        boardStatus={boardStatus}
+        reload={safeReload}
       />
+    )}
+    {tab === 'settings' && (
+      <StaffClubSettings clubs={clubs} reload={safeReload} />
     )}
   </main>
 }
@@ -937,9 +1326,14 @@ function LocalWorkspace() {
 }
 
 export default function App() {
-  if (import.meta.env.VITE_LOCAL_WORKSPACE === 'true') return <LocalWorkspace />
+  // Never ship the SQLite local UI to Vercel/production, even if
+  // VITE_LOCAL_WORKSPACE was accidentally set in the host env.
+  if (import.meta.env.PROD) return <OnlineApp />
   if (import.meta.env.VITE_PUBLIC_ONLY === 'true') {
     return <PublicDashboard navigate={() => undefined} />
+  }
+  if (import.meta.env.MODE === 'workspace' || import.meta.env.VITE_LOCAL_WORKSPACE === 'true') {
+    return <LocalWorkspace />
   }
   return <OnlineApp />
 }

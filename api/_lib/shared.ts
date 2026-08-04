@@ -59,6 +59,30 @@ export function readClubs(): ClubConfig[] {
   return payload.clubs
 }
 
+/** Prefer Neon club settings (seeded from config); fall back to config file if DB is unavailable. */
+export async function loadClubs(clubIds?: string[]): Promise<ClubConfig[]> {
+  try {
+    const { listClubs } = await import('./db.js')
+    const rows = await listClubs(clubIds)
+    if (rows.length) {
+      return rows.map((club) => ({
+        circleId: club.circleId,
+        name: club.name,
+        dailyTarget: club.dailyTarget,
+        promotionRatio: club.promotionRatio,
+        severeRatio: club.severeRatio,
+        inactiveDays: club.inactiveDays,
+        promotionEnabled: club.promotionEnabled,
+      }))
+    }
+  } catch (error) {
+    console.error('Failed to load clubs from database; using config file.', error)
+  }
+  const fallback = readClubs()
+  if (clubIds?.length) return fallback.filter((club) => clubIds.includes(club.circleId))
+  return fallback
+}
+
 export function readAccess(): ManagerAccess[] {
   const file = path.join(process.cwd(), 'config', 'access.json')
   const payload = JSON.parse(readFileSync(file, 'utf8')) as { managers: ManagerAccess[] }

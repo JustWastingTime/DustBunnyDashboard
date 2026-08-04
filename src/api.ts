@@ -28,7 +28,29 @@ export const api = {
   me: () => request<{ authenticated: boolean; user?: SessionUser }>('/api/auth/me'),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   staffApplicants: () => request<{ applicants: import('./types').Applicant[]; user: SessionUser }>('/api/applicants'),
-  staffClubs: () => request<{ clubs: Array<{ circleId: string; name: string }>; user: SessionUser }>('/api/clubs'),
+  staffClubs: () => request<{ clubs: import('./types').Club[]; user: SessionUser }>('/api/clubs'),
+  staffUpdateClub: (circleId: string, body: unknown) =>
+    request<import('./types').Club>(`/api/clubs?circleId=${encodeURIComponent(circleId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  staffPlan: () =>
+    request<{
+      board: { status: string; updatedAt?: string | null; confirmedAt?: string | null }
+      assignments: import('./types').Assignment[]
+      clubs: import('./types').Club[]
+      user: SessionUser
+    }>('/api/planning'),
+  staffSavePlan: (assignments: import('./types').Assignment[]) =>
+    request<{
+      board: { status: string; updatedAt?: string | null; confirmedAt?: string | null }
+      assignments: import('./types').Assignment[]
+    }>('/api/planning', { method: 'PUT', body: JSON.stringify({ assignments }) }),
+  staffConfirmPlan: () =>
+    request<{
+      board: { status: string; updatedAt?: string | null; confirmedAt?: string | null }
+      assignments: import('./types').Assignment[]
+    }>('/api/planning?action=confirm', { method: 'POST' }),
   staffAddApplicant: (body: unknown) => request('/api/applicants', { method: 'POST', body: JSON.stringify(body) }),
   staffUpdateApplicant: (umaId: string, body: unknown) =>
     request(`/api/applicants?umaId=${encodeURIComponent(umaId)}`, { method: 'PATCH', body: JSON.stringify(body) }),

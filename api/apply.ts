@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { upsertApplicant } from './_lib/db.js'
-import { readClubs, resolveUmaProfile, sendError } from './_lib/shared.js'
+import { loadClubs, resolveUmaProfile, sendError } from './_lib/shared.js'
 
 const applySchema = z.object({
   umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
@@ -13,14 +13,16 @@ const applySchema = z.object({
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
     if (request.method === 'GET') {
+      const clubs = await loadClubs()
       return response.json({
-        clubs: readClubs().map((club) => ({ circleId: club.circleId, name: club.name })),
+        clubs: clubs.map((club) => ({ circleId: club.circleId, name: club.name })),
       })
     }
     if (request.method !== 'POST') return response.status(405).json({ error: 'Method not allowed.' })
 
     const input = applySchema.parse(request.body)
-    const club = readClubs().find((item) => item.circleId === input.targetClubId)
+    const clubs = await loadClubs()
+    const club = clubs.find((item) => item.circleId === input.targetClubId)
     if (!club) return response.status(400).json({ error: 'Selected club is not accepting applications.' })
 
     const profile = await resolveUmaProfile(input.umaId)

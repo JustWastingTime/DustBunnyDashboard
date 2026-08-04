@@ -3,8 +3,8 @@
 Online club performance dashboard for Dust Bunny, Dirt Bunny, and Damp Bunny.
 
 - **Public:** overview charts/members at `/`, applications at `/apply`
-- **Staff:** Discord login at `/staff` (hidden; not linked publicly)
-- **Local:** optional SQLite management app (`npm run dev`) for planner/settings/publish
+- **Staff:** Discord login at `/staff` — applicants, transfer planner (kick/invite checklist), club settings
+- **Local:** optional SQLite management app (`npm run dev`) for offline planner/settings/publish
 
 ## Online stack (Vercel free)
 
