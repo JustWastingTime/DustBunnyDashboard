@@ -802,7 +802,7 @@ function StaffPlanner({
       kind: 'member' as const,
       umaId: member.umaId,
       name: member.ign,
-      meta: `${number.format(member.dailyAverage)} / day`,
+      meta: `${compact.format(member.dailyAverage)}/d`,
       fallback: member.circleId || 'applicants',
       sortValue: member.dailyAverage,
     })),
@@ -813,7 +813,7 @@ function StaffPlanner({
         kind: 'applicant' as const,
         umaId: applicant.umaId,
         name: applicant.ign,
-        meta: `${number.format(applicant.dailyAverage)} / day · ${applicant.status}`,
+        meta: `${compact.format(applicant.dailyAverage)}/d · ${applicant.status}`,
         fallback: 'applicants',
         sortValue: applicant.dailyAverage,
       })),
@@ -887,11 +887,9 @@ function StaffPlanner({
 
   const onDragCancel = () => setActiveDragId(null)
 
-  const topLanes = [
-    ...clubs.map((club) => ({ id: club.circleId, title: club.name })),
-    { id: 'kick', title: 'Kick / remove' },
-  ]
+  const topLanes = clubs.map((club) => ({ id: club.circleId, title: club.name }))
   const bottomLanes = [
+    { id: 'kick', title: 'Kick / remove' },
     { id: 'applicants', title: 'Applicants' },
     { id: 'waitlist', title: 'Waitlist' },
   ]
@@ -1301,7 +1299,7 @@ function PlannerCardFace({
         </button>
       ) : null}
     </div>
-    {moved && fromLabel ? <em className={`move-tag ${originClass || ''}`}>from {fromLabel}</em> : null}
+    {moved && fromLabel ? <em className={`move-tag ${originClass || ''}`}>{fromLabel.replace(/ Bunny$/i, '')}</em> : null}
     {kind === 'applicant' && !moved ? <em className="move-tag origin-applicant">applicant</em> : null}
   </>
 }
@@ -1398,7 +1396,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       kind: 'member' as const,
       umaId: member.umaId,
       name: member.ign,
-      meta: `${number.format(member.dailyAverage)} / day`,
+      meta: `${compact.format(member.dailyAverage)}/d`,
       fallback: member.circleId || 'applicants',
       sortValue: member.dailyAverage,
     })),
@@ -1409,7 +1407,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       kind: 'applicant' as const,
       umaId: applicant.umaId,
       name: applicant.ign,
-      meta: `${number.format(applicant.dailyAverage)} / day · ${applicant.status}`,
+      meta: `${compact.format(applicant.dailyAverage)}/d · ${applicant.status}`,
       fallback: 'applicants',
       sortValue: applicant.dailyAverage,
     })),
@@ -1429,11 +1427,9 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     if (!assigned) return entity.fallback
     return assigned === 'unassigned' ? 'applicants' : assigned
   }
-  const topLanes = [
-    ...state.clubs.map((club) => ({ id: club.circleId, title: club.name })),
-    { id: 'kick', title: 'Kick / remove' },
-  ]
+  const topLanes = state.clubs.map((club) => ({ id: club.circleId, title: club.name }))
   const bottomLanes = [
+    { id: 'kick', title: 'Kick / remove' },
     { id: 'applicants', title: 'Applicants' },
     { id: 'waitlist', title: 'Waitlist' },
   ]
