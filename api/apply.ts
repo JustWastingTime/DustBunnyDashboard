@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { upsertApplicant } from './_lib/db.js'
-import { loadClubs, resolveUmaProfile, sendError } from './_lib/shared.js'
+import { notifyApplication } from './_lib/discord.js'
+import { loadClubs, resolveUmaProfile, sendError, siteUrl } from './_lib/shared.js'
 
 const applySchema = z.object({
   umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
@@ -42,6 +43,22 @@ export default async function handler(request: VercelRequest, response: VercelRe
       dailyAverage: profile.dailyAverage,
       todayGain: profile.todayGain,
       dailyGains: profile.dailyGains,
+    })
+
+    await notifyApplication({
+      ign: applicant.ign,
+      umaId: applicant.umaId,
+      discordUsername: input.discordUsername,
+      clubName: club.name,
+      clubId: club.circleId,
+      dailyAverage: profile.dailyAverage,
+      monthlyGain: profile.monthlyGain,
+      todayGain: profile.todayGain,
+      totalFans: profile.totalFans,
+      dailyGains: profile.dailyGains,
+      notes: input.notes,
+      currentClubName: profile.currentClubName,
+      siteUrl: siteUrl(request),
     })
 
     return response.status(201).json({

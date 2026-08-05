@@ -31,8 +31,11 @@ Online club performance dashboard for Dust Bunny, Dirt Bunny, and Damp Bunny.
 | `SESSION_SECRET` | Long random string for JWT cookies |
 | `UMA_API_KEY` | uma.moe API key |
 | `SITE_URL` | Canonical site URL, e.g. `https://your-app.vercel.app` |
+| `DISCORD_APPLY_WEBHOOK_URL` | Optional. Discord webhook URL for the applications channel — posts an embed (+ 30-day chart) on each apply |
 
 5. Deploy. Open `/` for the overview, `/apply` to submit, `/staff` to manage.
+
+To get the webhook URL: Discord channel → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL.
 
 Local online preview (after `npm i -g vercel` and env vars in `.env`):
 
