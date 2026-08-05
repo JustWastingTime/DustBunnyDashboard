@@ -5,31 +5,30 @@ export type ApplyNotifyInput = {
   umaId: string
   discordUsername: string
   clubName: string
-  clubId: string
   dailyAverage: number
   monthlyGain: number
-  todayGain: number
-  totalFans: number
   dailyGains: number[]
   notes?: string
   currentClubName?: string | null
-  siteUrl?: string
 }
 
 function chartConfig(dailyGains: number[]) {
   const values = dailyGains.slice(-30)
   const labels = values.map((_, index) => String(index + 1))
   return {
-    type: 'bar',
+    type: 'line',
     data: {
       labels,
       datasets: [{
         label: 'Daily fans',
         data: values,
-        backgroundColor: 'rgba(229, 122, 155, 0.75)',
         borderColor: 'rgba(196, 93, 122, 1)',
-        borderWidth: 1,
-        borderRadius: 3,
+        backgroundColor: 'rgba(229, 122, 155, 0.18)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,
+        pointRadius: 0,
+        pointHoverRadius: 4,
       }],
     },
     options: {
@@ -82,16 +81,11 @@ function buildEmbed(input: ApplyNotifyInput, chartUrl: string | null) {
   const fields = [
     { name: 'IGN', value: input.ign, inline: true },
     { name: 'Discord', value: input.discordUsername, inline: true },
-    { name: 'Applying to', value: input.clubName, inline: true },
     { name: 'Uma ID', value: `\`${input.umaId}\``, inline: true },
     { name: 'Daily average', value: `${number.format(input.dailyAverage)} / day`, inline: true },
     { name: 'Monthly gain', value: number.format(input.monthlyGain), inline: true },
-    { name: 'Today', value: `+${number.format(input.todayGain)}`, inline: true },
-    { name: 'Total fans', value: number.format(input.totalFans), inline: true },
+    { name: 'Current club', value: input.currentClubName?.trim() || 'Unattached', inline: true },
   ]
-  if (input.currentClubName) {
-    fields.push({ name: 'Current club', value: input.currentClubName, inline: true })
-  }
   if (input.notes?.trim()) {
     fields.push({ name: 'Notes', value: input.notes.trim().slice(0, 900), inline: false })
   }
@@ -104,7 +98,7 @@ function buildEmbed(input: ApplyNotifyInput, chartUrl: string | null) {
     image: chartUrl ? { url: chartUrl } : undefined,
     footer: { text: 'Dust Bunny Dashboard · pending review' },
     timestamp: new Date().toISOString(),
-    url: input.siteUrl ? `${input.siteUrl.replace(/\/$/, '')}/staff` : undefined,
+    url: `https://uma.moe/profile/${encodeURIComponent(input.umaId)}`,
   }
 }
 
