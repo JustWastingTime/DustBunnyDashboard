@@ -105,15 +105,22 @@ const bandOptions: Array<{ value: Band | 'all'; label: string }> = [
   { value: 'inactive', label: 'Inactive' },
 ]
 
-function BandBadge({ band, reason }: { band?: Band | null; reason?: string | null }) {
+function BandBadge({ band, reason, compact = false }: { band?: Band | null; reason?: string | null; compact?: boolean }) {
   const labels: Record<Band, string> = {
     promotion: 'Promotion candidate', meeting: 'Meeting target', under: 'Under target',
     severe: 'Severely under', inactive: 'Inactive',
   }
-  if (!band || !(band in labels)) {
-    return <span className="badge band-inactive" title={reason || 'No assessment yet'}>Unassessed<small>{reason || 'Refresh data to classify'}</small></span>
+  const short: Record<Band, string> = {
+    promotion: 'Promo', meeting: 'Meeting', under: 'Under', severe: 'Severe', inactive: 'Inactive',
   }
-  return <span className={`badge band-${band}`} title={reason || ''}>{labels[band]}<small>{reason}</small></span>
+  if (!band || !(band in labels)) {
+    return <span className={`badge band-inactive ${compact ? 'badge-compact' : ''}`} title={reason || 'No assessment yet'}>
+      {compact ? '—' : <>Unassessed<small>{reason || 'Refresh data to classify'}</small></>}
+    </span>
+  }
+  return <span className={`badge band-${band} ${compact ? 'badge-compact' : ''}`} title={reason || ''}>
+    {compact ? short[band] : <>{labels[band]}<small>{reason}</small></>}
+  </span>
 }
 
 function Header({ children, publicMode = false }: { children?: ReactNode; publicMode?: boolean }) {
@@ -236,6 +243,7 @@ function MemberTable({
   const [clubFilter, setClubFilter] = useState('all')
   const [bandFilter, setBandFilter] = useState<Band | 'all'>('all')
   const [sort, setSort] = useState<'dailyAverage' | 'monthlyGain' | 'todayGain'>('dailyAverage')
+  const [view, setView] = useState<'list' | 'grid'>('list')
   const clubById = new Map(clubs.map((club) => [club.circleId, club]))
   const members = (supplied || clubs.flatMap((club) => (club.members || []).map((member) => ({ ...member, circleId: club.circleId }))))
     .map((member) => {
@@ -274,6 +282,10 @@ function MemberTable({
         <p>{filtered.length} of {members.length} members shown{!promotionAvailable && clubFilter !== 'all' ? ' · promotion assessments disabled for this club' : ''}</p>
       </div>
       <div className="filters">
+        <div className="view-toggle" role="group" aria-label="Member layout">
+          <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
+          <button type="button" className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')}>Grid</button>
+        </div>
         <input aria-label="Search members" placeholder="Search IGN or Uma ID" value={query} onChange={(event) => setQuery(event.target.value)} />
         <select aria-label="Filter by club" value={clubFilter} onChange={(event) => {
           const nextClub = event.target.value
@@ -311,24 +323,50 @@ function MemberTable({
         </button>
       ))}
     </div>
-    <div className="table-scroll"><table>
-      <thead><tr><th>Trainer</th><th>Club</th><th>Monthly</th><th>Daily avg</th><th>Today</th><th>Trend</th><th>Assessment</th><th>Plan</th></tr></thead>
-      <tbody>
-        {filtered.length === 0 ? (
-          <tr><td colSpan={8} className="empty-row">No members match these filters.</td></tr>
-        ) : filtered.map((member) => {
-          const plan = planStatusLabel(member, assignments, clubById)
-          return <tr key={`${member.circleId}:${member.umaId}`}>
-            <td><strong>{member.ign}</strong><small className="id">{member.umaId}</small></td>
-            <td>{clubById.get(member.circleId || '')?.name || '—'}</td>
-            <td>{number.format(member.monthlyGain)}</td><td>{number.format(member.dailyAverage)}</td><td>+{number.format(member.todayGain)}</td>
-            <td><TrendChart label={member.ign} dailyGains={member.dailyGains} /></td>
-            <td><BandBadge band={member.band} reason={member.reason} /></td>
-            <td>{plan ? <span className={`plan-status plan-${plan.kind}`}>{plan.label}</span> : <span className="muted">—</span>}</td>
-          </tr>
-        })}
-      </tbody>
-    </table></div>
+    {view === 'grid' ? (
+      filtered.length === 0 ? (
+        <p className="empty-row">No members match these filters.</p>
+      ) : (
+        <div className="member-grid">
+          {filtered.map((member) => {
+            const plan = planStatusLabel(member, assignments, clubById)
+            return <article key={`${member.circleId}:${member.umaId}`} className="member-card">
+              <div className="member-card-top">
+                <strong title={member.umaId}>{member.ign}</strong>
+                <BandBadge band={member.band} reason={member.reason} compact />
+              </div>
+              <span className="member-card-club">{clubById.get(member.circleId || '')?.name || '—'}</span>
+              <div className="member-card-stats">
+                <span><small>Daily</small>{compact.format(member.dailyAverage)}</span>
+                <span><small>Month</small>{compact.format(member.monthlyGain)}</span>
+                <span><small>Today</small>+{compact.format(member.todayGain)}</span>
+              </div>
+              <TrendChart label={member.ign} dailyGains={member.dailyGains} height={42} className="member-card-chart" />
+              {plan ? <span className={`plan-status plan-${plan.kind}`}>{plan.label}</span> : null}
+            </article>
+          })}
+        </div>
+      )
+    ) : (
+      <div className="table-scroll"><table>
+        <thead><tr><th>Trainer</th><th>Club</th><th>Monthly</th><th>Daily avg</th><th>Today</th><th>Trend</th><th>Assessment</th><th>Plan</th></tr></thead>
+        <tbody>
+          {filtered.length === 0 ? (
+            <tr><td colSpan={8} className="empty-row">No members match these filters.</td></tr>
+          ) : filtered.map((member) => {
+            const plan = planStatusLabel(member, assignments, clubById)
+            return <tr key={`${member.circleId}:${member.umaId}`}>
+              <td><strong>{member.ign}</strong><small className="id">{member.umaId}</small></td>
+              <td>{clubById.get(member.circleId || '')?.name || '—'}</td>
+              <td>{number.format(member.monthlyGain)}</td><td>{number.format(member.dailyAverage)}</td><td>+{number.format(member.todayGain)}</td>
+              <td><TrendChart label={member.ign} dailyGains={member.dailyGains} /></td>
+              <td><BandBadge band={member.band} reason={member.reason} /></td>
+              <td>{plan ? <span className={`plan-status plan-${plan.kind}`}>{plan.label}</span> : <span className="muted">—</span>}</td>
+            </tr>
+          })}
+        </tbody>
+      </table></div>
+    )}
   </section>
 }
 

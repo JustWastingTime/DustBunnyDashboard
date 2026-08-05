@@ -202,6 +202,83 @@ td { padding: 13px 12px; border-bottom: 1px solid var(--line); font-size: .88rem
 .mini-chart { width: 100px; }.muted { color: var(--muted); font-size: .75rem; }
 .badge { display: inline-flex; flex-direction: column; width: max-content; max-width: 170px; padding: 6px 9px; border-radius: 4px; font-size: .72rem; font-weight: 800; }
 .badge small { display: block; margin-top: 2px; font-weight: 500; opacity: .75; }
+.badge-compact { flex-direction: row; max-width: none; padding: 3px 7px; font-size: .62rem; }
+.badge-compact small { display: none; }
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.view-toggle button {
+  border: 0;
+  border-radius: 0;
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .78rem;
+}
+.view-toggle button.active {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+.member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+}
+.member-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.member-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+.member-card-top strong {
+  min-width: 0;
+  font-size: .82rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.member-card-club { color: var(--muted); font-size: .68rem; font-weight: 700; }
+.member-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.member-card-stats span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: .72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.member-card-stats small {
+  color: var(--muted);
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.member-card-chart { width: 100%; min-height: 42px; }
+.member-card .plan-status { align-self: flex-start; }
 .band-promotion { color: #c45d7a; background: #ffe0ea; }.band-meeting { color: #3d6f9a; background: #ddefff; }
 .band-under { color: #835816; background: #f5e9ca; }.band-severe { color: #8d3030; background: #f3dddd; }.band-inactive { color: #6a5a62; background: #ebe4e8; }
 .status { display: inline-block; padding: 5px 9px; border-radius: 10px; font-size: .7rem; font-weight: 800; text-transform: capitalize; }
