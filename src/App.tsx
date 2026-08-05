@@ -370,10 +370,12 @@ function OverviewBody({ data }: { data: PublicData }) {
 }
 
 function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
+  const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
   const [selectedClubId, setSelectedClubId] = useState(clubs[0]?.circleId || '')
+  const selectedClub = clubs.find((club) => club.circleId === selectedClubId)
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setBusy(true)
@@ -384,7 +386,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
       await api.submitApplication({
         umaId: String(form.get('umaId') || '').trim(),
         discordUsername: String(form.get('discordUsername') || '').trim(),
-        targetClubId: String(form.get('targetClubId') || ''),
+        targetClubId: selectedClubId,
         notes: String(form.get('notes') || ''),
       })
       setMessage('Application received. Managers will review it privately.')
@@ -396,60 +398,77 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
       setBusy(false)
     }
   }
-  return <>
-    <section className="apply-intro">
-      <div>
-        <p className="eyebrow">Recruitment</p>
-        <h2>Pick a club, then apply</h2>
-        <p className="muted">Compare ranks and requirements below, then send your Uma ID and Discord username.</p>
-      </div>
-    </section>
-    <section className="club-grid">{clubs.map((club) => (
-      <div
-        key={club.circleId}
-        role="button"
-        tabIndex={0}
-        className={`club-pick ${selectedClubId === club.circleId ? 'selected' : ''}`}
-        onClick={() => setSelectedClubId(club.circleId)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            setSelectedClubId(club.circleId)
-          }
-        }}
-        aria-pressed={selectedClubId === club.circleId}
-      >
-        <ClubOverviewCard club={club} />
-      </div>
-    ))}</section>
-    <section className="panel form-stack apply-form">
-      <div>
-        <p className="eyebrow">Your application</p>
-        <h2>Apply to {clubs.find((club) => club.circleId === selectedClubId)?.name || 'a club'}</h2>
-        <p className="muted">Managers can see Discord details; the public overview never shows them.</p>
-      </div>
-      <form className="form-stack" onSubmit={submit}>
-        <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required placeholder="123456789" /></label>
-        <label>Discord username<input name="discordUsername" required minLength={2} maxLength={64} placeholder="name or name#0000" /></label>
-        <label>Club
-          <select
-            name="targetClubId"
-            required
-            value={selectedClubId}
-            onChange={(event) => setSelectedClubId(event.target.value)}
+
+  return <section className="apply-page">
+    <header className="apply-intro">
+      <p className="eyebrow">Recruitment</p>
+      <h2>Apply to a Bunny club</h2>
+      <p className="muted">Pick a club on the left, then send your Uma ID and Discord username. Managers review applications privately.</p>
+    </header>
+
+    <div className="apply-layout">
+      <aside className="apply-clubs" aria-label="Choose a club">
+        {clubs.map((club) => {
+          const memberCount = club.members?.length ?? 0
+          const selected = selectedClubId === club.circleId
+          return <button
+            key={club.circleId}
+            type="button"
+            className={`apply-club-pick ${selected ? 'selected' : ''}`}
+            onClick={() => setSelectedClubId(club.circleId)}
+            aria-pressed={selected}
           >
-            {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
-          </select>
-        </label>
-        <label>Notes for managers<textarea name="notes" rows={4} maxLength={2000} placeholder="Optional" /></label>
-        <div className="button-row">
-          <button className="primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit application'}</button>
+            <div className="apply-club-copy">
+              <div className="apply-club-title-row">
+                <strong>{club.name}</strong>
+                <span className="apply-club-rank">
+                  {club.rank != null ? `#${club.rank}` : '—'}
+                  <RankDelta delta={club.rankDelta} />
+                </span>
+              </div>
+              <dl className="apply-club-meta">
+                <div>
+                  <dt>Requirement</dt>
+                  <dd>{compact.format(club.dailyTarget)}/day</dd>
+                </div>
+                <div>
+                  <dt>Members</dt>
+                  <dd>{memberCount}/30</dd>
+                </div>
+                <div>
+                  <dt>This month</dt>
+                  <dd>{club.monthlyFans != null ? compact.format(club.monthlyFans) : '—'}</dd>
+                </div>
+              </dl>
+            </div>
+            <ClubRankBadge key={club.rankGrade || 'none'} grade={club.rankGrade} />
+          </button>
+        })}
+      </aside>
+
+      <section className="panel form-stack apply-form">
+        <div>
+          <p className="eyebrow">Your application</p>
+          <h2>Apply to {selectedClub?.name || 'a club'}</h2>
+          <p className="muted">Discord details stay off the public overview.</p>
         </div>
-      </form>
-      {message && <p className="notice">{message}</p>}
-      {error && <p className="notice error">{error}</p>}
-    </section>
-  </>
+        <form className="form-stack" onSubmit={submit}>
+          <div className="field-row">
+            <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required placeholder="123456789" /></label>
+            <label>Discord username<input name="discordUsername" required minLength={2} maxLength={64} placeholder="name or name#0000" /></label>
+          </div>
+          <label>Notes for managers<textarea name="notes" rows={5} maxLength={2000} placeholder="Optional — availability, current club, anything managers should know" /></label>
+          <div className="button-row">
+            <button className="primary" disabled={busy || !selectedClubId}>
+              {busy ? 'Submitting…' : `Submit to ${selectedClub?.name || 'club'}`}
+            </button>
+          </div>
+        </form>
+        {message && <p className="notice">{message}</p>}
+        {error && <p className="notice error">{error}</p>}
+      </section>
+    </div>
+  </section>
 }
 
 function PublicSite({ path, navigate }: { path: string; navigate: (to: string) => void }) {
