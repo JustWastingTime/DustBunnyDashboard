@@ -56,6 +56,11 @@ export const api = {
     request(`/api/applicants?umaId=${encodeURIComponent(umaId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   staffDeleteApplicant: (umaId: string) =>
     request<void>(`/api/applicants?umaId=${encodeURIComponent(umaId)}`, { method: 'DELETE' }),
+  staffBlacklist: () => request<{ entries: import('./types').BlacklistEntry[]; user: SessionUser }>('/api/blacklist'),
+  staffAddBlacklist: (body: unknown) =>
+    request<import('./types').BlacklistEntry>('/api/blacklist', { method: 'POST', body: JSON.stringify(body) }),
+  staffDeleteBlacklist: (id: number) =>
+    request<void>(`/api/blacklist?id=${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
 
   // Local SQLite workspace endpoints
   state: () => request<import('./types').DashboardState>('/api/state'),

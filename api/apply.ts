@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { upsertApplicant } from './_lib/db.js'
+import { findBlacklistMatch, upsertApplicant } from './_lib/db.js'
 import { notifyApplication } from './_lib/discord.js'
 import { loadClubs, resolveUmaProfile, sendError } from './_lib/shared.js'
 
@@ -25,6 +25,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const clubs = await loadClubs()
     const club = clubs.find((item) => item.circleId === input.targetClubId)
     if (!club) return response.status(400).json({ error: 'Selected club is not accepting applications.' })
+
+    const blocked = await findBlacklistMatch(input.umaId, input.discordUsername)
+    if (blocked) {
+      return response.status(403).json({ error: 'This trainer cannot apply to Bunny clubs.' })
+    }
 
     const profile = await resolveUmaProfile(input.umaId)
     const applicant = await upsertApplicant({

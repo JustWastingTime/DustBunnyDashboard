@@ -57,6 +57,15 @@ export type Applicant = {
   dailyGains: number[]
 }
 
+export type BlacklistEntry = {
+  id: number
+  umaId: string
+  discordUsername: string
+  reason: string
+  createdBy: string
+  createdAt: string | null
+}
+
 export type Assignment = {
   entityType: 'member' | 'applicant'
   entityId: string

@@ -135,6 +135,17 @@ export async function ensureSchema() {
         )
       `
       await db`
+        CREATE TABLE IF NOT EXISTS blacklist_entries (
+          id SERIAL PRIMARY KEY,
+          uma_id TEXT NOT NULL UNIQUE,
+          discord_username TEXT NOT NULL,
+          discord_username_normalized TEXT NOT NULL UNIQUE,
+          reason TEXT NOT NULL DEFAULT '',
+          created_by TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `
+      await db`
         INSERT INTO planning_boards (id, status, updated_at)
         VALUES (1, 'draft', NOW())
         ON CONFLICT (id) DO NOTHING
@@ -422,6 +433,108 @@ export async function deleteApplicant(umaId: string, clubIds: string[]) {
     DELETE FROM applicants
     WHERE uma_id = ${umaId} AND target_club_id = ANY(${clubIds})
     RETURNING uma_id
+  `
+  return rows.length > 0
+}
+
+export type BlacklistRow = {
+  id: number
+  umaId: string
+  discordUsername: string
+  reason: string
+  createdBy: string
+  createdAt: string | null
+}
+
+function mapBlacklist(row: any): BlacklistRow {
+  return {
+    id: Number(row.id),
+    umaId: String(row.uma_id),
+    discordUsername: String(row.discord_username || ''),
+    reason: String(row.reason || ''),
+    createdBy: String(row.created_by || ''),
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+  }
+}
+
+export function normalizeDiscordUsername(value: string) {
+  return String(value || '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase()
+}
+
+export async function listBlacklist() {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    SELECT * FROM blacklist_entries
+    ORDER BY created_at DESC, id DESC
+  `
+  return rows.map(mapBlacklist)
+}
+
+export async function findBlacklistMatch(umaId: string, discordUsername: string) {
+  await ensureSchema()
+  const db = getSql()
+  const normalized = normalizeDiscordUsername(discordUsername)
+  const rows = await db`
+    SELECT * FROM blacklist_entries
+    WHERE uma_id = ${umaId}
+       OR (${normalized} <> '' AND discord_username_normalized = ${normalized})
+    LIMIT 1
+  `
+  return rows[0] ? mapBlacklist(rows[0]) : null
+}
+
+export async function addBlacklistEntry(input: {
+  umaId: string
+  discordUsername: string
+  reason?: string
+  createdBy?: string
+}) {
+  await ensureSchema()
+  const db = getSql()
+  const discordUsername = String(input.discordUsername || '').trim()
+  const normalized = normalizeDiscordUsername(discordUsername)
+  if (!normalized) throw new Error('Discord username is required.')
+
+  const discordTaken = await db`
+    SELECT id FROM blacklist_entries
+    WHERE discord_username_normalized = ${normalized} AND uma_id <> ${input.umaId}
+    LIMIT 1
+  `
+  if (discordTaken.length) throw new Error('That Discord username is already on the blacklist.')
+
+  const rows = await db`
+    INSERT INTO blacklist_entries (
+      uma_id, discord_username, discord_username_normalized, reason, created_by, created_at
+    ) VALUES (
+      ${input.umaId},
+      ${discordUsername},
+      ${normalized},
+      ${String(input.reason || '').trim()},
+      ${String(input.createdBy || '').trim()},
+      NOW()
+    )
+    ON CONFLICT (uma_id) DO UPDATE SET
+      discord_username = EXCLUDED.discord_username,
+      discord_username_normalized = EXCLUDED.discord_username_normalized,
+      reason = EXCLUDED.reason,
+      created_by = EXCLUDED.created_by,
+      created_at = NOW()
+    RETURNING *
+  `
+  return mapBlacklist(rows[0])
+}
+
+export async function deleteBlacklistEntry(id: number) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    DELETE FROM blacklist_entries
+    WHERE id = ${id}
+    RETURNING id
   `
   return rows.length > 0
 }

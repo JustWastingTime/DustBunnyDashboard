@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import { api } from './api'
 import { assessMember } from './assess'
-import type { Applicant, Assignment, Band, Club, DashboardState, Member, PublicData, Status } from './types'
+import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, PublicData, Status } from './types'
 import './App.css'
 
 const number = new Intl.NumberFormat('en-US')
@@ -1059,14 +1059,145 @@ function StaffPlanner({
   </section>
 }
 
+function StaffBlacklist({
+  entries,
+  reload,
+}: {
+  entries: BlacklistEntry[]
+  reload: () => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+
+  const filtered = entries.filter((entry) => {
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+    return (
+      entry.umaId.includes(q)
+      || entry.discordUsername.toLowerCase().includes(q)
+      || entry.reason.toLowerCase().includes(q)
+      || entry.createdBy.toLowerCase().includes(q)
+    )
+  })
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    const form = new FormData(event.currentTarget)
+    try {
+      await api.staffAddBlacklist({
+        umaId: String(form.get('umaId') || '').trim(),
+        discordUsername: String(form.get('discordUsername') || '').trim(),
+        reason: String(form.get('reason') || '').trim(),
+      })
+      event.currentTarget.reset()
+      await reload()
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async (entry: BlacklistEntry) => {
+    if (!confirm(`Remove ${entry.discordUsername} (${entry.umaId}) from the blacklist?`)) return
+    setBusy(true)
+    setError('')
+    try {
+      await api.staffDeleteBlacklist(entry.id)
+      await reload()
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <section className="split-layout applicants-layout">
+    <form className="panel form-stack" onSubmit={submit}>
+      <div>
+        <p className="eyebrow">Blocklist</p>
+        <h2>Add to blacklist</h2>
+        <p className="muted">Blocked trainers cannot submit applications. Match is by Uma ID or Discord username.</p>
+      </div>
+      <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required placeholder="123456789" /></label>
+      <label>Discord username<input name="discordUsername" required minLength={2} maxLength={64} placeholder="name" /></label>
+      <label>Reason<textarea name="reason" rows={4} maxLength={2000} placeholder="Optional — staff-only note" /></label>
+      <div className="button-row">
+        <button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Add to blacklist'}</button>
+      </div>
+      {error && <p className="notice error">{error}</p>}
+    </form>
+    <section className="panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Blocked</p>
+          <h2>{filtered.length} entr{filtered.length === 1 ? 'y' : 'ies'}</h2>
+          <p>{entries.length} total on blacklist</p>
+        </div>
+        <div className="filters">
+          <input
+            aria-label="Search blacklist"
+            placeholder="Search Discord, Uma ID, reason"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+      </div>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Discord</th>
+              <th>Uma ID</th>
+              <th>Reason</th>
+              <th>Added by</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={5} className="empty-row">No blacklist entries yet.</td></tr>
+            ) : filtered.map((entry) => (
+              <tr key={entry.id}>
+                <td><strong>{entry.discordUsername}</strong></td>
+                <td>
+                  <a href={`https://uma.moe/profile/${entry.umaId}`} target="_blank" rel="noreferrer">
+                    <small className="id">{entry.umaId}</small>
+                  </a>
+                </td>
+                <td>{entry.reason || <span className="muted">—</span>}</td>
+                <td>
+                  <span className="muted">
+                    {entry.createdBy || '—'}
+                    {entry.createdAt ? ` · ${new Date(entry.createdAt).toLocaleDateString()}` : ''}
+                  </span>
+                </td>
+                <td>
+                  <button type="button" className="danger-link" disabled={busy} onClick={() => void remove(entry)}>
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+}
+
 function StaffPage() {
   const [auth, setAuth] = useState<'loading' | 'guest' | 'user'>('loading')
   const [userLabel, setUserLabel] = useState('')
-  const [tab, setTab] = useState<'overview' | 'applicants' | 'planner' | 'settings'>('applicants')
+  const [tab, setTab] = useState<'overview' | 'applicants' | 'planner' | 'blacklist' | 'settings'>('applicants')
   const [dashboard, setDashboard] = useState<PublicData | null>(null)
   const [applicants, setApplicants] = useState<Applicant[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([])
   const [boardStatus, setBoardStatus] = useState('draft')
   const [error, setError] = useState('')
   const params = new URLSearchParams(window.location.search)
@@ -1080,17 +1211,19 @@ function StaffPage() {
     }
     setAuth('user')
     setUserLabel(me.user.label || me.user.globalName || me.user.username)
-    const [dash, staff, clubPayload, plan] = await Promise.all([
+    const [dash, staff, clubPayload, plan, blocked] = await Promise.all([
       api.publicDashboard(),
       api.staffApplicants(),
       api.staffClubs(),
       api.staffPlan(),
+      api.staffBlacklist(),
     ])
     setDashboard(dash)
     setApplicants(staff.applicants)
     setClubs(clubPayload.clubs)
     setAssignments(plan.assignments)
     setBoardStatus(plan.board.status || 'draft')
+    setBlacklist(blocked.entries)
   }
 
   useEffect(() => {
@@ -1144,7 +1277,7 @@ function StaffPage() {
     </Header>
     {error && <p className="notice error">{error}</p>}
     <nav className="tabs" aria-label="Staff sections">
-      {(['overview', 'applicants', 'planner', 'settings'] as const).map((item) => (
+      {(['overview', 'applicants', 'planner', 'blacklist', 'settings'] as const).map((item) => (
         <button type="button" key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
       ))}
     </nav>
@@ -1167,6 +1300,9 @@ function StaffPage() {
         boardStatus={boardStatus}
         reload={safeReload}
       />
+    )}
+    {tab === 'blacklist' && (
+      <StaffBlacklist entries={blacklist} reload={safeReload} />
     )}
     {tab === 'settings' && (
       <StaffClubSettings clubs={clubs} reload={safeReload} />
