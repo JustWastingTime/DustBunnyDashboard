@@ -1083,16 +1083,17 @@ function StaffBlacklist({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = event.currentTarget
     setBusy(true)
     setError('')
-    const form = new FormData(event.currentTarget)
+    const data = new FormData(form)
     try {
       await api.staffAddBlacklist({
-        umaId: String(form.get('umaId') || '').trim(),
-        discordUsername: String(form.get('discordUsername') || '').trim(),
-        reason: String(form.get('reason') || '').trim(),
+        umaId: String(data.get('umaId') || '').trim(),
+        discordUsername: String(data.get('discordUsername') || '').trim(),
+        reason: String(data.get('reason') || '').trim(),
       })
-      event.currentTarget.reset()
+      form.reset()
       await reload()
     } catch (reason) {
       setError((reason as Error).message)
