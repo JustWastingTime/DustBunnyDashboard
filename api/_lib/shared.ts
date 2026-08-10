@@ -36,6 +36,7 @@ export type SessionUser = {
   avatar: string | null
   clubIds: string[]
   label: string | null
+  isManager: boolean
 }
 
 const SESSION_COOKIE = 'dustbunny_session'
@@ -107,6 +108,7 @@ export async function createSessionToken(user: SessionUser) {
     avatar: user.avatar,
     clubIds: user.clubIds,
     label: user.label,
+    isManager: user.isManager,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -121,15 +123,16 @@ export async function readSession(request: VercelRequest): Promise<SessionUser |
   try {
     const { payload } = await jwtVerify(token, await sessionSecret())
     const discordId = String(payload.discordId || '')
+    if (!discordId) return null
     const manager = findManager(discordId)
-    if (!manager) return null
     return {
       discordId,
       username: String(payload.username || ''),
       globalName: payload.globalName == null ? null : String(payload.globalName),
       avatar: payload.avatar == null ? null : String(payload.avatar),
-      clubIds: manager.clubIds.map(String),
-      label: manager.label || null,
+      clubIds: manager ? manager.clubIds.map(String) : [],
+      label: manager?.label || null,
+      isManager: Boolean(manager),
     }
   } catch {
     return null
@@ -168,10 +171,26 @@ export function clearSessionCookie(response: VercelResponse) {
   )
 }
 
-export async function requireManager(request: VercelRequest, response: VercelResponse) {
+export function safeReturnTo(value: unknown, fallback = '/tourney') {
+  const raw = String(value || '').trim()
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('://')) return fallback
+  if (raw.startsWith('/staff') || raw.startsWith('/tourney')) return raw
+  return fallback
+}
+
+export async function requireUser(request: VercelRequest, response: VercelResponse) {
   const user = await readSession(request)
   if (!user) {
     response.status(401).json({ error: 'Discord login required.' })
+    return null
+  }
+  return user
+}
+
+export async function requireManager(request: VercelRequest, response: VercelResponse) {
+  const user = await readSession(request)
+  if (!user?.isManager) {
+    response.status(401).json({ error: 'Discord manager login required.' })
     return null
   }
   return user

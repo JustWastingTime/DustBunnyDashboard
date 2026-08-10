@@ -146,6 +146,43 @@ export async function ensureSchema() {
         )
       `
       await db`
+        CREATE TABLE IF NOT EXISTS tournaments (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          rounds INTEGER NOT NULL DEFAULT 1,
+          event_date TIMESTAMPTZ NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `
+      await db`
+        CREATE TABLE IF NOT EXISTS tournament_players (
+          id SERIAL PRIMARY KEY,
+          tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+          discord_id TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          team INTEGER NOT NULL DEFAULT 1,
+          distance TEXT NOT NULL DEFAULT 'mile',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          uma_id TEXT,
+          UNIQUE (tournament_id, discord_id)
+        )
+      `
+      await db`
+        CREATE TABLE IF NOT EXISTS tournament_picks (
+          tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+          player_id INTEGER NOT NULL REFERENCES tournament_players(id) ON DELETE CASCADE,
+          round INTEGER NOT NULL,
+          team INTEGER NOT NULL,
+          character_id TEXT NOT NULL,
+          character_name TEXT NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_by TEXT NOT NULL DEFAULT '',
+          PRIMARY KEY (player_id, round),
+          UNIQUE (tournament_id, team, round, character_name)
+        )
+      `
+      await db`
         INSERT INTO planning_boards (id, status, updated_at)
         VALUES (1, 'draft', NOW())
         ON CONFLICT (id) DO NOTHING
@@ -537,4 +574,355 @@ export async function deleteBlacklistEntry(id: number) {
     RETURNING id
   `
   return rows.length > 0
+}
+
+export type TournamentDistance = 'sprint' | 'mile' | 'medium' | 'long' | 'dirt'
+
+export type TournamentRow = {
+  id: number
+  name: string
+  rounds: number
+  eventDate: string
+  createdAt: string | null
+  updatedAt: string | null
+  locked: boolean
+  playerCount?: number
+}
+
+export type TournamentPlayerRow = {
+  id: number
+  tournamentId: number
+  discordId: string
+  displayName: string
+  team: number
+  distance: TournamentDistance
+  sortOrder: number
+  umaId: string | null
+}
+
+export type TournamentPickRow = {
+  playerId: number
+  round: number
+  team: number
+  characterId: string
+  characterName: string
+  updatedAt: string | null
+  updatedBy: string
+}
+
+function endOfDayUtc(dateInput: string | Date) {
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  if (Number.isNaN(date.getTime())) throw new Error('Invalid tournament date.')
+  // If date-only (YYYY-MM-DD), lock at end of that UTC day.
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    return new Date(`${dateInput}T23:59:59.999Z`)
+  }
+  return date
+}
+
+function isTournamentLocked(eventDate: string | Date) {
+  return Date.now() > endOfDayUtc(eventDate).getTime()
+}
+
+function mapTournament(row: any): TournamentRow {
+  const eventDate = row.event_date ? new Date(row.event_date).toISOString() : new Date().toISOString()
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    rounds: Math.max(1, Number(row.rounds || 1)),
+    eventDate,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+    locked: isTournamentLocked(eventDate),
+    playerCount: row.player_count == null ? undefined : Number(row.player_count),
+  }
+}
+
+function mapTournamentPlayer(row: any): TournamentPlayerRow {
+  const distance = String(row.distance || 'mile')
+  const allowed: TournamentDistance[] = ['sprint', 'mile', 'medium', 'long', 'dirt']
+  return {
+    id: Number(row.id),
+    tournamentId: Number(row.tournament_id),
+    discordId: String(row.discord_id),
+    displayName: String(row.display_name),
+    team: Math.max(1, Number(row.team || 1)),
+    distance: (allowed.includes(distance as TournamentDistance) ? distance : 'mile') as TournamentDistance,
+    sortOrder: Number(row.sort_order || 0),
+    umaId: row.uma_id == null || row.uma_id === '' ? null : String(row.uma_id),
+  }
+}
+
+function mapTournamentPick(row: any): TournamentPickRow {
+  return {
+    playerId: Number(row.player_id),
+    round: Number(row.round),
+    team: Number(row.team),
+    characterId: String(row.character_id),
+    characterName: String(row.character_name),
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+    updatedBy: String(row.updated_by || ''),
+  }
+}
+
+export async function listTournaments() {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    SELECT t.*, COUNT(p.id)::int AS player_count
+    FROM tournaments t
+    LEFT JOIN tournament_players p ON p.tournament_id = t.id
+    GROUP BY t.id
+    ORDER BY t.event_date DESC, t.id DESC
+  `
+  return rows.map(mapTournament)
+}
+
+export async function listTournamentsForUser(discordId: string, isManager: boolean) {
+  await ensureSchema()
+  const db = getSql()
+  if (isManager) return listTournaments()
+  const rows = await db`
+    SELECT t.*, COUNT(p2.id)::int AS player_count
+    FROM tournaments t
+    INNER JOIN tournament_players p ON p.tournament_id = t.id AND p.discord_id = ${discordId}
+    LEFT JOIN tournament_players p2 ON p2.tournament_id = t.id
+    GROUP BY t.id
+    ORDER BY t.event_date DESC, t.id DESC
+  `
+  return rows.map(mapTournament)
+}
+
+export async function getTournament(id: number) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`SELECT * FROM tournaments WHERE id = ${id} LIMIT 1`
+  return rows[0] ? mapTournament(rows[0]) : null
+}
+
+export async function createTournament(input: { name: string; rounds: number; eventDate: string }) {
+  await ensureSchema()
+  const db = getSql()
+  const eventDate = endOfDayUtc(input.eventDate)
+  const rounds = Math.max(1, Math.min(8, Math.floor(input.rounds)))
+  const rows = await db`
+    INSERT INTO tournaments (name, rounds, event_date, created_at, updated_at)
+    VALUES (${input.name.trim()}, ${rounds}, ${eventDate.toISOString()}, NOW(), NOW())
+    RETURNING *
+  `
+  return mapTournament(rows[0])
+}
+
+export async function updateTournament(id: number, input: { name: string; rounds: number; eventDate: string }) {
+  await ensureSchema()
+  const db = getSql()
+  const eventDate = endOfDayUtc(input.eventDate)
+  const rounds = Math.max(1, Math.min(8, Math.floor(input.rounds)))
+  const rows = await db`
+    UPDATE tournaments
+    SET name = ${input.name.trim()},
+        rounds = ${rounds},
+        event_date = ${eventDate.toISOString()},
+        updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `
+  return rows[0] ? mapTournament(rows[0]) : null
+}
+
+export async function deleteTournament(id: number) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`DELETE FROM tournaments WHERE id = ${id} RETURNING id`
+  return rows.length > 0
+}
+
+export async function listTournamentPlayers(tournamentId: number) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    SELECT * FROM tournament_players
+    WHERE tournament_id = ${tournamentId}
+    ORDER BY team ASC, sort_order ASC, id ASC
+  `
+  return rows.map(mapTournamentPlayer)
+}
+
+export async function listTournamentPicks(tournamentId: number) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    SELECT * FROM tournament_picks
+    WHERE tournament_id = ${tournamentId}
+  `
+  return rows.map(mapTournamentPick)
+}
+
+export async function replaceTournamentRoster(
+  tournamentId: number,
+  players: Array<{
+    discordId: string
+    displayName: string
+    team: number
+    distance: TournamentDistance
+    sortOrder: number
+    umaId?: string | null
+  }>,
+) {
+  await ensureSchema()
+  const tournament = await getTournament(tournamentId)
+  if (!tournament) throw new Error('Tournament not found.')
+  const db = getSql()
+
+  const existing = await listTournamentPlayers(tournamentId)
+  const existingByDiscord = new Map(existing.map((player) => [player.discordId, player]))
+  const keepDiscord = new Set(players.map((player) => String(player.discordId).trim()))
+
+  for (const player of existing) {
+    if (!keepDiscord.has(player.discordId)) {
+      await db`DELETE FROM tournament_players WHERE id = ${player.id}`
+    }
+  }
+
+  const result: TournamentPlayerRow[] = []
+  for (const [index, player] of players.entries()) {
+    const discordId = String(player.discordId).trim()
+    const displayName = String(player.displayName).trim()
+    if (!discordId || !displayName) throw new Error('Each player needs a Discord ID and display name.')
+    const team = Math.max(1, Math.floor(player.team || 1))
+    const distance = player.distance
+    const sortOrder = Number.isFinite(player.sortOrder) ? player.sortOrder : index
+    const umaId = player.umaId ? String(player.umaId).trim() : null
+    const prior = existingByDiscord.get(discordId)
+    if (prior) {
+      const rows = await db`
+        UPDATE tournament_players
+        SET display_name = ${displayName},
+            team = ${team},
+            distance = ${distance},
+            sort_order = ${sortOrder},
+            uma_id = ${umaId}
+        WHERE id = ${prior.id}
+        RETURNING *
+      `
+      // Keep picks in sync if team changed
+      if (prior.team !== team) {
+        await db`
+          UPDATE tournament_picks
+          SET team = ${team}
+          WHERE player_id = ${prior.id}
+        `
+      }
+      result.push(mapTournamentPlayer(rows[0]))
+    } else {
+      const rows = await db`
+        INSERT INTO tournament_players (
+          tournament_id, discord_id, display_name, team, distance, sort_order, uma_id
+        ) VALUES (
+          ${tournamentId}, ${discordId}, ${displayName}, ${team}, ${distance}, ${sortOrder}, ${umaId}
+        )
+        RETURNING *
+      `
+      result.push(mapTournamentPlayer(rows[0]))
+    }
+  }
+  return result
+}
+
+export async function getTournamentBoard(tournamentId: number) {
+  const tournament = await getTournament(tournamentId)
+  if (!tournament) return null
+  const [players, picks] = await Promise.all([
+    listTournamentPlayers(tournamentId),
+    listTournamentPicks(tournamentId),
+  ])
+  return { tournament, players, picks }
+}
+
+export async function saveTournamentPick(input: {
+  tournamentId: number
+  playerId: number
+  round: number
+  characterId: string
+  characterName: string
+  updatedBy: string
+  actorDiscordId: string
+  isManager: boolean
+}) {
+  await ensureSchema()
+  const board = await getTournamentBoard(input.tournamentId)
+  if (!board) throw new Error('Tournament not found.')
+  const { tournament, players } = board
+  if (input.round < 1 || input.round > tournament.rounds) {
+    throw new Error(`Round must be between 1 and ${tournament.rounds}.`)
+  }
+  const player = players.find((item) => item.id === input.playerId)
+  if (!player) throw new Error('Player not found on this tournament.')
+  if (!input.isManager) {
+    if (tournament.locked) throw new Error('This tournament is locked. Picks can no longer be changed.')
+    if (player.discordId !== input.actorDiscordId) {
+      throw new Error('You can only edit your own picks.')
+    }
+  }
+
+  const db = getSql()
+  try {
+    const rows = await db`
+      INSERT INTO tournament_picks (
+        tournament_id, player_id, round, team, character_id, character_name, updated_at, updated_by
+      ) VALUES (
+        ${input.tournamentId},
+        ${input.playerId},
+        ${input.round},
+        ${player.team},
+        ${input.characterId},
+        ${input.characterName},
+        NOW(),
+        ${input.updatedBy}
+      )
+      ON CONFLICT (player_id, round) DO UPDATE SET
+        team = EXCLUDED.team,
+        character_id = EXCLUDED.character_id,
+        character_name = EXCLUDED.character_name,
+        updated_at = NOW(),
+        updated_by = EXCLUDED.updated_by
+      RETURNING *
+    `
+    return mapTournamentPick(rows[0])
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (/unique|duplicate/i.test(message)) {
+      throw new Error(`A teammate already picked ${input.characterName} for round ${input.round}.`)
+    }
+    throw error
+  }
+}
+
+export async function clearTournamentPick(input: {
+  tournamentId: number
+  playerId: number
+  round: number
+  actorDiscordId: string
+  isManager: boolean
+}) {
+  await ensureSchema()
+  const board = await getTournamentBoard(input.tournamentId)
+  if (!board) throw new Error('Tournament not found.')
+  const { tournament, players } = board
+  const player = players.find((item) => item.id === input.playerId)
+  if (!player) throw new Error('Player not found on this tournament.')
+  if (!input.isManager) {
+    if (tournament.locked) throw new Error('This tournament is locked. Picks can no longer be changed.')
+    if (player.discordId !== input.actorDiscordId) {
+      throw new Error('You can only edit your own picks.')
+    }
+  }
+  const db = getSql()
+  await db`
+    DELETE FROM tournament_picks
+    WHERE tournament_id = ${input.tournamentId}
+      AND player_id = ${input.playerId}
+      AND round = ${input.round}
+  `
+  return true
 }

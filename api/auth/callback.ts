@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   createSessionToken,
   findManager,
+  safeReturnTo,
   sendError,
   setSessionCookie,
   siteUrl,
@@ -13,6 +14,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (request.method !== 'GET') return response.status(405).json({ error: 'Method not allowed.' })
     const code = String(request.query.code || '')
     if (!code) throw new Error('Missing Discord OAuth code.')
+    const returnTo = safeReturnTo(request.query.state, '/tourney')
 
     const clientId = String(process.env.DISCORD_CLIENT_ID || '').trim()
     const clientSecret = String(process.env.DISCORD_CLIENT_SECRET || '').trim()
@@ -45,7 +47,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
     }
 
     const manager = findManager(me.id)
-    if (!manager) {
+    const wantsStaff = returnTo.startsWith('/staff')
+    if (wantsStaff && !manager) {
       response.writeHead(302, { Location: '/staff?error=unauthorized' })
       response.end()
       return
@@ -56,15 +59,18 @@ export default async function handler(request: VercelRequest, response: VercelRe
       username: me.username,
       globalName: me.global_name ?? null,
       avatar: me.avatar ?? null,
-      clubIds: manager.clubIds.map(String),
-      label: manager.label || null,
+      clubIds: manager ? manager.clubIds.map(String) : [],
+      label: manager?.label || null,
+      isManager: Boolean(manager),
     }
     setSessionCookie(response, await createSessionToken(user))
-    response.writeHead(302, { Location: '/staff' })
+    response.writeHead(302, { Location: returnTo })
     response.end()
   } catch (error) {
     console.error(error)
-    response.writeHead(302, { Location: '/staff?error=login_failed' })
+    const returnTo = safeReturnTo(request.query.state, '/tourney')
+    const fail = returnTo.startsWith('/staff') ? '/staff?error=login_failed' : '/tourney?error=login_failed'
+    response.writeHead(302, { Location: fail })
     response.end()
   }
 }

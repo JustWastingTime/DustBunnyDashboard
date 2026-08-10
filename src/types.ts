@@ -66,6 +66,48 @@ export type BlacklistEntry = {
   createdAt: string | null
 }
 
+export type TournamentDistance = 'sprint' | 'mile' | 'medium' | 'long' | 'dirt'
+
+export type Tournament = {
+  id: number
+  name: string
+  rounds: number
+  eventDate: string
+  createdAt: string | null
+  updatedAt: string | null
+  locked: boolean
+  playerCount?: number
+}
+
+export type TournamentPlayer = {
+  id: number
+  tournamentId: number
+  discordId: string
+  displayName: string
+  team: number
+  distance: TournamentDistance
+  sortOrder: number
+  umaId: string | null
+}
+
+export type TournamentPick = {
+  playerId: number
+  round: number
+  team: number
+  characterId: string
+  characterName: string
+  updatedAt: string | null
+  updatedBy: string
+}
+
+export type TournamentBoard = {
+  tournament: Tournament
+  players: TournamentPlayer[]
+  picks: TournamentPick[]
+  canEditAll?: boolean
+  locked?: boolean
+}
+
 export type Assignment = {
   entityType: 'member' | 'applicant'
   entityId: string

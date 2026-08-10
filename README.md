@@ -3,7 +3,8 @@
 Online club performance dashboard for Dust Bunny, Dirt Bunny, and Damp Bunny.
 
 - **Public:** overview charts/members at `/`, applications at `/apply`
-- **Staff:** Discord login at `/staff` — applicants, transfer planner (kick/invite checklist), club settings
+- **Tournaments:** Discord login at `/tourney` — rostered players pick Umas by round (managers can edit all)
+- **Staff:** Discord login at `/staff` — applicants, planner, tournaments, blacklist, club settings
 - **Local:** optional SQLite management app (`npm run dev`) for offline planner/settings/publish
 
 ## Online stack (Vercel free)
@@ -33,7 +34,7 @@ Online club performance dashboard for Dust Bunny, Dirt Bunny, and Damp Bunny.
 | `SITE_URL` | Canonical site URL, e.g. `https://your-app.vercel.app` |
 | `DISCORD_APPLY_WEBHOOK_URL` | Optional. Discord webhook URL for the applications channel — posts an embed (+ 30-day chart) on each apply |
 
-5. Deploy. Open `/` for the overview, `/apply` to submit, `/staff` to manage.
+5. Deploy. Open `/` for the overview, `/apply` to submit, `/staff` to manage, `/tourney` for tournament picks.
 
 To get the webhook URL: Discord channel → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL.
 

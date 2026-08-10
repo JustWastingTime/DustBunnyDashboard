@@ -18,6 +18,7 @@ export type SessionUser = {
   avatar: string | null
   clubIds: string[]
   label: string | null
+  isManager?: boolean
 }
 
 export const api = {
@@ -61,6 +62,33 @@ export const api = {
     request<import('./types').BlacklistEntry>('/api/blacklist', { method: 'POST', body: JSON.stringify(body) }),
   staffDeleteBlacklist: (id: number) =>
     request<void>(`/api/blacklist?id=${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
+  staffTournaments: () => request<{ tournaments: import('./types').Tournament[]; user: SessionUser }>('/api/tournaments'),
+  staffTournament: (id: number) =>
+    request<import('./types').TournamentBoard & { user: SessionUser }>(`/api/tournaments?id=${encodeURIComponent(String(id))}`),
+  staffCreateTournament: (body: unknown) =>
+    request<import('./types').Tournament>('/api/tournaments', { method: 'POST', body: JSON.stringify(body) }),
+  staffUpdateTournament: (id: number, body: unknown) =>
+    request<import('./types').Tournament>(`/api/tournaments?id=${encodeURIComponent(String(id))}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  staffDeleteTournament: (id: number) =>
+    request<void>(`/api/tournaments?id=${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
+  staffSaveTournamentRoster: (id: number, players: unknown[]) =>
+    request<{ players: import('./types').TournamentPlayer[] }>(
+      `/api/tournaments?id=${encodeURIComponent(String(id))}&roster=1`,
+      { method: 'PUT', body: JSON.stringify({ players, roster: true }) },
+    ),
+  tourneyList: () => request<{ tournaments: import('./types').Tournament[]; user: SessionUser }>('/api/tourney'),
+  tourneyBoard: (id: number) =>
+    request<import('./types').TournamentBoard & { user: SessionUser; canEditAll: boolean; locked: boolean }>(
+      `/api/tourney?id=${encodeURIComponent(String(id))}`,
+    ),
+  tourneySavePick: (body: unknown) =>
+    request<{ ok: true; pick?: import('./types').TournamentPick & { label?: string }; cleared?: boolean }>(
+      '/api/tourney/pick',
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
 
   // Local SQLite workspace endpoints
   state: () => request<import('./types').DashboardState>('/api/state'),

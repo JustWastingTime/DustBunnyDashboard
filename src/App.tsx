@@ -6,6 +6,8 @@ import {
 } from 'recharts'
 import { api } from './api'
 import { assessMember } from './assess'
+import { StaffTournaments } from './StaffTournaments'
+import { TourneyPage } from './TourneyPage'
 import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, PublicData, Status } from './types'
 import './App.css'
 
@@ -1193,7 +1195,7 @@ function StaffBlacklist({
 function StaffPage() {
   const [auth, setAuth] = useState<'loading' | 'guest' | 'user'>('loading')
   const [userLabel, setUserLabel] = useState('')
-  const [tab, setTab] = useState<'overview' | 'applicants' | 'planner' | 'blacklist' | 'settings'>('applicants')
+  const [tab, setTab] = useState<'overview' | 'applicants' | 'planner' | 'tournaments' | 'blacklist' | 'settings'>('applicants')
   const [dashboard, setDashboard] = useState<PublicData | null>(null)
   const [applicants, setApplicants] = useState<Applicant[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
@@ -1206,7 +1208,7 @@ function StaffPage() {
 
   const reload = async () => {
     const me = await api.me()
-    if (!me.authenticated || !me.user) {
+    if (!me.authenticated || !me.user?.isManager) {
       setAuth('guest')
       return
     }
@@ -1251,7 +1253,7 @@ function StaffPage() {
       )}
       {error && <p className="notice error">{error}</p>}
       <div className="button-row">
-        <a className="primary button-link" href="/api/auth/login">Log in with Discord</a>
+        <a className="primary button-link" href="/api/auth/login?returnTo=/staff">Log in with Discord</a>
         <a href="/">Public overview</a>
       </div>
     </main>
@@ -1278,7 +1280,7 @@ function StaffPage() {
     </Header>
     {error && <p className="notice error">{error}</p>}
     <nav className="tabs" aria-label="Staff sections">
-      {(['overview', 'applicants', 'planner', 'blacklist', 'settings'] as const).map((item) => (
+      {(['overview', 'applicants', 'planner', 'tournaments', 'blacklist', 'settings'] as const).map((item) => (
         <button type="button" key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
       ))}
     </nav>
@@ -1301,6 +1303,9 @@ function StaffPage() {
         boardStatus={boardStatus}
         reload={safeReload}
       />
+    )}
+    {tab === 'tournaments' && (
+      <StaffTournaments clubs={clubs} members={members} />
     )}
     {tab === 'blacklist' && (
       <StaffBlacklist entries={blacklist} reload={safeReload} />
@@ -1768,5 +1773,6 @@ export default function App() {
 function OnlineApp() {
   const { path, navigate } = usePath()
   if (path.startsWith('/staff')) return <StaffPage />
+  if (path.startsWith('/tourney')) return <TourneyPage path={path} navigate={navigate} />
   return <PublicSite path={path} navigate={navigate} />
 }
