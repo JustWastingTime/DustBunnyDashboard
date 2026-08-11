@@ -27,7 +27,7 @@ export const api = {
   applyClubs: () => request<{ clubs: Array<{ circleId: string; name: string }> }>('/api/apply'),
   submitApplication: (body: unknown) => request<{ ok: true }>('/api/apply', { method: 'POST', body: JSON.stringify(body) }),
   me: () => request<{ authenticated: boolean; user?: SessionUser }>('/api/auth/me'),
-  logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  logout: () => request<{ ok: true }>('/api/auth/me', { method: 'POST' }),
   staffApplicants: () => request<{ applicants: import('./types').Applicant[]; user: SessionUser }>('/api/applicants'),
   staffClubs: () => request<{ clubs: import('./types').Club[]; user: SessionUser }>('/api/clubs'),
   staffUpdateClub: (circleId: string, body: unknown) =>
@@ -86,7 +86,7 @@ export const api = {
     ),
   tourneySavePick: (body: unknown) =>
     request<{ ok: true; pick?: import('./types').TournamentPick & { label?: string }; cleared?: boolean }>(
-      '/api/tourney/pick',
+      '/api/tourney',
       { method: 'PUT', body: JSON.stringify(body) },
     ),
 
