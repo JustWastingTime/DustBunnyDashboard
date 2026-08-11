@@ -12,7 +12,7 @@ const updateSchema = z.object({
   severeRatio: z.number().min(0).max(1),
   inactiveDays: z.number().int().positive(),
   promotionEnabled: z.boolean(),
-  rankGrade: z.enum(rankGrades).nullable(),
+  rankGrade: z.enum(rankGrades).nullish(),
 })
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -32,7 +32,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return response.status(403).json({ error: 'You do not manage that club.' })
       }
       const input = updateSchema.parse(request.body)
-      const club = await updateClub(circleId, user.clubIds, input)
+      const club = await updateClub(circleId, user.clubIds, {
+        name: input.name,
+        dailyTarget: input.dailyTarget,
+        promotionRatio: input.promotionRatio,
+        severeRatio: input.severeRatio,
+        inactiveDays: input.inactiveDays,
+        promotionEnabled: input.promotionEnabled,
+        rankGrade: input.rankGrade ?? null,
+      })
       if (!club) return response.status(404).json({ error: 'Club not found.' })
       return response.json(club)
     }

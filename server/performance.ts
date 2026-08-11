@@ -50,7 +50,7 @@ export function getMemberFanStats(rawFans: unknown) {
     }
   }
   const first = dailyFans[0] ?? 0
-  const totalFans = dailyFans.at(-1) ?? first
+  const totalFans = dailyFans.length ? dailyFans[dailyFans.length - 1] : first
   const monthlyGain = Math.max(0, totalFans - first)
   const averageDays = Math.max(1, dailyFans.length - 1)
   return {
