@@ -76,117 +76,125 @@ function seedClubsFromConfig() {
   return payload.clubs
 }
 
+const SCHEMA_LOCK_KEY = 872_014_401
+
 export async function ensureSchema() {
   if (!ready) {
-    ready = (async () => {
+    const run = (async () => {
       const db = getSql()
-      await db`
-        CREATE TABLE IF NOT EXISTS applicants (
-          uma_id TEXT PRIMARY KEY,
-          ign TEXT NOT NULL,
-          discord_username TEXT NOT NULL DEFAULT '',
-          target_club_id TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'pending',
-          private_notes TEXT NOT NULL DEFAULT '',
-          publish_publicly BOOLEAN NOT NULL DEFAULT TRUE,
-          current_club_id TEXT,
-          current_club_name TEXT,
-          last_updated_at TIMESTAMPTZ,
-          total_fans INTEGER NOT NULL DEFAULT 0,
-          monthly_gain INTEGER NOT NULL DEFAULT 0,
-          daily_average INTEGER NOT NULL DEFAULT 0,
-          today_gain INTEGER NOT NULL DEFAULT 0,
-          daily_gains_json JSONB NOT NULL DEFAULT '[]'::jsonb,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `
-      await db`
-        CREATE TABLE IF NOT EXISTS clubs (
-          circle_id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          daily_target INTEGER NOT NULL DEFAULT 0,
-          promotion_ratio DOUBLE PRECISION NOT NULL DEFAULT 1.25,
-          severe_ratio DOUBLE PRECISION NOT NULL DEFAULT 0.5,
-          inactive_days INTEGER NOT NULL DEFAULT 3,
-          promotion_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-          rank_grade TEXT,
-          sort_order INTEGER NOT NULL DEFAULT 0,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `
-      await db`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rank_grade TEXT`
-      await db`
-        CREATE TABLE IF NOT EXISTS planning_boards (
-          id INTEGER PRIMARY KEY,
-          status TEXT NOT NULL DEFAULT 'draft',
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          confirmed_at TIMESTAMPTZ
-        )
-      `
-      await db`
-        CREATE TABLE IF NOT EXISTS planning_assignments (
-          entity_type TEXT NOT NULL,
-          entity_id TEXT NOT NULL,
-          destination TEXT NOT NULL,
-          position INTEGER NOT NULL DEFAULT 0,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          PRIMARY KEY (entity_type, entity_id)
-        )
-      `
-      await db`
-        CREATE TABLE IF NOT EXISTS blacklist_entries (
-          id SERIAL PRIMARY KEY,
-          uma_id TEXT NOT NULL UNIQUE,
-          discord_username TEXT NOT NULL,
-          discord_username_normalized TEXT NOT NULL UNIQUE,
-          reason TEXT NOT NULL DEFAULT '',
-          created_by TEXT NOT NULL DEFAULT '',
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `
-      await db`
-        CREATE TABLE IF NOT EXISTS tournaments (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL,
-          rounds INTEGER NOT NULL DEFAULT 1,
-          event_date TIMESTAMPTZ NOT NULL,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `
-      await db`
-        CREATE TABLE IF NOT EXISTS tournament_players (
-          id SERIAL PRIMARY KEY,
-          tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-          discord_id TEXT NOT NULL,
-          display_name TEXT NOT NULL,
-          team INTEGER NOT NULL DEFAULT 1,
-          distance TEXT NOT NULL DEFAULT 'mile',
-          sort_order INTEGER NOT NULL DEFAULT 0,
-          uma_id TEXT,
-          UNIQUE (tournament_id, discord_id)
-        )
-      `
-      await db`
-        CREATE TABLE IF NOT EXISTS tournament_picks (
-          tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-          player_id INTEGER NOT NULL REFERENCES tournament_players(id) ON DELETE CASCADE,
-          round INTEGER NOT NULL,
-          team INTEGER NOT NULL,
-          character_id TEXT NOT NULL,
-          character_name TEXT NOT NULL,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          updated_by TEXT NOT NULL DEFAULT '',
-          PRIMARY KEY (player_id, round),
-          UNIQUE (tournament_id, team, round, character_name)
-        )
-      `
-      await db`
-        INSERT INTO planning_boards (id, status, updated_at)
-        VALUES (1, 'draft', NOW())
-        ON CONFLICT (id) DO NOTHING
-      `
+      // CREATE TABLE IF NOT EXISTS is not race-safe under concurrent serverless cold starts:
+      // two sessions can collide on pg_type and raise pg_type_typname_nsp_index.
+      await db.transaction((tx) => [
+        tx`SELECT pg_advisory_xact_lock(${SCHEMA_LOCK_KEY})`,
+        tx`
+          CREATE TABLE IF NOT EXISTS applicants (
+            uma_id TEXT PRIMARY KEY,
+            ign TEXT NOT NULL,
+            discord_username TEXT NOT NULL DEFAULT '',
+            target_club_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            private_notes TEXT NOT NULL DEFAULT '',
+            publish_publicly BOOLEAN NOT NULL DEFAULT TRUE,
+            current_club_id TEXT,
+            current_club_name TEXT,
+            last_updated_at TIMESTAMPTZ,
+            total_fans INTEGER NOT NULL DEFAULT 0,
+            monthly_gain INTEGER NOT NULL DEFAULT 0,
+            daily_average INTEGER NOT NULL DEFAULT 0,
+            today_gain INTEGER NOT NULL DEFAULT 0,
+            daily_gains_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS clubs (
+            circle_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            daily_target INTEGER NOT NULL DEFAULT 0,
+            promotion_ratio DOUBLE PRECISION NOT NULL DEFAULT 1.25,
+            severe_ratio DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+            inactive_days INTEGER NOT NULL DEFAULT 3,
+            promotion_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            rank_grade TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `,
+        tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rank_grade TEXT`,
+        tx`
+          CREATE TABLE IF NOT EXISTS planning_boards (
+            id INTEGER PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'draft',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            confirmed_at TIMESTAMPTZ
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS planning_assignments (
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            destination TEXT NOT NULL,
+            position INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (entity_type, entity_id)
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS blacklist_entries (
+            id SERIAL PRIMARY KEY,
+            uma_id TEXT NOT NULL UNIQUE,
+            discord_username TEXT NOT NULL,
+            discord_username_normalized TEXT NOT NULL UNIQUE,
+            reason TEXT NOT NULL DEFAULT '',
+            created_by TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS tournaments (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            rounds INTEGER NOT NULL DEFAULT 1,
+            event_date TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS tournament_players (
+            id SERIAL PRIMARY KEY,
+            tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+            discord_id TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            team INTEGER NOT NULL DEFAULT 1,
+            distance TEXT NOT NULL DEFAULT 'mile',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            uma_id TEXT,
+            UNIQUE (tournament_id, discord_id)
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS tournament_picks (
+            tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+            player_id INTEGER NOT NULL REFERENCES tournament_players(id) ON DELETE CASCADE,
+            round INTEGER NOT NULL,
+            team INTEGER NOT NULL,
+            character_id TEXT NOT NULL,
+            character_name TEXT NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_by TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (player_id, round),
+            UNIQUE (tournament_id, team, round, character_name)
+          )
+        `,
+        tx`
+          INSERT INTO planning_boards (id, status, updated_at)
+          VALUES (1, 'draft', NOW())
+          ON CONFLICT (id) DO NOTHING
+        `,
+      ])
+
       const existing = await db`SELECT circle_id FROM clubs LIMIT 1`
       if (existing.length === 0) {
         const seeds = seedClubsFromConfig()
@@ -205,6 +213,11 @@ export async function ensureSchema() {
         }
       }
     })()
+
+    ready = run.catch((error) => {
+      ready = null
+      throw error
+    })
   }
   await ready
 }
