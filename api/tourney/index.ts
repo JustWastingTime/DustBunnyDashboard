@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   getTournamentBoard,
   listTournamentsForUser,
-} from './_lib/db.js'
-import { requireUser, sendError } from './_lib/shared.js'
+} from '../_lib/db.js'
+import { requireUser, sendError } from '../_lib/shared.js'
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {

@@ -1,4 +1,4 @@
-import { characters, type CatalogCharacter } from './data/characters'
+import { characters, type CatalogCharacter } from './catalog/characters'
 
 export type { CatalogCharacter }
 
@@ -7,21 +7,21 @@ export function characterLabel(character: CatalogCharacter) {
   return suffix ? `${character.characterName} (${suffix})` : character.characterName
 }
 
-export function findCharacter(characterId: string) {
-  return characters.find((item) => item.id === characterId) || null
+export function findCharacter(characterId: string): CatalogCharacter | null {
+  return characters.find((item: CatalogCharacter) => item.id === characterId) || null
 }
 
 export function searchCharacters(query: string, limit = 12): CatalogCharacter[] {
   const q = query.trim().toLowerCase()
   if (!q) return characters.slice(0, limit)
-  const scored = characters.map((character) => {
+  const scored = characters.map((character: CatalogCharacter) => {
     const label = characterLabel(character).toLowerCase()
     const hay = [
       label,
       character.characterName.toLowerCase(),
       character.type.toLowerCase(),
       character.costume.toLowerCase(),
-      ...character.aliases.map((alias) => alias.toLowerCase()),
+      ...character.aliases.map((alias: string) => alias.toLowerCase()),
     ]
     let score = 0
     if (hay.some((item) => item === q)) score = 100
