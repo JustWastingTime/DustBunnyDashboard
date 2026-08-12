@@ -423,19 +423,113 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 .tourney-list-card strong { font-size: 1.05rem; }
 .tourney-list-card span { color: var(--muted); font-size: .78rem; }
 .tourney-team-panel { margin-bottom: 16px; }
-.tourney-board-table td, .tourney-board-table th { vertical-align: top; }
-.tourney-board-table .row-mine td { background: #fff5f8; }
-.character-picker { position: relative; min-width: 180px; }
+.tourney-distance-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.tourney-distance-block:first-of-type { border-top: 0; padding-top: 0; }
+.tourney-distance-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.tourney-distance-heading h3 {
+  margin: 0;
+  font-size: .95rem;
+  text-transform: capitalize;
+}
+.tourney-distance-heading span { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.tourney-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.tourney-player-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.tourney-player-card.mine {
+  border-color: var(--accent);
+  background: #fff5f8;
+}
+.tourney-player-card-head strong {
+  display: block;
+  font-size: .82rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tourney-round-stack { display: flex; flex-direction: column; gap: 4px; }
+.tourney-round-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+.tourney-round-label {
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.uma-thumb {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.uma-thumb-empty { display: inline-block; background: #f3ecef; }
+.character-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.character-picker.compact .character-picker-field { flex: 1; min-width: 0; }
+.character-picker-field { position: relative; flex: 1; min-width: 0; }
+.character-picker input {
+  width: 100%;
+  padding: 6px 52px 6px 8px;
+  font-size: .72rem;
+}
+.character-picker.read-only {
+  min-height: 40px;
+}
+.character-picker-label {
+  min-width: 0;
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .character-picker.disabled input { background: #f3ecef; cursor: default; }
 .character-picker-clear {
   position: absolute;
-  right: 6px;
-  top: 6px;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   border: 0;
   background: transparent;
   color: var(--muted);
-  font-size: .68rem;
-  padding: 2px 6px;
+  font-size: .62rem;
+  padding: 2px 4px;
 }
 .character-picker-list {
   position: absolute;
@@ -444,7 +538,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   right: 0;
   top: calc(100% + 4px);
   margin: 0;
-  padding: 6px;
+  padding: 4px;
   list-style: none;
   max-height: 240px;
   overflow: auto;
@@ -456,19 +550,25 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 .character-picker-list button {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
   border: 0;
   border-radius: 8px;
   background: transparent;
-  padding: 8px;
+  padding: 6px;
   text-align: left;
+}
+.character-picker-list button > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 .character-picker-list button:hover,
 .character-picker-list button[aria-selected='true'] { background: var(--accent-soft); }
-.character-picker-list small { color: var(--muted); font-size: .68rem; }
-td.saving { opacity: .7; }
+.character-picker-list strong { font-size: .72rem; }
+.character-picker-list small { color: var(--muted); font-size: .62rem; }
+td.saving, .tourney-round-row.saving { opacity: .7; }
 
 @media (max-width: 900px) {
   .tourney-add-grid { grid-template-columns: 1fr; }

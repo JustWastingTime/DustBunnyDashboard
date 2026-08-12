@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, type SessionUser } from './api'
 import { CharacterPicker } from './CharacterPicker'
-import { characterLabel, findCharacter } from './characters'
 import type { Tournament, TournamentBoard, TournamentDistance, TournamentPick, TournamentPlayer } from './types'
 
 const distanceOrder: TournamentDistance[] = ['sprint', 'mile', 'medium', 'long', 'dirt']
+const distanceLabels: Record<TournamentDistance, string> = {
+  sprint: 'Sprint',
+  mile: 'Mile',
+  medium: 'Medium',
+  long: 'Long',
+  dirt: 'Dirt',
+}
 
 function groupPlayers(players: TournamentPlayer[]) {
   const teams = [...new Set(players.map((player) => player.team))].sort((a, b) => a - b)
@@ -143,7 +149,6 @@ export function TourneyPage({
           <p className="lede">
             Lock date {new Date(board.tournament.eventDate).toLocaleDateString()}
             {board.locked ? ' · locked for players' : ''}
-            {board.canEditAll ? ' · manager edit enabled' : ''}
           </p>
         </div>
         <div className="button-row">
@@ -165,48 +170,43 @@ export function TourneyPage({
               <h2>{distances.reduce((sum, group) => sum + group.players.length, 0)} players</h2>
             </div>
           </div>
-          <div className="table-scroll">
-            <table className="tourney-board-table">
-              <thead>
-                <tr>
-                  <th>Player</th>
-                  <th>Distance</th>
-                  {rounds.map((round) => (
-                    <th key={round}>{board.tournament.rounds === 1 ? 'Uma' : `Round ${round}`}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {distances.map(({ distance, players }) => players.map((player, index) => {
+
+          {distances.map(({ distance, players }) => (
+            <div key={distance} className="tourney-distance-block">
+              <header className="tourney-distance-heading">
+                <h3>{distanceLabels[distance]}</h3>
+                <span>{players.length} player{players.length === 1 ? '' : 's'}</span>
+              </header>
+              <div className="tourney-player-grid">
+                {players.map((player) => {
                   const editable = canEditPlayer(player)
-                  return <tr key={player.id} className={player.discordId === user?.discordId ? 'row-mine' : ''}>
-                    <td>
-                      <strong>{player.displayName}</strong>
-                      <small className="id">{player.discordId}</small>
-                    </td>
-                    <td>{index === 0 ? distance : <span className="muted">{distance}</span>}</td>
-                    {rounds.map((round) => {
-                      const pick = pickFor(player.id, round)
-                      const key = `${player.id}:${round}`
-                      if (!editable) {
-                        const character = pick ? findCharacter(pick.characterId) : null
-                        return <td key={round}>
-                          {character ? characterLabel(character) : pick?.characterName || <span className="muted">—</span>}
-                        </td>
-                      }
-                      return <td key={round} className={savingKey === key ? 'saving' : ''}>
-                        <CharacterPicker
-                          value={pick?.characterId || null}
-                          disabled={savingKey === key}
-                          onChange={(characterId) => void savePick(player, round, characterId)}
-                        />
-                      </td>
-                    })}
-                  </tr>
-                }))}
-              </tbody>
-            </table>
-          </div>
+                  const mine = player.discordId === user?.discordId
+                  return <article key={player.id} className={`tourney-player-card ${mine ? 'mine' : ''}`}>
+                    <header className="tourney-player-card-head">
+                      <strong title={player.discordId}>{player.displayName}</strong>
+                    </header>
+                    <div className="tourney-round-stack">
+                      {rounds.map((round) => {
+                        const pick = pickFor(player.id, round)
+                        const key = `${player.id}:${round}`
+                        return <div key={round} className={`tourney-round-row ${savingKey === key ? 'saving' : ''}`}>
+                          <span className="tourney-round-label">
+                            {board.tournament.rounds === 1 ? 'Uma' : `R${round}`}
+                          </span>
+                          <CharacterPicker
+                            compact
+                            value={pick?.characterId || null}
+                            disabled={!editable || savingKey === key}
+                            onChange={(characterId) => void savePick(player, round, characterId)}
+                          />
+                        </div>
+                      })}
+                    </div>
+                  </article>
+                })}
+              </div>
+            </div>
+          ))}
         </section>
       ))}
     </main>
