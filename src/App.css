@@ -422,10 +422,22 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 }
 .tourney-list-card strong { font-size: 1.05rem; }
 .tourney-list-card span { color: var(--muted); font-size: .78rem; }
-.tourney-team-panel { margin-bottom: 16px; }
+.tourney-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.tourney-team-panel {
+  margin-bottom: 0;
+  overflow: visible;
+  min-width: 0;
+  padding: 16px;
+}
+.tourney-team-panel .section-heading h2 { font-size: 1.15rem; }
 .tourney-distance-block {
-  margin-top: 14px;
-  padding-top: 12px;
+  margin-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
 }
 .tourney-distance-block:first-of-type { border-top: 0; padding-top: 0; }
@@ -438,16 +450,16 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 }
 .tourney-distance-heading h3 {
   margin: 0;
-  font-size: .95rem;
+  font-size: .9rem;
   text-transform: capitalize;
 }
-.tourney-distance-heading span { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.tourney-distance-heading span { color: var(--muted); font-size: .68rem; font-weight: 700; }
 .tourney-distance-grid {
   display: grid;
-  gap: 6px 8px;
-  align-items: center;
+  gap: 6px 6px;
+  align-items: start;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 2px;
 }
 .tourney-corner { min-height: 1px; }
 .tourney-col-head {
@@ -455,11 +467,16 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   padding: 4px 6px;
   border-radius: 8px;
   background: var(--surface-2);
+  border: 1px solid transparent;
+  box-sizing: border-box;
 }
-.tourney-col-head.mine { background: #fff5f8; outline: 1px solid var(--accent); }
+.tourney-col-head.mine {
+  background: #fff5f8;
+  border-color: var(--accent);
+}
 .tourney-col-head strong {
   display: block;
-  font-size: .78rem;
+  font-size: .72rem;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -467,19 +484,25 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 }
 .tourney-round-label {
   color: var(--muted);
-  font-size: .68rem;
+  font-size: .62rem;
   font-weight: 800;
   letter-spacing: .04em;
   text-transform: uppercase;
   text-align: center;
+  align-self: center;
 }
 .tourney-pick-cell {
   min-width: 0;
-  padding: 4px;
+  padding: 6px;
   border-radius: 10px;
   background: var(--surface-2);
+  border: 1px solid transparent;
+  box-sizing: border-box;
 }
-.tourney-pick-cell.mine { background: #fff5f8; }
+.tourney-pick-cell.mine {
+  background: #fff5f8;
+  border-color: var(--accent);
+}
 .uma-thumb {
   flex: 0 0 auto;
   width: 40px;
@@ -498,11 +521,37 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   min-width: 0;
 }
 .character-picker.compact .character-picker-field { flex: 1; min-width: 0; }
+.character-picker.stacked {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.character-picker.stacked .uma-thumb,
+.character-picker.stacked .uma-thumb-empty {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+}
+.character-picker.stacked .character-picker-field {
+  width: 100%;
+  flex: none;
+}
+.character-picker.stacked.read-only {
+  min-height: 0;
+}
+.character-picker.stacked .character-picker-label {
+  width: 100%;
+  text-align: center;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
 .character-picker-field { position: relative; flex: 1; min-width: 0; }
 .character-picker input {
   width: 100%;
   padding: 6px 52px 6px 8px;
-  font-size: .72rem;
+  font-size: .68rem;
 }
 .character-picker.read-only {
   min-height: 40px;
@@ -530,7 +579,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 }
 .character-picker-list {
   position: absolute;
-  z-index: 20;
+  z-index: 30;
   left: 0;
   right: 0;
   top: calc(100% + 4px);
@@ -569,4 +618,5 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 
 @media (max-width: 900px) {
   .tourney-add-grid { grid-template-columns: 1fr; }
+  .tourney-teams { grid-template-columns: 1fr; }
 }

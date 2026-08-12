@@ -162,63 +162,66 @@ export function TourneyPage({
       ) : null}
       {error && <p className="notice error">{error}</p>}
 
-      {grouped.map(({ team, distances }) => (
-        <section key={team} className="panel tourney-team-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Team {team}</p>
-              <h2>{distances.reduce((sum, group) => sum + group.players.length, 0)} players</h2>
-            </div>
-          </div>
-
-          {distances.map(({ distance, players }) => (
-            <div key={distance} className="tourney-distance-block">
-              <header className="tourney-distance-heading">
-                <h3>{distanceLabels[distance]}</h3>
-                <span>{players.length} player{players.length === 1 ? '' : 's'}</span>
-              </header>
-              <div
-                className="tourney-distance-grid"
-                style={{ gridTemplateColumns: `36px repeat(${players.length}, minmax(160px, 1fr))` }}
-              >
-                <div className="tourney-corner" aria-hidden />
-                {players.map((player) => (
-                  <div
-                    key={`head-${player.id}`}
-                    className={`tourney-col-head ${player.discordId === user?.discordId ? 'mine' : ''}`}
-                    title={player.discordId}
-                  >
-                    <strong>{player.displayName}</strong>
-                  </div>
-                ))}
-                {rounds.map((round) => (
-                  <Fragment key={`${distance}-r${round}`}>
-                    <div className="tourney-round-label">
-                      {board.tournament.rounds === 1 ? 'Uma' : `R${round}`}
-                    </div>
-                    {players.map((player) => {
-                      const editable = canEditPlayer(player)
-                      const pick = pickFor(player.id, round)
-                      const key = `${player.id}:${round}`
-                      return <div
-                        key={key}
-                        className={`tourney-pick-cell ${player.discordId === user?.discordId ? 'mine' : ''} ${savingKey === key ? 'saving' : ''}`}
-                      >
-                        <CharacterPicker
-                          compact
-                          value={pick?.characterId || null}
-                          disabled={!editable || savingKey === key}
-                          onChange={(characterId) => void savePick(player, round, characterId)}
-                        />
-                      </div>
-                    })}
-                  </Fragment>
-                ))}
+      <div className="tourney-teams">
+        {grouped.map(({ team, distances }) => (
+          <section key={team} className="panel tourney-team-panel">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Team {team}</p>
+                <h2>{distances.reduce((sum, group) => sum + group.players.length, 0)} players</h2>
               </div>
             </div>
-          ))}
-        </section>
-      ))}
+
+            {distances.map(({ distance, players }) => (
+              <div key={distance} className="tourney-distance-block">
+                <header className="tourney-distance-heading">
+                  <h3>{distanceLabels[distance]}</h3>
+                  <span>{players.length} player{players.length === 1 ? '' : 's'}</span>
+                </header>
+                <div
+                  className="tourney-distance-grid"
+                  style={{ gridTemplateColumns: `24px repeat(${players.length}, minmax(108px, 1fr))` }}
+                >
+                  <div className="tourney-corner" aria-hidden />
+                  {players.map((player) => (
+                    <div
+                      key={`head-${player.id}`}
+                      className={`tourney-col-head ${player.discordId === user?.discordId ? 'mine' : ''}`}
+                      title={player.discordId}
+                    >
+                      <strong>{player.displayName}</strong>
+                    </div>
+                  ))}
+                  {rounds.map((round) => (
+                    <Fragment key={`${distance}-r${round}`}>
+                      <div className="tourney-round-label">
+                        {board.tournament.rounds === 1 ? 'Uma' : `R${round}`}
+                      </div>
+                      {players.map((player) => {
+                        const editable = canEditPlayer(player)
+                        const pick = pickFor(player.id, round)
+                        const key = `${player.id}:${round}`
+                        return <div
+                          key={key}
+                          className={`tourney-pick-cell ${player.discordId === user?.discordId ? 'mine' : ''} ${savingKey === key ? 'saving' : ''}`}
+                        >
+                          <CharacterPicker
+                            compact
+                            stacked
+                            value={pick?.characterId || null}
+                            disabled={!editable || savingKey === key}
+                            onChange={(characterId) => void savePick(player, round, characterId)}
+                          />
+                        </div>
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
     </main>
   }
 

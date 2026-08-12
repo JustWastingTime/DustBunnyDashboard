@@ -22,18 +22,21 @@ export function CharacterPicker({
   disabled = false,
   placeholder = 'Search Uma…',
   compact = false,
+  stacked = false,
 }: {
   value: string | null
   onChange: (characterId: string | null) => void
   disabled?: boolean
   placeholder?: string
   compact?: boolean
+  stacked?: boolean
 }) {
   const listId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const selected = value ? findCharacter(value) : null
   const [query, setQuery] = useState(selected ? characterLabel(selected) : '')
   const [open, setOpen] = useState(false)
+  const thumbSize = stacked ? 72 : compact ? 40 : 48
 
   useEffect(() => {
     setQuery(selected ? characterLabel(selected) : '')
@@ -48,18 +51,24 @@ export function CharacterPicker({
   }, [])
 
   const results = useMemo(() => searchCharacters(query, 10), [query])
+  const className = [
+    'character-picker',
+    compact ? 'compact' : '',
+    stacked ? 'stacked' : '',
+    disabled ? 'read-only' : '',
+  ].filter(Boolean).join(' ')
 
   if (disabled) {
-    return <div className={`character-picker read-only ${compact ? 'compact' : ''}`}>
-      <UmaThumb character={selected} size={compact ? 40 : 48} />
+    return <div className={className}>
+      <UmaThumb character={selected} size={thumbSize} />
       <span className="character-picker-label">
         {selected ? characterLabel(selected) : <span className="muted">—</span>}
       </span>
     </div>
   }
 
-  return <div className={`character-picker ${compact ? 'compact' : ''}`} ref={rootRef}>
-    <UmaThumb character={selected} size={compact ? 40 : 48} />
+  return <div className={className} ref={rootRef}>
+    <UmaThumb character={selected} size={thumbSize} />
     <div className="character-picker-field">
       <input
         value={query}
