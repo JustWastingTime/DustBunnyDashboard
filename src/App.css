@@ -442,47 +442,44 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   text-transform: capitalize;
 }
 .tourney-distance-heading span { color: var(--muted); font-size: .72rem; font-weight: 700; }
-.tourney-player-grid {
+.tourney-distance-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
+  gap: 6px 8px;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
-.tourney-player-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.tourney-corner { min-height: 1px; }
+.tourney-col-head {
   min-width: 0;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  padding: 4px 6px;
+  border-radius: 8px;
   background: var(--surface-2);
 }
-.tourney-player-card.mine {
-  border-color: var(--accent);
-  background: #fff5f8;
-}
-.tourney-player-card-head strong {
+.tourney-col-head.mine { background: #fff5f8; outline: 1px solid var(--accent); }
+.tourney-col-head strong {
   display: block;
-  font-size: .82rem;
+  font-size: .78rem;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tourney-round-stack { display: flex; flex-direction: column; gap: 4px; }
-.tourney-round-row {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 6px;
-  align-items: center;
-}
 .tourney-round-label {
   color: var(--muted);
-  font-size: .62rem;
+  font-size: .68rem;
   font-weight: 800;
   letter-spacing: .04em;
   text-transform: uppercase;
+  text-align: center;
 }
+.tourney-pick-cell {
+  min-width: 0;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.tourney-pick-cell.mine { background: #fff5f8; }
 .uma-thumb {
   flex: 0 0 auto;
   width: 40px;
@@ -568,7 +565,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 .character-picker-list button[aria-selected='true'] { background: var(--accent-soft); }
 .character-picker-list strong { font-size: .72rem; }
 .character-picker-list small { color: var(--muted); font-size: .62rem; }
-td.saving, .tourney-round-row.saving { opacity: .7; }
+.tourney-pick-cell.saving { opacity: .7; }
 
 @media (max-width: 900px) {
   .tourney-add-grid { grid-template-columns: 1fr; }

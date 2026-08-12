@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Fragment } from 'react'
 import { api, type SessionUser } from './api'
 import { CharacterPicker } from './CharacterPicker'
 import type { Tournament, TournamentBoard, TournamentDistance, TournamentPick, TournamentPlayer } from './types'
@@ -177,33 +177,43 @@ export function TourneyPage({
                 <h3>{distanceLabels[distance]}</h3>
                 <span>{players.length} player{players.length === 1 ? '' : 's'}</span>
               </header>
-              <div className="tourney-player-grid">
-                {players.map((player) => {
-                  const editable = canEditPlayer(player)
-                  const mine = player.discordId === user?.discordId
-                  return <article key={player.id} className={`tourney-player-card ${mine ? 'mine' : ''}`}>
-                    <header className="tourney-player-card-head">
-                      <strong title={player.discordId}>{player.displayName}</strong>
-                    </header>
-                    <div className="tourney-round-stack">
-                      {rounds.map((round) => {
-                        const pick = pickFor(player.id, round)
-                        const key = `${player.id}:${round}`
-                        return <div key={round} className={`tourney-round-row ${savingKey === key ? 'saving' : ''}`}>
-                          <span className="tourney-round-label">
-                            {board.tournament.rounds === 1 ? 'Uma' : `R${round}`}
-                          </span>
-                          <CharacterPicker
-                            compact
-                            value={pick?.characterId || null}
-                            disabled={!editable || savingKey === key}
-                            onChange={(characterId) => void savePick(player, round, characterId)}
-                          />
-                        </div>
-                      })}
+              <div
+                className="tourney-distance-grid"
+                style={{ gridTemplateColumns: `36px repeat(${players.length}, minmax(160px, 1fr))` }}
+              >
+                <div className="tourney-corner" aria-hidden />
+                {players.map((player) => (
+                  <div
+                    key={`head-${player.id}`}
+                    className={`tourney-col-head ${player.discordId === user?.discordId ? 'mine' : ''}`}
+                    title={player.discordId}
+                  >
+                    <strong>{player.displayName}</strong>
+                  </div>
+                ))}
+                {rounds.map((round) => (
+                  <Fragment key={`${distance}-r${round}`}>
+                    <div className="tourney-round-label">
+                      {board.tournament.rounds === 1 ? 'Uma' : `R${round}`}
                     </div>
-                  </article>
-                })}
+                    {players.map((player) => {
+                      const editable = canEditPlayer(player)
+                      const pick = pickFor(player.id, round)
+                      const key = `${player.id}:${round}`
+                      return <div
+                        key={key}
+                        className={`tourney-pick-cell ${player.discordId === user?.discordId ? 'mine' : ''} ${savingKey === key ? 'saving' : ''}`}
+                      >
+                        <CharacterPicker
+                          compact
+                          value={pick?.characterId || null}
+                          disabled={!editable || savingKey === key}
+                          onChange={(characterId) => void savePick(player, round, characterId)}
+                        />
+                      </div>
+                    })}
+                  </Fragment>
+                ))}
               </div>
             </div>
           ))}
