@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { characterLabel, findCharacter, searchCharacters, type CatalogCharacter } from './characters'
 
 function UmaThumb({ character, size = 36 }: { character: CatalogCharacter | null; size?: number }) {
@@ -33,9 +33,11 @@ export function CharacterPicker({
 }) {
   const listId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
+  const fieldRef = useRef<HTMLDivElement>(null)
   const selected = value ? findCharacter(value) : null
   const [query, setQuery] = useState(selected ? characterLabel(selected) : '')
   const [open, setOpen] = useState(false)
+  const [dropUp, setDropUp] = useState(false)
   const thumbSize = stacked ? 72 : compact ? 40 : 48
 
   useEffect(() => {
@@ -49,6 +51,13 @@ export function CharacterPicker({
     document.addEventListener('mousedown', onPointer)
     return () => document.removeEventListener('mousedown', onPointer)
   }, [])
+
+  useLayoutEffect(() => {
+    if (!open || !fieldRef.current) return
+    const rect = fieldRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    setDropUp(spaceBelow < 260)
+  }, [open, query])
 
   const results = useMemo(() => searchCharacters(query, 10), [query])
   const className = [
@@ -69,7 +78,7 @@ export function CharacterPicker({
 
   return <div className={className} ref={rootRef}>
     <UmaThumb character={selected} size={thumbSize} />
-    <div className="character-picker-field">
+    <div className="character-picker-field" ref={fieldRef}>
       <input
         value={query}
         disabled={disabled}
@@ -90,7 +99,11 @@ export function CharacterPicker({
         </button>
       ) : null}
       {open ? (
-        <ul id={listId} className="character-picker-list" role="listbox">
+        <ul
+          id={listId}
+          className={`character-picker-list ${dropUp ? 'drop-up' : ''}`}
+          role="listbox"
+        >
           {results.length === 0 ? (
             <li className="muted">No matches</li>
           ) : results.map((character) => (

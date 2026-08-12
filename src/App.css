@@ -458,7 +458,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   display: grid;
   gap: 6px 6px;
   align-items: start;
-  overflow-x: auto;
+  overflow: visible;
   padding: 2px;
 }
 .tourney-corner { min-height: 1px; }
@@ -579,7 +579,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 }
 .character-picker-list {
   position: absolute;
-  z-index: 30;
+  z-index: 40;
   left: 0;
   right: 0;
   top: calc(100% + 4px);
@@ -592,6 +592,11 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 12px 24px rgba(58, 42, 50, 0.14);
+}
+.character-picker-list.drop-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+  box-shadow: 0 -12px 24px rgba(58, 42, 50, 0.14);
 }
 .character-picker-list button {
   width: 100%;
