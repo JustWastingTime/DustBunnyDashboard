@@ -1,9 +1,14 @@
 import {
+  applicantCircleCandidates,
+  applicantClubName,
   classifyPerformance,
   getActiveCutoffMs,
+  getFullPeriodFanStats,
   getMemberFanStats,
   getTodayFanGain,
   isMemberActive,
+  pickCurrentMonthRecord,
+  withMonthSummary,
 } from './performance.js'
 
 export class UmaClient {
@@ -46,22 +51,28 @@ export class UmaClient {
   async resolveApplicant(umaId: string) {
     const root = await this.getProfile(umaId)
     const trainer = root?.trainer ?? root?.user ?? root?.profile ?? root
-    const month = root?.fan_history?.monthly?.[0]
+    const month = pickCurrentMonthRecord(root?.fan_history?.monthly)
     const circle = root?.circle ?? trainer?.circle ?? root?.club
     const ign = trainer?.name ?? trainer?.trainer_name ?? month?.trainer_name
     if (!ign) throw new Error(`Trainer ${umaId} was not found on uma.moe.`)
-    const currentClubIdRaw = circle?.circle_id ?? circle?.id ?? month?.circle_id
-    const currentClubId = currentClubIdRaw == null ? null : String(currentClubIdRaw)
     let member: any = null
-    if (currentClubId) {
-      const circleData = await this.getCircle(currentClubId)
-      member = (circleData?.members || []).find((item: any) => String(item.viewer_id) === String(umaId))
+    let loadedClubName: string | null = null
+    let currentClubId: string | null = null
+    for (const circleId of applicantCircleCandidates(root)) {
+      const circleData = await this.getCircle(circleId)
+      const found = (circleData?.members || []).find((item: any) => String(item.viewer_id) === String(umaId))
+      if (found) {
+        member = found
+        currentClubId = circleId
+        loadedClubName = circleData?.circle?.name ?? null
+        break
+      }
     }
-    const stats = getMemberFanStats(member?.daily_fans)
+    const stats = withMonthSummary(getFullPeriodFanStats(member?.daily_fans), month)
     return {
       ign: String(ign),
       currentClubId,
-      currentClubName: circle?.name ?? month?.circle_name ?? null,
+      currentClubName: applicantClubName(month, circle, loadedClubName),
       lastUpdatedAt: member?.last_updated ?? null,
       totalFans: stats.totalFans,
       monthlyGain: stats.monthlyGain,

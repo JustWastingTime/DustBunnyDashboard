@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyPerformance, getEffectiveJstPeriod, getMemberFanStats, isMemberActive } from './performance.js'
+import { applicantCircleCandidates, classifyPerformance, getEffectiveJstPeriod, getFullPeriodFanStats, getMemberFanStats, isMemberActive, pickCurrentMonthRecord } from './performance.js'
 
 describe('performance calculations', () => {
   it('uses the previous JST month before day two', () => {
@@ -12,6 +12,34 @@ describe('performance calculations', () => {
       dailyFans: [1000, 1400, 1900],
       monthlyGain: 900,
       dailyAverage: 450,
+    })
+  })
+
+  it('uses this month’s club before the leftover previous-club circle', () => {
+    const root = {
+      circle: { circle_id: 'old', name: 'VodkaToes' },
+      fan_history: {
+        monthly: [
+          { year: 2026, month: 8, circle_id: 'dirt', circle_name: 'Dirt Bunny', monthly_gain: 100 },
+          { year: 2026, month: 7, circle_id: 'old', circle_name: 'VodkaToes', monthly_gain: 50 },
+        ],
+      },
+    }
+    expect(pickCurrentMonthRecord(root.fan_history.monthly, new Date('2026-08-10T00:00:00+09:00'))).toMatchObject({
+      circle_id: 'dirt',
+      month: 8,
+    })
+    expect(applicantCircleCandidates(root, new Date('2026-08-10T00:00:00+09:00'))).toEqual(['dirt', 'old'])
+  })
+
+  it('keeps previous-club days in the applicant month chart', () => {
+    expect(getFullPeriodFanStats([-1518, -1521, 1682, 1747])).toMatchObject({
+      dailyFans: [1518, 1521, 1682, 1747],
+      monthlyGain: 229,
+    })
+    expect(getMemberFanStats([-1518, -1521, 1682, 1747])).toMatchObject({
+      dailyFans: [1521, 1682, 1747],
+      monthlyGain: 226,
     })
   })
 

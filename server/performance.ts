@@ -20,6 +20,81 @@ export function getEffectiveJstPeriod(now = new Date()) {
   return { year, month }
 }
 
+export type UmaMonthRecord = {
+  year?: number
+  month?: number
+  circle_id?: string | number | null
+  circle_name?: string | null
+  monthly_gain?: number | null
+  avg_daily?: number | null
+  total_fans?: number | null
+  trainer_name?: string | null
+}
+
+/** Newest-first `fan_history.monthly` row for the current JST club month. */
+export function pickCurrentMonthRecord(monthly: unknown, now = new Date()): UmaMonthRecord | null {
+  if (!Array.isArray(monthly) || monthly.length === 0) return null
+  const { year, month } = getEffectiveJstPeriod(now)
+  const jstMonth = month + 1
+  const match = monthly.find((row) => (
+    row && typeof row === 'object'
+    && Number((row as UmaMonthRecord).year) === year
+    && Number((row as UmaMonthRecord).month) === jstMonth
+  ))
+  const row = (match || monthly[0]) as UmaMonthRecord | undefined
+  return row && typeof row === 'object' ? row : null
+}
+
+/**
+ * Club IDs to load for an applicant. uma.moe `circle` is often the club they
+ * started the month in (then zeroed); `fan_history.monthly[0]` is this month's club.
+ */
+export function applicantCircleCandidates(root: {
+  fan_history?: { monthly?: unknown }
+  circle?: { circle_id?: string | number | null; id?: string | number | null }
+  trainer?: { circle?: { circle_id?: string | number | null; id?: string | number | null } }
+  club?: { circle_id?: string | number | null; id?: string | number | null }
+} | null | undefined, now = new Date()) {
+  const month = pickCurrentMonthRecord(root?.fan_history?.monthly, now)
+  const circle = root?.circle ?? root?.trainer?.circle ?? root?.club
+  const ids = [month?.circle_id, circle?.circle_id, circle?.id]
+    .map((id) => (id == null || String(id).trim() === '' ? '' : String(id)))
+    .filter(Boolean)
+  return [...new Set(ids)]
+}
+
+export function applicantClubName(
+  month: UmaMonthRecord | null | undefined,
+  circle: { name?: string | null } | null | undefined,
+  loadedName?: string | null,
+) {
+  return loadedName || month?.circle_name || circle?.name || null
+}
+
+/** Overlay uma.moe month totals when the roster series is only a club slice. */
+export function withMonthSummary<T extends { monthlyGain: number; dailyAverage: number; totalFans: number }>(
+  stats: T,
+  month: UmaMonthRecord | null | undefined,
+): T {
+  if (!month) return stats
+  return {
+    ...stats,
+    monthlyGain: typeof month.monthly_gain === 'number' ? Math.max(0, Math.round(month.monthly_gain)) : stats.monthlyGain,
+    dailyAverage: typeof month.avg_daily === 'number' ? Math.round(month.avg_daily) : stats.dailyAverage,
+    totalFans: typeof month.total_fans === 'number' ? month.total_fans : stats.totalFans,
+  }
+}
+
+/**
+ * Full calendar series for applicants: leading negatives are previous-club
+ * cumulatives, not a join baseline (club tables still use getMemberFanStats).
+ */
+export function getFullPeriodFanStats(rawFans: unknown) {
+  const fans = Array.isArray(rawFans) ? rawFans.filter((value): value is number => typeof value === 'number') : []
+  const unsigned = fans.map((value) => (value < 0 ? Math.abs(value) : value))
+  return getMemberFanStats(unsigned)
+}
+
 export function getMemberFanStats(rawFans: unknown) {
   const fans = Array.isArray(rawFans) ? rawFans.filter((value): value is number => typeof value === 'number') : []
   const lastPositive = fans.reduce((found, value, index) => value > 0 ? index : found, -1)

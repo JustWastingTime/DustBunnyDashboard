@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import { getActiveCutoffMs, isMemberActive } from '../server/performance.js'
+import { applicantCircleCandidates, applicantClubName, getActiveCutoffMs, getFullPeriodFanStats, getTodayFanGain, isMemberActive, pickCurrentMonthRecord, withMonthSummary } from '../server/performance.js'
 
 const inputSchema = z.object({
   schemaVersion: z.literal(1),
@@ -182,24 +182,36 @@ for (const configured of input.applicants) {
   )
   const trainer = profile.trainer as Record<string, unknown> | undefined
   const circle = profile.circle as Record<string, unknown> | undefined
-  const history = profile.fan_history as { monthly?: Array<Record<string, unknown>> } | undefined
-  const latest = history?.monthly?.[0]
-  const currentCircleId = String(circle?.circle_id ?? latest?.circle_id ?? '')
+  const month = pickCurrentMonthRecord(
+    (profile.fan_history as { monthly?: Array<Record<string, unknown>> } | undefined)?.monthly,
+  )
   let member: CircleMember | undefined
-  if (currentCircleId) {
-    const circleData = await getCircle(currentCircleId)
-    member = circleData.members?.find((entry) => String(entry.viewer_id) === configured.umaId)
+  let loadedClubName: string | null = null
+  let currentCircleId = ''
+  for (const circleId of applicantCircleCandidates(profile as { fan_history?: { monthly?: unknown }; circle?: { circle_id?: string | number | null } })) {
+    const circleData = await getCircle(circleId)
+    const found = circleData.members?.find((entry) => String(entry.viewer_id) === configured.umaId)
+    if (found) {
+      member = found
+      currentCircleId = circleId
+      loadedClubName = circleData.circle?.name || null
+      break
+    }
   }
-  const metrics = fanStats(member?.daily_fans)
+  const stats = withMonthSummary(getFullPeriodFanStats(member?.daily_fans), month)
   applicants.push({
     umaId: configured.umaId,
-    ign: String(trainer?.name ?? latest?.trainer_name ?? configured.ign),
+    ign: String(trainer?.name ?? month?.trainer_name ?? configured.ign),
     targetClubId: configured.targetClubId,
     status: configured.status,
     currentClubId: currentCircleId || null,
-    currentClubName: String(circle?.name ?? latest?.circle_name ?? '') || null,
+    currentClubName: applicantClubName(month, circle as { name?: string | null }, loadedClubName),
     lastUpdatedAt: member?.last_updated || null,
-    ...metrics,
+    totalFans: stats.totalFans,
+    monthlyGain: stats.monthlyGain,
+    dailyAverage: stats.dailyAverage,
+    todayGain: getTodayFanGain(member?.daily_fans),
+    dailyGains: stats.dailyGains,
   })
 }
 

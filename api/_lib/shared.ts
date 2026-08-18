@@ -5,11 +5,16 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
 import {
+  applicantCircleCandidates,
+  applicantClubName,
   classifyPerformance,
   getActiveCutoffMs,
+  getFullPeriodFanStats,
   getMemberFanStats,
   getTodayFanGain,
   isMemberActive,
+  pickCurrentMonthRecord,
+  withMonthSummary,
 } from '../../server/performance.js'
 
 export type ClubConfig = {
@@ -224,22 +229,28 @@ export async function fetchUmaJson<T>(url: string): Promise<T> {
 export async function resolveUmaProfile(umaId: string) {
   const root = await fetchUmaJson<any>(`https://uma.moe/api/v4/user/profile/${encodeURIComponent(umaId)}`)
   const trainer = root?.trainer ?? root?.user ?? root?.profile ?? root
-  const month = root?.fan_history?.monthly?.[0]
+  const month = pickCurrentMonthRecord(root?.fan_history?.monthly)
   const circle = root?.circle ?? trainer?.circle ?? root?.club
   const ign = trainer?.name ?? trainer?.trainer_name ?? month?.trainer_name
   if (!ign) throw new Error(`Trainer ${umaId} was not found on uma.moe.`)
-  const currentClubIdRaw = circle?.circle_id ?? circle?.id ?? month?.circle_id
-  const currentClubId = currentClubIdRaw == null ? null : String(currentClubIdRaw)
   let member: any = null
-  if (currentClubId) {
-    const circleData = await fetchUmaJson<any>(`https://uma.moe/api/v4/circles?circle_id=${encodeURIComponent(currentClubId)}`)
-    member = (circleData?.members || []).find((item: any) => String(item.viewer_id) === String(umaId))
+  let loadedClubName: string | null = null
+  let currentClubId: string | null = null
+  for (const circleId of applicantCircleCandidates(root)) {
+    const circleData = await fetchUmaJson<any>(`https://uma.moe/api/v4/circles?circle_id=${encodeURIComponent(circleId)}`)
+    const found = (circleData?.members || []).find((item: any) => String(item.viewer_id) === String(umaId))
+    if (found) {
+      member = found
+      currentClubId = circleId
+      loadedClubName = circleData?.circle?.name ?? null
+      break
+    }
   }
-  const stats = getMemberFanStats(member?.daily_fans)
+  const stats = withMonthSummary(getFullPeriodFanStats(member?.daily_fans), month)
   return {
     ign: String(ign),
     currentClubId,
-    currentClubName: circle?.name ?? month?.circle_name ?? null,
+    currentClubName: applicantClubName(month, circle, loadedClubName),
     lastUpdatedAt: member?.last_updated ?? null,
     totalFans: stats.totalFans,
     monthlyGain: stats.monthlyGain,
