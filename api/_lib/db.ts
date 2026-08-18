@@ -195,22 +195,19 @@ export async function ensureSchema() {
         `,
       ])
 
-      const existing = await db`SELECT circle_id FROM clubs LIMIT 1`
-      if (existing.length === 0) {
-        const seeds = seedClubsFromConfig()
-        for (const [index, club] of seeds.entries()) {
-          await db`
-            INSERT INTO clubs (
-              circle_id, name, daily_target, promotion_ratio, severe_ratio,
-              inactive_days, promotion_enabled, sort_order, updated_at
-            ) VALUES (
-              ${club.circleId}, ${club.name}, ${club.dailyTarget}, ${club.promotionRatio},
-              ${club.severeRatio}, ${club.inactiveDays}, ${club.promotionEnabled !== false},
-              ${index}, NOW()
-            )
-            ON CONFLICT (circle_id) DO NOTHING
-          `
-        }
+      const seeds = seedClubsFromConfig()
+      for (const [index, club] of seeds.entries()) {
+        await db`
+          INSERT INTO clubs (
+            circle_id, name, daily_target, promotion_ratio, severe_ratio,
+            inactive_days, promotion_enabled, sort_order, updated_at
+          ) VALUES (
+            ${club.circleId}, ${club.name}, ${club.dailyTarget}, ${club.promotionRatio},
+            ${club.severeRatio}, ${club.inactiveDays}, ${club.promotionEnabled !== false},
+            ${index}, NOW()
+          )
+          ON CONFLICT (circle_id) DO NOTHING
+        `
       }
     })()
 

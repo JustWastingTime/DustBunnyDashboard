@@ -1,6 +1,6 @@
 # Uma Club Dashboard
 
-Online club performance dashboard for Dust Bunny, Dirt Bunny, and Damp Bunny.
+Online club performance dashboard for Dust Bunny, Dirt Bunny, Damp Bunny, and Dusk Bunny.
 
 - **Public:** overview charts/members at `/`, applications at `/apply`
 - **Tournaments:** Discord login at `/tourney` — rostered players pick Umas by round (managers can edit all)

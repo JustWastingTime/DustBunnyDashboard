@@ -26,6 +26,15 @@
       "severeRatio": 0.5,
       "inactiveDays": 3,
       "promotionEnabled": true
+    },
+    {
+      "circleId": "469097343",
+      "name": "Dusk Bunny",
+      "dailyTarget": 2000000,
+      "promotionRatio": 1.25,
+      "severeRatio": 0.5,
+      "inactiveDays": 3,
+      "promotionEnabled": true
     }
   ]
 }

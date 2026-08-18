@@ -1457,6 +1457,7 @@ function originTone(sourceId: string, clubName?: string | null) {
   if (name.includes('dust')) return 'origin-dust'
   if (name.includes('dirt')) return 'origin-dirt'
   if (name.includes('damp')) return 'origin-damp'
+  if (name.includes('dusk')) return 'origin-dusk'
   return 'origin-other'
 }
 
