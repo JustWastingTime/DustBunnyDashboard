@@ -37,6 +37,7 @@ export type Member = {
   dailyGains: number[]
   band: Band
   reason: string
+  discordId?: string | null
 }
 
 export type Applicant = {

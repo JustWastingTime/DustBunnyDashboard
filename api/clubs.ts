@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { listClubs, updateClub } from './_lib/db.js'
+import { listClubs, listMemberLinks, updateClub, upsertMemberLink } from './_lib/db.js'
 import { requireManager, sendError } from './_lib/shared.js'
 
 const rankGrades = ['ss', 'splus', 's', 'aplus', 'a', 'bplus', 'b'] as const
@@ -15,17 +15,31 @@ const updateSchema = z.object({
   rankGrade: z.enum(rankGrades).nullish(),
 })
 
+const linkSchema = z.object({
+  link: z.literal(true),
+  umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
+  discordId: z.string().trim().max(32).optional().default(''),
+})
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
     const user = await requireManager(request, response)
     if (!user) return
 
     if (request.method === 'GET') {
-      const clubs = await listClubs(user.clubIds)
-      return response.json({ clubs, user, rankGrades })
+      const [clubs, memberLinks] = await Promise.all([
+        listClubs(user.clubIds),
+        listMemberLinks(),
+      ])
+      return response.json({ clubs, memberLinks, user, rankGrades })
     }
 
     if (request.method === 'PUT' || request.method === 'PATCH') {
+      if (request.body?.link === true) {
+        const input = linkSchema.parse(request.body)
+        const saved = await upsertMemberLink(input.umaId, input.discordId || null)
+        return response.json({ umaId: input.umaId, discordId: saved?.discordId || null })
+      }
       const circleId = String(request.query.circleId || request.body?.circleId || '').trim()
       if (!circleId) return response.status(400).json({ error: 'circleId is required.' })
       if (!user.clubIds.includes(circleId)) {

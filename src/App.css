@@ -201,6 +201,14 @@ button:disabled { opacity: .6; cursor: wait; }.danger-link { color: var(--danger
 th { padding: 10px 12px; color: var(--muted); font-size: .7rem; text-align: left; text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--line); }
 td { padding: 13px 12px; border-bottom: 1px solid var(--line); font-size: .88rem; }tbody tr:last-child td { border-bottom: 0; }
 .id { display: block; color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: .68rem; margin-top: 3px; }
+.discord-id-input {
+  width: 100%;
+  min-width: 140px;
+  max-width: 220px;
+  padding: 5px 8px;
+  font-size: .72rem;
+  font-family: ui-monospace, Consolas, monospace;
+}
 .mini-chart { width: 100px; }.muted { color: var(--muted); font-size: .75rem; }
 .badge { display: inline-flex; flex-direction: column; width: max-content; max-width: 170px; padding: 6px 9px; border-radius: 4px; font-size: .72rem; font-weight: 800; }
 .badge small { display: block; margin-top: 2px; font-weight: 500; opacity: .75; }

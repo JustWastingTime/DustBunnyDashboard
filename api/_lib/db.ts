@@ -189,11 +189,27 @@ export async function ensureSchema() {
           )
         `,
         tx`
+          CREATE TABLE IF NOT EXISTS member_links (
+            uma_id TEXT PRIMARY KEY,
+            discord_id TEXT NOT NULL UNIQUE,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `,
+        tx`
           INSERT INTO planning_boards (id, status, updated_at)
           VALUES (1, 'draft', NOW())
           ON CONFLICT (id) DO NOTHING
         `,
       ])
+
+      await db`
+        INSERT INTO member_links (uma_id, discord_id, updated_at)
+        SELECT DISTINCT ON (uma_id) uma_id, discord_id, NOW()
+        FROM tournament_players
+        WHERE uma_id IS NOT NULL AND btrim(uma_id) <> ''
+        ORDER BY uma_id, id DESC
+        ON CONFLICT DO NOTHING
+      `
 
       const seeds = seedClubsFromConfig()
       for (const [index, club] of seeds.entries()) {
@@ -254,6 +270,43 @@ export async function listClubs(clubIds?: string[]) {
   }
   const rows = await db`SELECT * FROM clubs ORDER BY sort_order ASC, name ASC`
   return rows.map(mapClub)
+}
+
+export type MemberLink = {
+  umaId: string
+  discordId: string
+}
+
+export async function listMemberLinks(): Promise<MemberLink[]> {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`SELECT uma_id, discord_id FROM member_links ORDER BY uma_id ASC`
+  return rows.map((row) => ({
+    umaId: String(row.uma_id),
+    discordId: String(row.discord_id),
+  }))
+}
+
+export async function upsertMemberLink(umaId: string, discordId: string | null): Promise<MemberLink | null> {
+  await ensureSchema()
+  const db = getSql()
+  const id = String(umaId || '').trim()
+  const discord = String(discordId || '').trim()
+  if (!id) throw new Error('Uma ID is required.')
+  if (!discord) {
+    await db`DELETE FROM member_links WHERE uma_id = ${id}`
+    return null
+  }
+  if (!/^\d{5,32}$/.test(discord)) throw new Error('Discord ID must be a numeric snowflake.')
+  await db`DELETE FROM member_links WHERE discord_id = ${discord} AND uma_id <> ${id}`
+  await db`
+    INSERT INTO member_links (uma_id, discord_id, updated_at)
+    VALUES (${id}, ${discord}, NOW())
+    ON CONFLICT (uma_id) DO UPDATE SET
+      discord_id = EXCLUDED.discord_id,
+      updated_at = NOW()
+  `
+  return { umaId: id, discordId: discord }
 }
 
 export async function updateClub(
@@ -835,6 +888,9 @@ export async function replaceTournamentRoster(
       `
       result.push(mapTournamentPlayer(rows[0]))
     }
+  }
+  for (const player of result) {
+    if (player.umaId) await upsertMemberLink(player.umaId, player.discordId)
   }
   return result
 }

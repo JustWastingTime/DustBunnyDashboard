@@ -58,9 +58,14 @@ export function StaffTournaments({
       .sort((a, b) => a.ign.localeCompare(b.ign))
       .map((member) => ({
         ...member,
-        label: `${member.ign} · ${clubNames.get(member.circleId || '') || 'club'}`,
+        label: `${member.ign} · ${clubNames.get(member.circleId || '') || 'club'}${member.discordId ? ' · linked' : ''}`,
       }))
   }, [clubs, members])
+
+  useEffect(() => {
+    const member = members.find((item) => item.umaId === memberUmaId)
+    setMemberDiscordId(member?.discordId || '')
+  }, [memberUmaId, members])
 
   const load = async (preferId?: number | null) => {
     const payload = await api.staffTournaments()
@@ -232,6 +237,7 @@ export function StaffTournaments({
         umaId: member.umaId,
       },
     ])
+    void api.staffSaveMemberLink(member.umaId, discordId).catch((reason) => setError((reason as Error).message))
     setMemberUmaId('')
     setMemberDiscordId('')
     setError('')
@@ -311,6 +317,7 @@ export function StaffTournaments({
         <div className="tourney-add-grid">
           <div className="panel form-stack nested-panel">
             <h3>Add club member</h3>
+            <p className="muted">Discord IDs are saved on the member and reused for later tournaments.</p>
             <label>Member
               <select value={memberUmaId} onChange={(event) => setMemberUmaId(event.target.value)}>
                 <option value="">Select member</option>
@@ -319,7 +326,7 @@ export function StaffTournaments({
                 ))}
               </select>
             </label>
-            <label>Discord ID<input value={memberDiscordId} onChange={(event) => setMemberDiscordId(event.target.value)} placeholder="numeric Discord snowflake" /></label>
+            <label>Discord ID<input value={memberDiscordId} onChange={(event) => setMemberDiscordId(event.target.value)} placeholder={memberUmaId ? 'saved if blank next time' : 'numeric Discord snowflake'} /></label>
             <div className="field-row">
               <label>Team<input type="number" min={1} max={8} value={memberTeam} onChange={(event) => setMemberTeam(Number(event.target.value) || 1)} /></label>
               <label>Distance

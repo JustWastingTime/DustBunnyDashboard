@@ -29,11 +29,20 @@ export const api = {
   me: () => request<{ authenticated: boolean; user?: SessionUser }>('/api/auth/me'),
   logout: () => request<{ ok: true }>('/api/auth/me', { method: 'POST' }),
   staffApplicants: () => request<{ applicants: import('./types').Applicant[]; user: SessionUser }>('/api/applicants'),
-  staffClubs: () => request<{ clubs: import('./types').Club[]; user: SessionUser }>('/api/clubs'),
+  staffClubs: () => request<{
+    clubs: import('./types').Club[]
+    memberLinks: Array<{ umaId: string; discordId: string }>
+    user: SessionUser
+  }>('/api/clubs'),
   staffUpdateClub: (circleId: string, body: unknown) =>
     request<import('./types').Club>(`/api/clubs?circleId=${encodeURIComponent(circleId)}`, {
       method: 'PUT',
       body: JSON.stringify(body),
+    }),
+  staffSaveMemberLink: (umaId: string, discordId: string | null) =>
+    request<{ umaId: string; discordId: string | null }>('/api/clubs?link=1', {
+      method: 'PUT',
+      body: JSON.stringify({ umaId, discordId: discordId || '', link: true }),
     }),
   staffPlan: () =>
     request<{

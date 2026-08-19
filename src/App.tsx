@@ -232,14 +232,59 @@ function planStatusLabel(
   return { kind: 'move' as const, label: `Moving to ${clubName}` }
 }
 
+function DiscordIdField({
+  umaId,
+  value,
+  onSave,
+}: {
+  umaId: string
+  value: string
+  onSave: (umaId: string, discordId: string | null) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(value)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { setDraft(value) }, [value, umaId])
+  const save = async () => {
+    const next = draft.trim()
+    if (next === (value || '').trim()) return
+    setBusy(true)
+    try {
+      await onSave(umaId, next || null)
+    } catch (reason) {
+      setDraft(value)
+      alert((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <input
+    className="discord-id-input"
+    inputMode="numeric"
+    placeholder="Discord ID"
+    aria-label={`Discord ID for ${umaId}`}
+    value={draft}
+    disabled={busy}
+    onChange={(event) => setDraft(event.target.value)}
+    onBlur={() => { void save() }}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        void save()
+      }
+    }}
+  />
+}
+
 function MemberTable({
   clubs,
   members: supplied,
   assignments = [],
+  onSaveDiscord,
 }: {
   clubs: Club[]
   members?: Member[]
   assignments?: Assignment[]
+  onSaveDiscord?: (umaId: string, discordId: string | null) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
   const [clubFilter, setClubFilter] = useState('all')
@@ -269,7 +314,7 @@ function MemberTable({
   const filtered = [...members]
     .filter((member) => clubFilter === 'all' || member.circleId === clubFilter)
     .filter((member) => bandFilter === 'all' || member.band === bandFilter)
-    .filter((member) => member.ign.toLowerCase().includes(query.toLowerCase()) || member.umaId.includes(query))
+    .filter((member) => member.ign.toLowerCase().includes(query.toLowerCase()) || member.umaId.includes(query) || (member.discordId || '').includes(query))
     .sort((a, b) => b[sort] - a[sort])
   const bandCounts = members.reduce<Record<string, number>>((counts, member) => {
     if (clubFilter !== 'all' && member.circleId !== clubFilter) return counts
@@ -338,6 +383,15 @@ function MemberTable({
                 <BandBadge band={member.band} reason={member.reason} compact />
               </div>
               <span className="member-card-club">{clubById.get(member.circleId || '')?.name || '—'}</span>
+              {onSaveDiscord ? (
+                <DiscordIdField
+                  umaId={member.umaId}
+                  value={member.discordId || ''}
+                  onSave={onSaveDiscord}
+                />
+              ) : member.discordId ? (
+                <span className="id">{member.discordId}</span>
+              ) : null}
               <div className="member-card-stats">
                 <span><small>Daily</small>{compact.format(member.dailyAverage)}</span>
                 <span><small>Month</small>{compact.format(member.monthlyGain)}</span>
@@ -351,15 +405,24 @@ function MemberTable({
       )
     ) : (
       <div className="table-scroll"><table>
-        <thead><tr><th>Trainer</th><th>Club</th><th>Monthly</th><th>Daily avg</th><th>Today</th><th>Trend</th><th>Assessment</th><th>Plan</th></tr></thead>
+        <thead><tr><th>Trainer</th><th>Club</th>{onSaveDiscord ? <th>Discord ID</th> : null}<th>Monthly</th><th>Daily avg</th><th>Today</th><th>Trend</th><th>Assessment</th><th>Plan</th></tr></thead>
         <tbody>
           {filtered.length === 0 ? (
-            <tr><td colSpan={8} className="empty-row">No members match these filters.</td></tr>
+            <tr><td colSpan={onSaveDiscord ? 9 : 8} className="empty-row">No members match these filters.</td></tr>
           ) : filtered.map((member) => {
             const plan = planStatusLabel(member, assignments, clubById)
             return <tr key={`${member.circleId}:${member.umaId}`}>
               <td><strong>{member.ign}</strong><small className="id">{member.umaId}</small></td>
               <td>{clubById.get(member.circleId || '')?.name || '—'}</td>
+              {onSaveDiscord ? (
+                <td>
+                  <DiscordIdField
+                    umaId={member.umaId}
+                    value={member.discordId || ''}
+                    onSave={onSaveDiscord}
+                  />
+                </td>
+              ) : null}
               <td>{number.format(member.monthlyGain)}</td><td>{number.format(member.dailyAverage)}</td><td>+{number.format(member.todayGain)}</td>
               <td><TrendChart label={member.ign} dailyGains={member.dailyGains} /></td>
               <td><BandBadge band={member.band} reason={member.reason} /></td>
@@ -1208,6 +1271,7 @@ function StaffPage() {
   const [clubs, setClubs] = useState<Club[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([])
+  const [memberLinks, setMemberLinks] = useState<Array<{ umaId: string; discordId: string }>>([])
   const [boardStatus, setBoardStatus] = useState('draft')
   const [error, setError] = useState('')
   const params = new URLSearchParams(window.location.search)
@@ -1231,6 +1295,7 @@ function StaffPage() {
     setDashboard(dash)
     setApplicants(staff.applicants)
     setClubs(clubPayload.clubs)
+    setMemberLinks(clubPayload.memberLinks || [])
     setAssignments(plan.assignments)
     setBoardStatus(plan.board.status || 'draft')
     setBlacklist(blocked.entries)
@@ -1266,9 +1331,22 @@ function StaffPage() {
     </main>
   }
 
+  const discordByUma = new Map(memberLinks.map((link) => [link.umaId, link.discordId]))
   const members = (dashboard?.clubs || []).flatMap((club) =>
-    (club.members || []).map((member) => ({ ...member, circleId: club.circleId })),
+    (club.members || []).map((member) => ({
+      ...member,
+      circleId: club.circleId,
+      discordId: discordByUma.get(member.umaId) || member.discordId || null,
+    })),
   )
+  const saveMemberDiscord = async (umaId: string, discordId: string | null) => {
+    const saved = await api.staffSaveMemberLink(umaId, discordId)
+    setMemberLinks((current) => {
+      const without = current.filter((link) => link.umaId !== umaId)
+      if (!saved.discordId) return without
+      return [...without, { umaId, discordId: saved.discordId }]
+    })
+  }
   const safeReload = async () => {
     try {
       await reload()
@@ -1294,7 +1372,7 @@ function StaffPage() {
     {tab === 'overview' && dashboard && (
       <>
         <ClubSummary clubs={dashboard.clubs} />
-        <MemberTable clubs={dashboard.clubs} assignments={assignments} />
+        <MemberTable clubs={dashboard.clubs} members={members} assignments={assignments} onSaveDiscord={saveMemberDiscord} />
         <PublicApplicants applicants={dashboard.applicants} clubs={dashboard.clubs} />
       </>
     )}
@@ -1312,7 +1390,7 @@ function StaffPage() {
       />
     )}
     {tab === 'tournaments' && (
-      <StaffTournaments clubs={clubs} members={members} />
+      <StaffTournaments clubs={clubs} members={members} reload={safeReload} />
     )}
     {tab === 'blacklist' && (
       <StaffBlacklist entries={blacklist} reload={safeReload} />
