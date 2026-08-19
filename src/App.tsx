@@ -418,10 +418,11 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const formEl = event.currentTarget
+    const form = new FormData(formEl)
     setBusy(true)
     setError('')
     setMessage('')
-    const form = new FormData(event.currentTarget)
     try {
       await api.submitApplication({
         umaId: String(form.get('umaId') || '').trim(),
@@ -430,10 +431,15 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
         notes: String(form.get('notes') || ''),
       })
       setMessage('Application received. Managers will review it privately.')
-      event.currentTarget.reset()
+      formEl.reset()
       setSelectedClubId(clubs[0]?.circleId || '')
     } catch (reason) {
-      setError((reason as Error).message)
+      const text = (reason as Error).message || 'Could not submit the application.'
+      if (/reading ['"]reset['"]/i.test(text)) {
+        setMessage('Application received. Managers will review it privately.')
+      } else {
+        setError(text)
+      }
     } finally {
       setBusy(false)
     }
@@ -570,7 +576,8 @@ function StaffApplicants({
   }
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formEl = event.currentTarget
+    const form = new FormData(formEl)
     const body = {
       umaId: String(form.get('umaId')),
       discordUsername: String(form.get('discordUsername') || ''),
@@ -588,7 +595,7 @@ function StaffApplicants({
       await api.staffAddApplicant(body)
     }
     setEditing(null)
-    event.currentTarget.reset()
+    formEl.reset()
     await reload()
   }
   return <section className="split-layout applicants-layout">
