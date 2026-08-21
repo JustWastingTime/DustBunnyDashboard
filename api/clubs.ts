@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { listClubs, listMemberLinks, updateClub, upsertMemberLink } from './_lib/db.js'
-import { requireManager, sendError } from './_lib/shared.js'
+import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, upsertMemberLink } from './_lib/db.js'
+import { fetchUmaJson, requireManager, sendError } from './_lib/shared.js'
+import { bunnyHistoryStints } from '../../server/tenure.js'
 
 const rankGrades = ['ss', 'splus', 's', 'aplus', 'a', 'bplus', 'b'] as const
 
@@ -27,11 +28,55 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (!user) return
 
     if (request.method === 'GET') {
-      const [clubs, memberLinks] = await Promise.all([
+      const profileId = String(request.query.profile || '').trim()
+      if (profileId) {
+        const clubs = await listClubs(user.clubIds)
+        const stored = await getMemberProfileRecord(profileId)
+        const bunnyIds = new Set(clubs.map((club) => club.circleId))
+        let umaName: string | null = stored.profile?.ign || null
+        let history: Array<{ year?: number; month?: number; circle_id?: string | number | null; circle_name?: string | null }> = []
+        try {
+          const root = await fetchUmaJson<any>(`https://uma.moe/api/v4/user/profile/${encodeURIComponent(profileId)}`)
+          umaName = root?.trainer?.name || umaName
+          history = Array.isArray(root?.circle_history) ? root.circle_history : []
+        } catch {
+          // Keep stored rows if uma.moe is unavailable.
+        }
+        const tenure = bunnyHistoryStints(history, bunnyIds)
+        const clubNames = new Map(clubs.map((club) => [club.circleId, club.name]))
+        return response.json({
+          umaId: profileId,
+          ign: umaName || stored.profile?.ign || profileId,
+          discordId: stored.profile?.discordId || null,
+          status: stored.profile?.status || (tenure.uniqueMonths ? 'former' : 'unknown'),
+          currentCircleId: stored.profile?.currentCircleId || null,
+          currentClubName: stored.profile?.currentCircleId ? clubNames.get(stored.profile.currentCircleId) || null : null,
+          lastCircleId: stored.profile?.lastCircleId || null,
+          lastClubName: stored.profile?.lastCircleId ? clubNames.get(stored.profile.lastCircleId) || null : null,
+          firstSeenOn: stored.profile?.firstSeenOn || null,
+          lastSeenOn: stored.profile?.lastSeenOn || null,
+          observedDays: stored.profile?.observedDays || 0,
+          networkMonths: tenure.uniqueMonths,
+          firstNetworkMonth: tenure.first ? `${tenure.first.year}-${String(tenure.first.month).padStart(2, '0')}` : null,
+          lastNetworkMonth: tenure.last ? `${tenure.last.year}-${String(tenure.last.month).padStart(2, '0')}` : null,
+          stints: tenure.stints.map((stint) => ({
+            ...stint,
+            circleName: clubNames.get(stint.circleId) || stint.circleName || stint.circleId,
+          })),
+          clubDays: stored.clubDays.map((row) => ({
+            ...row,
+            circleName: clubNames.get(row.circleId) || row.circleId,
+          })),
+          tournaments: stored.tournaments,
+          umaMoeUrl: `https://uma.moe/profile/${encodeURIComponent(profileId)}`,
+        })
+      }
+      const [clubs, memberLinks, directory] = await Promise.all([
         listClubs(user.clubIds),
         listMemberLinks(),
+        listMemberDirectory(),
       ])
-      return response.json({ clubs, memberLinks, user, rankGrades })
+      return response.json({ clubs, memberLinks, directory, user, rankGrades })
     }
 
     if (request.method === 'PUT' || request.method === 'PATCH') {

@@ -7,8 +7,9 @@ import {
 import { api } from './api'
 import { assessMember } from './assess'
 import { StaffTournaments } from './StaffTournaments'
+import { MemberProfileModal } from './MemberProfile'
 import { TourneyPage } from './TourneyPage'
-import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, PublicData, Status } from './types'
+import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, MemberDirectoryRow, PublicData, Status } from './types'
 import './App.css'
 
 const number = new Intl.NumberFormat('en-US')
@@ -280,19 +281,24 @@ function MemberTable({
   members: supplied,
   assignments = [],
   onSaveDiscord,
+  directory = [],
+  onOpenProfile,
 }: {
   clubs: Club[]
   members?: Member[]
   assignments?: Assignment[]
   onSaveDiscord?: (umaId: string, discordId: string | null) => Promise<void>
+  directory?: MemberDirectoryRow[]
+  onOpenProfile?: (umaId: string) => void
 }) {
   const [query, setQuery] = useState('')
   const [clubFilter, setClubFilter] = useState('all')
   const [bandFilter, setBandFilter] = useState<Band | 'all'>('all')
+  const [rosterFilter, setRosterFilter] = useState<'current' | 'former' | 'all'>('current')
   const [sort, setSort] = useState<'dailyAverage' | 'monthlyGain' | 'todayGain'>('dailyAverage')
   const [view, setView] = useState<'list' | 'grid'>('list')
   const clubById = new Map(clubs.map((club) => [club.circleId, club]))
-  const members = (supplied || clubs.flatMap((club) => (club.members || []).map((member) => ({ ...member, circleId: club.circleId }))))
+  const live = (supplied || clubs.flatMap((club) => (club.members || []).map((member) => ({ ...member, circleId: club.circleId }))))
     .map((member) => {
       const club = clubById.get(member.circleId || '')
       if (!club) return member
@@ -305,8 +311,30 @@ function MemberTable({
         inactiveDays: club.inactiveDays,
         promotionEnabled: club.promotionEnabled !== false,
       })
-      return { ...member, band: assessed.band, reason: assessed.reason }
+      return { ...member, band: assessed.band, reason: assessed.reason, former: false }
     })
+  const liveIds = new Set(live.map((member) => member.umaId))
+  const alumni: Member[] = directory
+    .filter((row) => row.status === 'former' && !liveIds.has(row.umaId))
+    .map((row) => ({
+      umaId: row.umaId,
+      ign: row.ign,
+      circleId: row.lastCircleId || row.currentCircleId || undefined,
+      lastUpdatedAt: row.lastSeenOn,
+      totalFans: 0,
+      monthlyGain: 0,
+      dailyAverage: 0,
+      todayGain: 0,
+      dailyGains: [],
+      band: 'inactive' as Band,
+      reason: 'Former Bunny club member',
+      discordId: row.discordId,
+      former: true,
+      observedDays: row.observedDays,
+      firstSeenOn: row.firstSeenOn,
+      lastSeenOn: row.lastSeenOn,
+    }))
+  const members = rosterFilter === 'former' ? alumni : rosterFilter === 'all' ? [...live, ...alumni] : live
   const promotionAvailable = clubFilter === 'all'
     ? clubs.some((club) => club.promotionEnabled !== false)
     : clubById.get(clubFilter)?.promotionEnabled !== false
@@ -333,6 +361,13 @@ function MemberTable({
           <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
           <button type="button" className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')}>Grid</button>
         </div>
+        {onOpenProfile ? (
+          <select aria-label="Current or former members" value={rosterFilter} onChange={(event) => setRosterFilter(event.target.value as typeof rosterFilter)}>
+            <option value="current">Current members</option>
+            <option value="former">Former members ({alumni.length})</option>
+            <option value="all">Current + former</option>
+          </select>
+        ) : null}
         <input aria-label="Search members" placeholder="Search IGN or Uma ID" value={query} onChange={(event) => setQuery(event.target.value)} />
         <select aria-label="Filter by club" value={clubFilter} onChange={(event) => {
           const nextClub = event.target.value
@@ -379,7 +414,12 @@ function MemberTable({
             const plan = planStatusLabel(member, assignments, clubById)
             return <article key={`${member.circleId}:${member.umaId}`} className="member-card">
               <div className="member-card-top">
-                <strong title={member.umaId}>{member.ign}</strong>
+                <strong>
+                  {onOpenProfile ? (
+                    <button type="button" className="name-link" onClick={() => onOpenProfile(member.umaId)}>{member.ign}</button>
+                  ) : member.ign}
+                </strong>
+                {member.former ? <small className="id">Former</small> : null}
                 <BandBadge band={member.band} reason={member.reason} compact />
               </div>
               <span className="member-card-club">{clubById.get(member.circleId || '')?.name || '—'}</span>
@@ -405,14 +445,22 @@ function MemberTable({
       )
     ) : (
       <div className="table-scroll"><table>
-        <thead><tr><th>Trainer</th><th>Club</th>{onSaveDiscord ? <th>Discord ID</th> : null}<th>Monthly</th><th>Daily avg</th><th>Today</th><th>Trend</th><th>Assessment</th><th>Plan</th></tr></thead>
+        <thead><tr><th>Trainer</th><th>Club</th>{onSaveDiscord ? <th>Discord ID</th> : null}{onOpenProfile ? <th>Tenure</th> : null}<th>Monthly</th><th>Daily avg</th><th>Today</th><th>Trend</th><th>Assessment</th><th>Plan</th></tr></thead>
         <tbody>
           {filtered.length === 0 ? (
-            <tr><td colSpan={onSaveDiscord ? 9 : 8} className="empty-row">No members match these filters.</td></tr>
+            <tr><td colSpan={8 + (onSaveDiscord ? 1 : 0) + (onOpenProfile ? 1 : 0)} className="empty-row">No members match these filters.</td></tr>
           ) : filtered.map((member) => {
             const plan = planStatusLabel(member, assignments, clubById)
+            const tracked = directory.find((row) => row.umaId === member.umaId)
             return <tr key={`${member.circleId}:${member.umaId}`}>
-              <td><strong>{member.ign}</strong><small className="id">{member.umaId}</small></td>
+              <td>
+                <strong>
+                  {onOpenProfile ? (
+                    <button type="button" className="name-link" onClick={() => onOpenProfile(member.umaId)}>{member.ign}</button>
+                  ) : member.ign}
+                </strong>
+                <small className="id">{member.umaId}{member.former ? ' · former' : ''}</small>
+              </td>
               <td>{clubById.get(member.circleId || '')?.name || '—'}</td>
               {onSaveDiscord ? (
                 <td>
@@ -421,6 +469,13 @@ function MemberTable({
                     value={member.discordId || ''}
                     onSave={onSaveDiscord}
                   />
+                </td>
+              ) : null}
+              {onOpenProfile ? (
+                <td>
+                  {tracked
+                    ? `${tracked.observedDays}d tracked`
+                    : member.former ? `${member.observedDays || 0}d` : '—'}
                 </td>
               ) : null}
               <td>{number.format(member.monthlyGain)}</td><td>{number.format(member.dailyAverage)}</td><td>+{number.format(member.todayGain)}</td>
@@ -1272,6 +1327,8 @@ function StaffPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([])
   const [memberLinks, setMemberLinks] = useState<Array<{ umaId: string; discordId: string }>>([])
+  const [directory, setDirectory] = useState<MemberDirectoryRow[]>([])
+  const [profileUmaId, setProfileUmaId] = useState<string | null>(null)
   const [boardStatus, setBoardStatus] = useState('draft')
   const [error, setError] = useState('')
   const params = new URLSearchParams(window.location.search)
@@ -1296,6 +1353,7 @@ function StaffPage() {
     setApplicants(staff.applicants)
     setClubs(clubPayload.clubs)
     setMemberLinks(clubPayload.memberLinks || [])
+    setDirectory(clubPayload.directory || [])
     setAssignments(plan.assignments)
     setBoardStatus(plan.board.status || 'draft')
     setBlacklist(blocked.entries)
@@ -1372,7 +1430,14 @@ function StaffPage() {
     {tab === 'overview' && dashboard && (
       <>
         <ClubSummary clubs={dashboard.clubs} />
-        <MemberTable clubs={dashboard.clubs} members={members} assignments={assignments} onSaveDiscord={saveMemberDiscord} />
+        <MemberTable
+          clubs={dashboard.clubs}
+          members={members}
+          assignments={assignments}
+          onSaveDiscord={saveMemberDiscord}
+          directory={directory}
+          onOpenProfile={setProfileUmaId}
+        />
         <PublicApplicants applicants={dashboard.applicants} clubs={dashboard.clubs} />
       </>
     )}
@@ -1398,6 +1463,7 @@ function StaffPage() {
     {tab === 'settings' && (
       <StaffClubSettings clubs={clubs} reload={safeReload} />
     )}
+    {profileUmaId ? <MemberProfileModal umaId={profileUmaId} onClose={() => setProfileUmaId(null)} /> : null}
   </main>
 }
 

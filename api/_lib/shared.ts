@@ -300,7 +300,7 @@ export async function buildPublicClub(club: ClubConfig) {
   const rankDelta =
     liveRank != null && yesterdayRank != null ? yesterdayRank - liveRank : null
 
-  return {
+  const built = {
     ...club,
     rank: liveRank,
     yesterdayRank,
@@ -313,4 +313,13 @@ export async function buildPublicClub(club: ClubConfig) {
     sourceUpdatedAt: circle.last_live_update ?? circle.last_updated ?? null,
     members,
   }
+
+  try {
+    const { recordManagedRoster } = await import('./db.js')
+    await recordManagedRoster(club.circleId, members.map((member) => ({ umaId: member.umaId, ign: member.ign })))
+  } catch (error) {
+    console.error(`Failed to persist roster for ${club.circleId}`, error)
+  }
+
+  return built
 }

@@ -38,6 +38,10 @@ export type Member = {
   band: Band
   reason: string
   discordId?: string | null
+  former?: boolean
+  observedDays?: number
+  firstSeenOn?: string | null
+  lastSeenOn?: string | null
 }
 
 export type Applicant = {
@@ -129,6 +133,47 @@ export type DashboardState = {
   board?: { status: string; updated_at?: string; confirmed_at?: string | null }
   publications?: Array<Record<string, unknown>>
   syncErrors?: SyncError[]
+}
+
+export type MemberDirectoryRow = {
+  umaId: string
+  ign: string
+  currentCircleId: string | null
+  lastCircleId: string | null
+  firstSeenOn: string
+  lastSeenOn: string
+  observedDays: number
+  status: 'current' | 'former'
+  discordId: string | null
+}
+
+export type TrainerMiniProfile = {
+  umaId: string
+  ign: string
+  discordId: string | null
+  status: 'current' | 'former' | 'unknown'
+  currentCircleId: string | null
+  currentClubName: string | null
+  lastCircleId: string | null
+  lastClubName: string | null
+  firstSeenOn: string | null
+  lastSeenOn: string | null
+  observedDays: number
+  networkMonths: number
+  firstNetworkMonth: string | null
+  lastNetworkMonth: string | null
+  stints: Array<{
+    circleId: string
+    circleName: string
+    startYear: number
+    startMonth: number
+    endYear: number
+    endMonth: number
+    monthCount: number
+  }>
+  clubDays: Array<{ circleId: string; circleName: string; days: number; firstSeenOn: string; lastSeenOn: string }>
+  tournaments: Array<{ id: number; name: string; eventDate: string | null }>
+  umaMoeUrl: string
 }
 
 export type PublicData = {

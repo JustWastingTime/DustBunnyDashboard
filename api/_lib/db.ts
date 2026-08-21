@@ -196,6 +196,25 @@ export async function ensureSchema() {
           )
         `,
         tx`
+          CREATE TABLE IF NOT EXISTS member_profiles (
+            uma_id TEXT PRIMARY KEY,
+            ign TEXT NOT NULL,
+            current_circle_id TEXT,
+            last_circle_id TEXT,
+            first_seen_on DATE NOT NULL,
+            last_seen_on DATE NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS member_sightings (
+            uma_id TEXT NOT NULL,
+            circle_id TEXT NOT NULL,
+            seen_on DATE NOT NULL,
+            PRIMARY KEY (uma_id, circle_id, seen_on)
+          )
+        `,
+        tx`
           INSERT INTO planning_boards (id, status, updated_at)
           VALUES (1, 'draft', NOW())
           ON CONFLICT (id) DO NOTHING
@@ -307,6 +326,167 @@ export async function upsertMemberLink(umaId: string, discordId: string | null):
       updated_at = NOW()
   `
   return { umaId: id, discordId: discord }
+}
+
+function jstDate(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(now)
+}
+
+export type MemberDirectoryRow = {
+  umaId: string
+  ign: string
+  currentCircleId: string | null
+  lastCircleId: string | null
+  firstSeenOn: string
+  lastSeenOn: string
+  observedDays: number
+  status: 'current' | 'former'
+  discordId: string | null
+}
+
+function mapDirectoryRow(row: any): MemberDirectoryRow {
+  return {
+    umaId: String(row.uma_id),
+    ign: String(row.ign),
+    currentCircleId: row.current_circle_id == null ? null : String(row.current_circle_id),
+    lastCircleId: row.last_circle_id == null ? null : String(row.last_circle_id),
+    firstSeenOn: String(row.first_seen_on).slice(0, 10),
+    lastSeenOn: String(row.last_seen_on).slice(0, 10),
+    observedDays: Number(row.observed_days || 0),
+    status: row.current_circle_id ? 'current' : 'former',
+    discordId: row.discord_id == null ? null : String(row.discord_id),
+  }
+}
+
+export async function recordManagedRoster(circleId: string, members: Array<{ umaId: string; ign: string }>) {
+  await ensureSchema()
+  const db = getSql()
+  const today = jstDate()
+  const club = String(circleId || '').trim()
+  if (!club) return
+  const present = members
+    .map((member) => ({ umaId: String(member.umaId || '').trim(), ign: String(member.ign || '').trim() || 'Unknown' }))
+    .filter((member) => member.umaId)
+  const umaIds = present.map((member) => member.umaId)
+  const igns = present.map((member) => member.ign)
+
+  if (present.length) {
+    await db`
+      INSERT INTO member_sightings (uma_id, circle_id, seen_on)
+      SELECT uma_id, ${club}, ${today}::date
+      FROM unnest(${umaIds}::text[]) AS uma_id
+      ON CONFLICT (uma_id, circle_id, seen_on) DO NOTHING
+    `
+    await db`
+      INSERT INTO member_profiles (
+        uma_id, ign, current_circle_id, last_circle_id, first_seen_on, last_seen_on, updated_at
+      )
+      SELECT uma_id, ign, ${club}, ${club}, ${today}::date, ${today}::date, NOW()
+      FROM unnest(${umaIds}::text[], ${igns}::text[]) AS t(uma_id, ign)
+      ON CONFLICT (uma_id) DO UPDATE SET
+        ign = EXCLUDED.ign,
+        current_circle_id = EXCLUDED.current_circle_id,
+        last_circle_id = EXCLUDED.last_circle_id,
+        last_seen_on = EXCLUDED.last_seen_on,
+        first_seen_on = LEAST(member_profiles.first_seen_on, EXCLUDED.first_seen_on),
+        updated_at = NOW()
+    `
+  }
+
+  if (umaIds.length) {
+    await db`
+      UPDATE member_profiles
+      SET current_circle_id = NULL, updated_at = NOW()
+      WHERE current_circle_id = ${club}
+        AND NOT (uma_id = ANY(${umaIds}))
+    `
+  } else {
+    await db`
+      UPDATE member_profiles
+      SET current_circle_id = NULL, updated_at = NOW()
+      WHERE current_circle_id = ${club}
+    `
+  }
+}
+
+export async function listMemberDirectory(): Promise<MemberDirectoryRow[]> {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    SELECT
+      p.uma_id,
+      p.ign,
+      p.current_circle_id,
+      p.last_circle_id,
+      p.first_seen_on,
+      p.last_seen_on,
+      COALESCE(s.observed_days, 0) AS observed_days,
+      l.discord_id
+    FROM member_profiles p
+    LEFT JOIN (
+      SELECT uma_id, COUNT(DISTINCT seen_on)::int AS observed_days
+      FROM member_sightings
+      GROUP BY uma_id
+    ) s ON s.uma_id = p.uma_id
+    LEFT JOIN member_links l ON l.uma_id = p.uma_id
+    ORDER BY p.ign ASC
+  `
+  return rows.map(mapDirectoryRow)
+}
+
+export async function getMemberProfileRecord(umaId: string) {
+  await ensureSchema()
+  const db = getSql()
+  const id = String(umaId || '').trim()
+  if (!id) return null
+  const rows = await db`
+    SELECT
+      p.uma_id,
+      p.ign,
+      p.current_circle_id,
+      p.last_circle_id,
+      p.first_seen_on,
+      p.last_seen_on,
+      COALESCE(s.observed_days, 0) AS observed_days,
+      l.discord_id
+    FROM member_profiles p
+    LEFT JOIN (
+      SELECT uma_id, COUNT(DISTINCT seen_on)::int AS observed_days
+      FROM member_sightings
+      GROUP BY uma_id
+    ) s ON s.uma_id = p.uma_id
+    LEFT JOIN member_links l ON l.uma_id = p.uma_id
+    WHERE p.uma_id = ${id}
+  `
+  const profile = rows[0] ? mapDirectoryRow(rows[0]) : null
+  const clubDays = await db`
+    SELECT circle_id, COUNT(DISTINCT seen_on)::int AS days, MIN(seen_on) AS first_seen, MAX(seen_on) AS last_seen
+    FROM member_sightings
+    WHERE uma_id = ${id}
+    GROUP BY circle_id
+    ORDER BY MAX(seen_on) DESC
+  `
+  const tournaments = await db`
+    SELECT DISTINCT t.id, t.name, t.event_date
+    FROM tournament_players p
+    JOIN tournaments t ON t.id = p.tournament_id
+    WHERE p.uma_id = ${id}
+    ORDER BY t.event_date DESC
+  `
+  return {
+    profile,
+    clubDays: clubDays.map((row) => ({
+      circleId: String(row.circle_id),
+      days: Number(row.days || 0),
+      firstSeenOn: String(row.first_seen).slice(0, 10),
+      lastSeenOn: String(row.last_seen).slice(0, 10),
+    })),
+    tournaments: tournaments.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name),
+      eventDate: row.event_date ? new Date(row.event_date).toISOString() : null,
+    })),
+  }
 }
 
 export async function updateClub(

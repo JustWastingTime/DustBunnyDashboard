@@ -32,8 +32,11 @@ export const api = {
   staffClubs: () => request<{
     clubs: import('./types').Club[]
     memberLinks: Array<{ umaId: string; discordId: string }>
+    directory?: import('./types').MemberDirectoryRow[]
     user: SessionUser
   }>('/api/clubs'),
+  staffMemberProfile: (umaId: string) =>
+    request<import('./types').TrainerMiniProfile>(`/api/clubs?profile=${encodeURIComponent(umaId)}`),
   staffUpdateClub: (circleId: string, body: unknown) =>
     request<import('./types').Club>(`/api/clubs?circleId=${encodeURIComponent(circleId)}`, {
       method: 'PUT',
