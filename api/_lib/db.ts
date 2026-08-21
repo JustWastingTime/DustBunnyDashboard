@@ -344,14 +344,21 @@ export type MemberDirectoryRow = {
   discordId: string | null
 }
 
+function asDay(value: unknown) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString().slice(0, 10)
+  const text = String(value || '')
+  const match = text.match(/\d{4}-\d{2}-\d{2}/)
+  return match ? match[0] : text.slice(0, 10)
+}
+
 function mapDirectoryRow(row: any): MemberDirectoryRow {
   return {
     umaId: String(row.uma_id),
     ign: String(row.ign),
     currentCircleId: row.current_circle_id == null ? null : String(row.current_circle_id),
     lastCircleId: row.last_circle_id == null ? null : String(row.last_circle_id),
-    firstSeenOn: String(row.first_seen_on).slice(0, 10),
-    lastSeenOn: String(row.last_seen_on).slice(0, 10),
+    firstSeenOn: asDay(row.first_seen_on),
+    lastSeenOn: asDay(row.last_seen_on),
     observedDays: Number(row.observed_days || 0),
     status: row.current_circle_id ? 'current' : 'former',
     discordId: row.discord_id == null ? null : String(row.discord_id),
@@ -371,18 +378,21 @@ export async function recordManagedRoster(circleId: string, members: Array<{ uma
   const igns = present.map((member) => member.ign)
 
   if (present.length) {
+    const idsJson = JSON.stringify(umaIds)
+    const ignsJson = JSON.stringify(igns)
     await db`
       INSERT INTO member_sightings (uma_id, circle_id, seen_on)
-      SELECT uma_id, ${club}, ${today}::date
-      FROM unnest(${umaIds}::text[]) AS uma_id
+      SELECT x.uma_id, ${club}, ${today}::date
+      FROM json_array_elements_text(${idsJson}::json) AS x(uma_id)
       ON CONFLICT (uma_id, circle_id, seen_on) DO NOTHING
     `
     await db`
       INSERT INTO member_profiles (
         uma_id, ign, current_circle_id, last_circle_id, first_seen_on, last_seen_on, updated_at
       )
-      SELECT uma_id, ign, ${club}, ${club}, ${today}::date, ${today}::date, NOW()
-      FROM unnest(${umaIds}::text[], ${igns}::text[]) AS t(uma_id, ign)
+      SELECT a.uma_id, b.ign, ${club}, ${club}, ${today}::date, ${today}::date, NOW()
+      FROM json_array_elements_text(${idsJson}::json) WITH ORDINALITY AS a(uma_id, n)
+      JOIN json_array_elements_text(${ignsJson}::json) WITH ORDINALITY AS b(ign, n) ON a.n = b.n
       ON CONFLICT (uma_id) DO UPDATE SET
         ign = EXCLUDED.ign,
         current_circle_id = EXCLUDED.current_circle_id,
@@ -478,8 +488,8 @@ export async function getMemberProfileRecord(umaId: string) {
     clubDays: clubDays.map((row) => ({
       circleId: String(row.circle_id),
       days: Number(row.days || 0),
-      firstSeenOn: String(row.first_seen).slice(0, 10),
-      lastSeenOn: String(row.last_seen).slice(0, 10),
+      firstSeenOn: asDay(row.first_seen),
+      lastSeenOn: asDay(row.last_seen),
     })),
     tournaments: tournaments.map((row) => ({
       id: Number(row.id),

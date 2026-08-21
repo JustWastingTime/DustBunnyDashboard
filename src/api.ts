@@ -5,8 +5,13 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new Error(body.error || `Request failed with ${response.status}`)
+    const body = await response.json().catch(() => null) as { error?: unknown; message?: unknown } | null
+    const raw = body?.error ?? body?.message
+    const message = typeof raw === 'string' ? raw
+      : raw && typeof raw === 'object' && 'message' in raw && typeof (raw as { message: unknown }).message === 'string'
+        ? (raw as { message: string }).message
+        : (response.statusText || `Request failed with ${response.status}`)
+    throw new Error(message)
   }
   return response.status === 204 ? undefined as T : response.json()
 }

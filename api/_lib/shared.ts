@@ -206,9 +206,8 @@ export function sendError(response: VercelResponse, error: unknown, fallback = '
     return response.status(400).json({ error: error.issues.map((issue) => issue.message).join(' ') })
   }
   const message = error instanceof Error ? error.message : fallback
-  const status = /not configured|rejected this API key|UMA_API_KEY/i.test(message) ? 500 : 400
   console.error(error)
-  return response.status(status).json({ error: message })
+  return response.status(500).json({ error: message || fallback })
 }
 
 export async function fetchUmaJson<T>(url: string): Promise<T> {

@@ -31,7 +31,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const profileId = String(request.query.profile || '').trim()
       if (profileId) {
         const clubs = await listClubs(user.clubIds)
-        const stored = await getMemberProfileRecord(profileId)
+        const stored = (await getMemberProfileRecord(profileId)) || { profile: null, clubDays: [], tournaments: [] }
         const bunnyIds = new Set(clubs.map((club) => club.circleId))
         let umaName: string | null = stored.profile?.ign || null
         let history: Array<{ year?: number; month?: number; circle_id?: string | number | null; circle_name?: string | null }> = []
