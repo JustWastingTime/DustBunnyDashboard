@@ -2,12 +2,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   createSessionToken,
   findManager,
+  redirect,
   safeReturnTo,
-  sendError,
   setSessionCookie,
   siteUrl,
   type SessionUser,
-} from '../_lib/shared.js'
+} from '../_lib/auth.js'
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
@@ -49,8 +49,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const manager = findManager(me.id)
     const wantsStaff = returnTo.startsWith('/staff')
     if (wantsStaff && !manager) {
-      response.writeHead(302, { Location: '/staff?error=unauthorized' })
-      response.end()
+      redirect(response, '/staff?error=unauthorized')
       return
     }
 
@@ -64,13 +63,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
       isManager: Boolean(manager),
     }
     setSessionCookie(response, await createSessionToken(user))
-    response.writeHead(302, { Location: returnTo })
-    response.end()
+    redirect(response, returnTo)
   } catch (error) {
     console.error(error)
     const returnTo = safeReturnTo(request.query.state, '/tourney')
     const fail = returnTo.startsWith('/staff') ? '/staff?error=login_failed' : '/tourney?error=login_failed'
-    response.writeHead(302, { Location: fail })
-    response.end()
+    redirect(response, fail)
   }
 }

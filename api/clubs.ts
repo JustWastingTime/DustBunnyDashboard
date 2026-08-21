@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, upsertMemberLink } from './_lib/db.js'
 import { fetchUmaJson, requireManager, sendError } from './_lib/shared.js'
-import { bunnyHistoryStints } from '../../server/tenure.js'
+import { bunnyHistoryStints } from './_lib/tenure.js'
 
 const rankGrades = ['ss', 'splus', 's', 'aplus', 'a', 'bplus', 'b'] as const
 

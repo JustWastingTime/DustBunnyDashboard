@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { safeReturnTo, sendError, siteUrl } from '../_lib/shared.js'
+import { redirect, safeReturnTo, sendError, siteUrl } from '../_lib/auth.js'
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
@@ -16,8 +16,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       state: returnTo,
     })
     if (request.query.force === '1') params.set('prompt', 'consent')
-    response.writeHead(302, { Location: `https://discord.com/api/oauth2/authorize?${params}` })
-    response.end()
+    redirect(response, `https://discord.com/api/oauth2/authorize?${params}`)
   } catch (error) {
     return sendError(response, error)
   }

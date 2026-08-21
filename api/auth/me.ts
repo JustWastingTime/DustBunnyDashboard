@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { clearSessionCookie, readSession, sendError } from '../_lib/shared.js'
+import { clearSessionCookie, readSession, sendError } from '../_lib/auth.js'
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
