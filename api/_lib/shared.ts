@@ -20,6 +20,7 @@ export {
   fetchUmaJson,
   loadClubs,
   readClubs,
+  refreshStaleApplicantStats,
   resolveUmaProfile,
   type ClubConfig,
 } from './uma.js'

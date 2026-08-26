@@ -1,0 +1,15 @@
+{
+  "siteTitle": "Bunny Clubs",
+  "siteName": "Bunny clubs",
+  "networkName": "Bunny",
+  "description": "Friendly performance overview and applications for the Bunny Uma Musume clubs.",
+  "themeColor": "#e57a9b",
+  "sessionCookie": "dustbunny_session",
+  "publicEyebrow": "Dust · Dirt · Damp · Dusk",
+  "applyTitle": "Apply to a Bunny club",
+  "applyBlocked": "This trainer cannot apply to this club network.",
+  "discordFooter": "Club dashboard · pending review",
+  "discordWebhookName": "Club Applications",
+  "tenureNote": "Time in any club in this network counts as one stay, even after moving between them. Months away from the network are not counted.",
+  "formerMemberReason": "Former club network member"
+}

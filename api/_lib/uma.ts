@@ -104,6 +104,42 @@ export async function resolveUmaProfile(umaId: string) {
   }
 }
 
+const LIVE_APPLICANT_STATUSES = new Set(['pending', 'waitlisted', 'approved'])
+const APPLICANT_STALE_MS = 30 * 60 * 1000
+const APPLICANT_REFRESH_LIMIT = 5
+const APPLICANT_REFRESH_WORKERS = 2
+
+export async function refreshStaleApplicantStats(
+  applicants: Array<{ umaId: string; status: string; performanceSyncedAt?: string | null }>,
+) {
+  const cutoff = Date.now() - APPLICANT_STALE_MS
+  const stale = applicants
+    .filter((applicant) => LIVE_APPLICANT_STATUSES.has(applicant.status))
+    .filter((applicant) => {
+      const synced = applicant.performanceSyncedAt ? Date.parse(applicant.performanceSyncedAt) : 0
+      return !Number.isFinite(synced) || synced < cutoff
+    })
+    .sort((a, b) => Date.parse(a.performanceSyncedAt || '0') - Date.parse(b.performanceSyncedAt || '0'))
+    .slice(0, APPLICANT_REFRESH_LIMIT)
+  if (!stale.length) return
+
+  const { updateApplicantPerformance } = await import('./db.js')
+  const queue = [...stale]
+  const worker = async () => {
+    while (queue.length) {
+      const applicant = queue.shift()
+      if (!applicant) return
+      try {
+        const profile = await resolveUmaProfile(applicant.umaId)
+        await updateApplicantPerformance(applicant.umaId, profile)
+      } catch (error) {
+        console.error(`Failed to refresh applicant ${applicant.umaId}`, error)
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(APPLICANT_REFRESH_WORKERS, stale.length) }, () => worker()))
+}
+
 export async function buildPublicClub(club: ClubConfig) {
   const data = await fetchUmaJson<any>(`https://uma.moe/api/v4/circles?circle_id=${encodeURIComponent(club.circleId)}`)
   const circle = data?.circle || {}

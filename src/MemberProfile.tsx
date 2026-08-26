@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { site } from './site'
 import type { TrainerMiniProfile } from './types'
 
 const monthLabel = (year: number, month: number) =>
@@ -48,9 +49,9 @@ export function MemberProfileModal({
         <>
           <p className={`plan-status ${profile.status === 'current' ? 'plan-move' : 'plan-kick'}`}>
             {profile.status === 'current'
-              ? `Current · ${profile.currentClubName || 'Bunny network'}`
+              ? `Current · ${profile.currentClubName || `${site.networkName} network`}`
               : profile.status === 'former'
-                ? `Former · last ${profile.lastClubName || 'Bunny club'}`
+                ? `Former · last ${profile.lastClubName || `${site.networkName} club`}`
                 : 'Not in saved club history yet'}
           </p>
           <dl className="apply-club-meta mini-profile-meta">
@@ -59,7 +60,7 @@ export function MemberProfileModal({
             <div><dt>Days observed</dt><dd>{profile.observedDays || '—'}</dd></div>
             <div><dt>Discord</dt><dd className="id" style={{ margin: 0 }}>{profile.discordId || '—'}</dd></div>
           </dl>
-          <p className="muted">Time in Dust / Dirt / Damp / Dusk counts as one stay, even after moving between them. Months away from the network are not counted.</p>
+          <p className="muted">{site.tenureNote}</p>
           {profile.stints.length ? (
             <div>
               <h3 className="mini-profile-sub">Club history</h3>

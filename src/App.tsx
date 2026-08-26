@@ -10,6 +10,7 @@ import { StaffTournaments } from './StaffTournaments'
 import { MemberProfileModal } from './MemberProfile'
 import { TourneyPage } from './TourneyPage'
 import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, MemberDirectoryRow, PublicData, Status } from './types'
+import { site } from './site'
 import './App.css'
 
 const number = new Intl.NumberFormat('en-US')
@@ -129,8 +130,8 @@ function BandBadge({ band, reason, compact = false }: { band?: Band | null; reas
 function Header({ children, publicMode = false }: { children?: ReactNode; publicMode?: boolean }) {
   return <header className="site-header">
     <div>
-      <p className="eyebrow">{publicMode ? 'Dust · Dirt · Damp' : 'Local management workspace'}</p>
-      <h1>{publicMode ? 'Bunny clubs' : 'Club operations'}</h1>
+      <p className="eyebrow">{publicMode ? site.publicEyebrow : 'Local management workspace'}</p>
+      <h1>{publicMode ? site.siteName : 'Club operations'}</h1>
       {publicMode ? (
         <p className="lede">A cozy look at how our clubs are doing — ranks, fans, and who’s applying next.</p>
       ) : null}
@@ -327,7 +328,7 @@ function MemberTable({
       todayGain: 0,
       dailyGains: [],
       band: 'inactive' as Band,
-      reason: 'Former Bunny club member',
+      reason: site.formerMemberReason,
       discordId: row.discordId,
       former: true,
       observedDays: row.observedDays,
@@ -566,7 +567,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
   return <section className="apply-page">
     <header className="apply-intro">
       <p className="eyebrow">Recruitment</p>
-      <h2>Apply to a Bunny club</h2>
+      <h2>{site.applyTitle}</h2>
       <p className="muted">Pick a club on the left, then send your Uma ID and Discord username. Managers review applications privately.</p>
     </header>
 
@@ -649,8 +650,8 @@ function PublicSite({ path, navigate }: { path: string; navigate: (to: string) =
     return () => { cancelled = true }
   }, [])
 
-  if (error) return <main className="center-message"><h1>Bunny clubs</h1><p>{error}</p></main>
-  if (!data) return <main className="center-message"><h1>Bunny clubs</h1><p>Gathering the latest club vibes…</p></main>
+  if (error) return <main className="center-message"><h1>{site.siteName}</h1><p>{error}</p></main>
+  if (!data) return <main className="center-message"><h1>{site.siteName}</h1><p>Gathering the latest club vibes…</p></main>
 
   return <main className="shell">
     <Header publicMode>
@@ -1493,7 +1494,7 @@ function ClubSettings({ state, reload }: { state: DashboardState; reload: () => 
       </div>
       <label>Inactive after days<input name="inactiveDays" type="number" min="1" defaultValue={editing?.inactiveDays || 3} /></label>
       <label className="check"><input name="promotionEnabled" type="checkbox" defaultChecked={editing?.promotionEnabled ?? true} /> Enable promotion-candidate assessments for this club</label>
-      <p className="muted">Turn this off for your main club (for example Dust Bunny) where members cannot be promoted further.</p>
+      <p className="muted">Turn this off for your flagship club, where members cannot be promoted further.</p>
       <div className="button-row"><button className="primary">{editing ? 'Save club' : 'Add club'}</button>{editing && <button type="button" onClick={() => setEditing(null)}>Cancel</button>}</div>
     </form>
     <section className="panel"><div className="section-heading"><div><p className="eyebrow">Requirements</p><h2>Registered clubs</h2></div></div>
@@ -1630,7 +1631,7 @@ function PlannerCardFace({
   kind: 'member' | 'applicant'
 }) {
   const tag = moved && fromLabel
-    ? <em className={`move-tag ${originClass || ''}`}>{fromLabel.replace(/ Bunny$/i, '')}</em>
+    ? <em className={`move-tag ${originClass || ''}`}>{fromLabel.replace(new RegExp(`\\s+${site.networkName}$`, 'i'), '')}</em>
     : kind === 'applicant' && !moved
       ? <em className="move-tag origin-applicant">applicant</em>
       : null

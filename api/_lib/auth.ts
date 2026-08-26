@@ -4,6 +4,7 @@ import { SignJWT, jwtVerify } from 'jose'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
+import { readSite } from './site.js'
 
 export type ManagerAccess = {
   discordId: string
@@ -21,7 +22,7 @@ export type SessionUser = {
   isManager: boolean
 }
 
-const SESSION_COOKIE = 'dustbunny_session'
+const SESSION_COOKIE = readSite().sessionCookie
 
 function requireEnv(name: string) {
   const value = String(process.env[name] || '').trim()

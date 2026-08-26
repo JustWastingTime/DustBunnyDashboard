@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { findBlacklistMatch, upsertApplicant } from './_lib/db.js'
 import { notifyApplication } from './_lib/discord.js'
 import { loadClubs, resolveUmaProfile, sendError } from './_lib/shared.js'
+import { readSite } from './_lib/site.js'
 
 const applySchema = z.object({
   umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
@@ -28,7 +29,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     const blocked = await findBlacklistMatch(input.umaId, input.discordUsername)
     if (blocked) {
-      return response.status(403).json({ error: 'This trainer cannot apply to Bunny clubs.' })
+      return response.status(403).json({ error: readSite().applyBlocked })
     }
 
     const profile = await resolveUmaProfile(input.umaId)

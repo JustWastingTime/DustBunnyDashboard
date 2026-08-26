@@ -7,7 +7,7 @@ import {
   updateApplicantStatus,
   upsertApplicant,
 } from './_lib/db.js'
-import { requireManager, resolveUmaProfile, sendError } from './_lib/shared.js'
+import { requireManager, refreshStaleApplicantStats, resolveUmaProfile, sendError } from './_lib/shared.js'
 
 const createSchema = z.object({
   umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
@@ -33,6 +33,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (!user) return
 
     if (request.method === 'GET') {
+      const current = await listApplicants(user.clubIds)
+      await refreshStaleApplicantStats(current)
       const applicants = await listApplicants(user.clubIds)
       return response.json({ applicants, user })
     }

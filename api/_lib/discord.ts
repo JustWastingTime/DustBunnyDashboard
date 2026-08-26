@@ -1,3 +1,5 @@
+import { readSite } from './site.js'
+
 const number = new Intl.NumberFormat('en-US')
 
 export type ApplyNotifyInput = {
@@ -96,7 +98,7 @@ function buildEmbed(input: ApplyNotifyInput, chartUrl: string | null) {
     color: 0xe57a9b,
     fields,
     image: chartUrl ? { url: chartUrl } : undefined,
-    footer: { text: 'Dust Bunny Dashboard · pending review' },
+    footer: { text: readSite().discordFooter },
     timestamp: new Date().toISOString(),
     url: `https://uma.moe/profile/${encodeURIComponent(input.umaId)}`,
   }
@@ -113,7 +115,7 @@ export async function notifyApplication(input: ApplyNotifyInput) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        username: 'Club Applications',
+        username: readSite().discordWebhookName,
         embeds: [buildEmbed(input, chartUrl)],
       }),
     })

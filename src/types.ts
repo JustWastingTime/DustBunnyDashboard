@@ -60,6 +60,7 @@ export type Applicant = {
   dailyAverage: number
   todayGain: number
   dailyGains: number[]
+  performanceSyncedAt?: string | null
 }
 
 export type BlacklistEntry = {

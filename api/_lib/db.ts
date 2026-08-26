@@ -121,6 +121,7 @@ export async function ensureSchema() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `,
+        tx`ALTER TABLE applicants ADD COLUMN IF NOT EXISTS performance_synced_at TIMESTAMPTZ`,
         tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rank_grade TEXT`,
         tx`
           CREATE TABLE IF NOT EXISTS planning_boards (
@@ -271,6 +272,7 @@ function mapApplicant(row: any) {
     dailyAverage: Number(row.daily_average || 0),
     todayGain: Number(row.today_gain || 0),
     dailyGains: Array.isArray(row.daily_gains_json) ? row.daily_gains_json : [],
+    performanceSyncedAt: row.performance_synced_at ? new Date(row.performance_synced_at).toISOString() : null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   }
@@ -645,19 +647,20 @@ export async function upsertApplicant(input: {
   dailyAverage: number
   todayGain: number
   dailyGains: number[]
-}) {
+}, options?: { syncPerformance?: boolean }) {
   await ensureSchema()
   const db = getSql()
+  const syncPerformance = options?.syncPerformance !== false
   const rows = await db`
     INSERT INTO applicants (
       uma_id, ign, discord_username, target_club_id, status, private_notes, publish_publicly,
       current_club_id, current_club_name, last_updated_at, total_fans, monthly_gain, daily_average,
-      today_gain, daily_gains_json, created_at, updated_at
+      today_gain, daily_gains_json, performance_synced_at, created_at, updated_at
     ) VALUES (
       ${input.umaId}, ${input.ign}, ${input.discordUsername}, ${input.targetClubId}, ${input.status},
       ${input.privateNotes}, ${input.publishPublicly}, ${input.currentClubId}, ${input.currentClubName},
       ${input.lastUpdatedAt}, ${input.totalFans}, ${input.monthlyGain}, ${input.dailyAverage},
-      ${input.todayGain}, ${JSON.stringify(input.dailyGains)}, NOW(), NOW()
+      ${input.todayGain}, ${JSON.stringify(input.dailyGains)}, NOW(), NOW(), NOW()
     )
     ON CONFLICT (uma_id) DO UPDATE SET
       ign = EXCLUDED.ign,
@@ -674,10 +677,49 @@ export async function upsertApplicant(input: {
       daily_average = EXCLUDED.daily_average,
       today_gain = EXCLUDED.today_gain,
       daily_gains_json = EXCLUDED.daily_gains_json,
+      performance_synced_at = CASE
+        WHEN ${syncPerformance} THEN NOW()
+        ELSE applicants.performance_synced_at
+      END,
       updated_at = NOW()
     RETURNING *
   `
   return mapApplicant(rows[0])
+}
+
+export async function updateApplicantPerformance(
+  umaId: string,
+  profile: {
+    ign: string
+    currentClubId: string | null
+    currentClubName: string | null
+    lastUpdatedAt: string | null
+    totalFans: number
+    monthlyGain: number
+    dailyAverage: number
+    todayGain: number
+    dailyGains: number[]
+  },
+) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    UPDATE applicants SET
+      ign = ${profile.ign},
+      current_club_id = ${profile.currentClubId},
+      current_club_name = ${profile.currentClubName},
+      last_updated_at = ${profile.lastUpdatedAt},
+      total_fans = ${profile.totalFans},
+      monthly_gain = ${profile.monthlyGain},
+      daily_average = ${profile.dailyAverage},
+      today_gain = ${profile.todayGain},
+      daily_gains_json = ${JSON.stringify(profile.dailyGains)},
+      performance_synced_at = NOW(),
+      updated_at = NOW()
+    WHERE uma_id = ${umaId}
+    RETURNING *
+  `
+  return rows[0] ? mapApplicant(rows[0]) : null
 }
 
 export async function updateApplicantStatus(umaId: string, status: string, clubIds: string[]) {
@@ -713,7 +755,7 @@ export async function updateApplicantFields(
     publishPublicly: fields.publishPublicly ?? current.publishPublicly,
     targetClubId: fields.targetClubId ?? current.targetClubId,
     discordUsername: fields.discordUsername ?? current.discordUsername,
-  })
+  }, { syncPerformance: false })
 }
 
 export async function deleteApplicant(umaId: string, clubIds: string[]) {

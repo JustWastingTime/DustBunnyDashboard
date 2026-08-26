@@ -65,3 +65,24 @@ Still available for transfer planning, club settings, and GitHub Pages publish:
 Public responses include Uma IDs, IGNs, club targets, statuses, and performance.
 They never include Discord IDs, Discord usernames, private notes, or secrets.
 Staff-only APIs require an allowlisted Discord session.
+
+## Favicon
+
+Tab icon: `public/favicon.svg`. Home-screen / iOS icon: `public/apple-touch-icon.png`. Forks should replace both.
+
+## Hosting your own club network
+
+This app is meant to be forked. Bunny-specific names live in config and a few asset files — you do **not** need to rename code like `bunnyHistoryStints`. That helper just means “stints inside the clubs listed in `config/clubs.json`.”
+
+1. **Clubs** — replace `config/clubs.json` with your uma.moe circle IDs, display names, daily targets, and whether promotion is enabled.
+2. **Managers** — put your Discord user IDs and those circle IDs in `config/access.json`.
+3. **Branding** — edit `config/site.json` (`siteTitle`, `siteName`, `networkName`, `description`, `publicEyebrow`, apply copy, Discord webhook footer, tenure note). Also update `index.html` title/description for the first paint before JS loads.
+4. **Icons** — replace `public/favicon.svg` and `public/apple-touch-icon.png`.
+5. **Session cookie** — change `sessionCookie` in `config/site.json` so logins do not collide with another network’s site.
+6. **Env** — your own Neon `DATABASE_URL`, Discord OAuth app + callback URL, `SESSION_SECRET`, `UMA_API_KEY`, `SITE_URL`, optional apply webhook.
+7. **GitHub Pages (optional)** — `vite.config.ts` uses the repo name as the base path; the local fallback is `/DustBunnyDashboard/`. Rename the repo or change that fallback.
+8. **Planner colors** — transfer tags still tint Dust / Dirt / Damp / Dusk by club **name**. Other names use a generic “other” color unless you add CSS in `src/App.css`.
+9. **Do not copy** — Bunny `access.json` IDs, Neon data, Discord secrets, or uma.moe keys. `public-data/input.json` is a Bunny snapshot for the static Pages build; regenerate it with `npm run sync:public` after you change clubs.
+
+Tenure still treats every club in `config/clubs.json` as one network (transfers inside the list do not reset; gaps outside it do not count).
+
