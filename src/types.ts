@@ -181,6 +181,7 @@ export type PublicData = {
   schemaVersion: number
   generatedAt: string
   source: string
+  theme?: string
   clubs: Array<Club & { members: Member[] }>
   applicants: Applicant[]
 }

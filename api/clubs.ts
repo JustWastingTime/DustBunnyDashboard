@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, upsertMemberLink } from './_lib/db.js'
-import { fetchUmaJson, requireManager, sendError } from './_lib/shared.js'
+import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, upsertMemberLink, getSiteTheme, setSiteTheme, listStaffAccounts, upsertStaffAccount, deleteStaffAccount, findStaffAccount } from './_lib/db.js'
+import { fetchUmaJson, readAccess, requireManager, sendError } from './_lib/shared.js'
 import { bunnyHistoryStints } from './_lib/tenure.js'
+import { isThemeId } from './_lib/themes.js'
 
 const rankGrades = ['ss', 'splus', 's', 'aplus', 'a', 'bplus', 'b'] as const
 
@@ -14,6 +15,18 @@ const updateSchema = z.object({
   inactiveDays: z.number().int().positive(),
   promotionEnabled: z.boolean(),
   rankGrade: z.enum(rankGrades).nullish(),
+})
+
+const themeSchema = z.object({
+  site: z.literal(true),
+  theme: z.string().trim().min(1),
+})
+
+const staffSchema = z.object({
+  staff: z.literal(true),
+  discordId: z.string().trim().regex(/^\d{5,32}$/, 'Discord ID must be a numeric snowflake.'),
+  label: z.string().trim().max(80).optional().default(''),
+  remove: z.boolean().optional().default(false),
 })
 
 const linkSchema = z.object({
@@ -71,12 +84,31 @@ export default async function handler(request: VercelRequest, response: VercelRe
           umaMoeUrl: `https://uma.moe/profile/${encodeURIComponent(profileId)}`,
         })
       }
-      const [clubs, memberLinks, directory] = await Promise.all([
+      const [clubs, memberLinks, directory, theme, extraStaff] = await Promise.all([
         listClubs(user.clubIds),
         listMemberLinks(),
         listMemberDirectory(),
+        getSiteTheme(),
+        listStaffAccounts(),
       ])
-      return response.json({ clubs, memberLinks, directory, user, rankGrades })
+      const ownerIds = new Set(readAccess().map((manager) => manager.discordId))
+      const staff = [
+        ...readAccess().map((manager) => ({
+          discordId: manager.discordId,
+          label: manager.label || 'Owner',
+          source: 'owner' as const,
+          clubIds: manager.clubIds.map(String),
+        })),
+        ...extraStaff
+          .filter((account) => !ownerIds.has(account.discordId))
+          .map((account) => ({
+            discordId: account.discordId,
+            label: account.label || 'Staff',
+            source: 'staff' as const,
+            clubIds: account.clubIds,
+          })),
+      ]
+      return response.json({ clubs, memberLinks, directory, user, rankGrades, theme, staff })
     }
 
     if (request.method === 'PUT' || request.method === 'PATCH') {
@@ -84,6 +116,36 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const input = linkSchema.parse(request.body)
         const saved = await upsertMemberLink(input.umaId, input.discordId || null)
         return response.json({ umaId: input.umaId, discordId: saved?.discordId || null })
+      }
+      if (request.body?.site === true) {
+        const input = themeSchema.parse(request.body)
+        if (!isThemeId(input.theme)) return response.status(400).json({ error: 'Unknown color theme.' })
+        const theme = await setSiteTheme(input.theme)
+        return response.json({ theme })
+      }
+      if (request.body?.staff === true) {
+        const input = staffSchema.parse(request.body)
+        if (input.remove) {
+          if (input.discordId === user.discordId) {
+            return response.status(400).json({ error: 'You cannot demote yourself.' })
+          }
+          if (readAccess().some((manager) => manager.discordId === input.discordId)) {
+            return response.status(403).json({ error: 'Owners in access.json cannot be demoted here.' })
+          }
+          const deleted = await deleteStaffAccount(input.discordId)
+          if (!deleted) return response.status(404).json({ error: 'Staff member not found.' })
+          return response.json({ ok: true, discordId: input.discordId })
+        }
+        if (readAccess().some((manager) => manager.discordId === input.discordId) || await findStaffAccount(input.discordId)) {
+          return response.status(409).json({ error: 'That Discord account is already staff.' })
+        }
+        const saved = await upsertStaffAccount({
+          discordId: input.discordId,
+          label: input.label || 'Staff',
+          clubIds: user.clubIds,
+          createdBy: user.discordId,
+        })
+        return response.json({ staff: { discordId: saved.discordId, label: saved.label, source: 'staff', clubIds: saved.clubIds } })
       }
       const circleId = String(request.query.circleId || request.body?.circleId || '').trim()
       if (!circleId) return response.status(400).json({ error: 'circleId is required.' })

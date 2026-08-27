@@ -1,6 +1,7 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { DEFAULT_THEME, isThemeId, type ThemeId } from './themes.js'
 
 let sql: NeonQueryFunction<false, false> | null = null
 let ready: Promise<void> | null = null
@@ -213,6 +214,22 @@ export async function ensureSchema() {
             circle_id TEXT NOT NULL,
             seen_on DATE NOT NULL,
             PRIMARY KEY (uma_id, circle_id, seen_on)
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS site_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `,
+        tx`
+          CREATE TABLE IF NOT EXISTS staff_accounts (
+            discord_id TEXT PRIMARY KEY,
+            label TEXT NOT NULL DEFAULT '',
+            club_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+            created_by TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `,
         tx`
@@ -1224,3 +1241,89 @@ export async function clearTournamentPick(input: {
   `
   return true
 }
+
+export async function getSiteTheme(): Promise<ThemeId> {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`SELECT value FROM site_settings WHERE key = 'theme' LIMIT 1`
+  const value = rows[0]?.value
+  return isThemeId(value) ? value : DEFAULT_THEME
+}
+
+export async function setSiteTheme(theme: ThemeId) {
+  await ensureSchema()
+  const db = getSql()
+  await db`
+    INSERT INTO site_settings (key, value, updated_at)
+    VALUES ('theme', ${theme}, NOW())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+  `
+  return theme
+}
+
+export type StaffAccount = {
+  discordId: string
+  label: string
+  clubIds: string[]
+  createdBy: string
+  createdAt: string | null
+}
+
+function mapStaffAccount(row: any): StaffAccount {
+  const raw = row.club_ids
+  const clubIds = Array.isArray(raw)
+    ? raw.map(String)
+    : typeof raw === 'string'
+      ? (() => { try { return (JSON.parse(raw) as unknown[]).map(String) } catch { return [] } })()
+      : []
+  return {
+    discordId: String(row.discord_id),
+    label: String(row.label || ''),
+    clubIds,
+    createdBy: String(row.created_by || ''),
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+  }
+}
+
+export async function findStaffAccount(discordId: string) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`SELECT * FROM staff_accounts WHERE discord_id = ${String(discordId)} LIMIT 1`
+  return rows[0] ? mapStaffAccount(rows[0]) : null
+}
+
+export async function listStaffAccounts() {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`SELECT * FROM staff_accounts ORDER BY created_at ASC`
+  return rows.map(mapStaffAccount)
+}
+
+export async function upsertStaffAccount(input: {
+  discordId: string
+  label: string
+  clubIds: string[]
+  createdBy: string
+}) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    INSERT INTO staff_accounts (discord_id, label, club_ids, created_by, created_at)
+    VALUES (${input.discordId}, ${input.label}, ${input.clubIds}, ${input.createdBy}, NOW())
+    ON CONFLICT (discord_id) DO UPDATE SET
+      label = EXCLUDED.label,
+      club_ids = EXCLUDED.club_ids
+    RETURNING *
+  `
+  return mapStaffAccount(rows[0])
+}
+
+export async function deleteStaffAccount(discordId: string) {
+  await ensureSchema()
+  const db = getSql()
+  const rows = await db`
+    DELETE FROM staff_accounts WHERE discord_id = ${discordId} RETURNING discord_id
+  `
+  return rows.length > 0
+}
+

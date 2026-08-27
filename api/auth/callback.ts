@@ -46,7 +46,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       avatar?: string | null
     }
 
-    const manager = findManager(me.id)
+    const manager = await findManager(me.id)
     const wantsStaff = returnTo.startsWith('/staff')
     if (wantsStaff && !manager) {
       redirect(response, '/staff?error=unauthorized')
@@ -61,6 +61,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       clubIds: manager ? manager.clubIds.map(String) : [],
       label: manager?.label || null,
       isManager: Boolean(manager),
+      isOwner: manager?.source === 'config',
     }
     setSessionCookie(response, await createSessionToken(user))
     redirect(response, returnTo)

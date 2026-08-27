@@ -24,6 +24,7 @@ export type SessionUser = {
   clubIds: string[]
   label: string | null
   isManager?: boolean
+  isOwner?: boolean
 }
 
 export const api = {
@@ -31,7 +32,7 @@ export const api = {
   publicDashboard: () => request<import('./types').PublicData>('/api/public/dashboard'),
   applyClubs: () => request<{ clubs: Array<{ circleId: string; name: string }> }>('/api/apply'),
   submitApplication: (body: unknown) => request<{ ok: true }>('/api/apply', { method: 'POST', body: JSON.stringify(body) }),
-  me: () => request<{ authenticated: boolean; user?: SessionUser }>('/api/auth/me'),
+  me: () => request<{ authenticated: boolean; user?: SessionUser; theme?: string }>('/api/auth/me'),
   logout: () => request<{ ok: true }>('/api/auth/me', { method: 'POST' }),
   staffApplicants: () => request<{ applicants: import('./types').Applicant[]; user: SessionUser }>('/api/applicants'),
   staffClubs: () => request<{
@@ -39,6 +40,8 @@ export const api = {
     memberLinks: Array<{ umaId: string; discordId: string }>
     directory?: import('./types').MemberDirectoryRow[]
     user: SessionUser
+    theme?: string
+    staff?: Array<{ discordId: string; label: string; source: 'owner' | 'staff'; clubIds: string[] }>
   }>('/api/clubs'),
   staffMemberProfile: (umaId: string) =>
     request<import('./types').TrainerMiniProfile>(`/api/clubs?profile=${encodeURIComponent(umaId)}`),
@@ -51,6 +54,21 @@ export const api = {
     request<{ umaId: string; discordId: string | null }>('/api/clubs?link=1', {
       method: 'PUT',
       body: JSON.stringify({ umaId, discordId: discordId || '', link: true }),
+    }),
+  staffSaveTheme: (theme: string) =>
+    request<{ theme: string }>('/api/clubs', {
+      method: 'PUT',
+      body: JSON.stringify({ site: true, theme }),
+    }),
+  staffAddStaff: (body: { discordId: string; label?: string }) =>
+    request<{ staff: { discordId: string; label: string; source: 'staff'; clubIds: string[] } }>('/api/clubs', {
+      method: 'PUT',
+      body: JSON.stringify({ staff: true, ...body }),
+    }),
+  staffRemoveStaff: (discordId: string) =>
+    request<{ ok: true; discordId: string }>('/api/clubs', {
+      method: 'PUT',
+      body: JSON.stringify({ staff: true, remove: true, discordId }),
     }),
   staffPlan: () =>
     request<{

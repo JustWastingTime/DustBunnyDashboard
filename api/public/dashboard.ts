@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { listPublicApplicants } from '../_lib/db.js'
+import { listPublicApplicants, getSiteTheme } from '../_lib/db.js'
 import { buildPublicClub, loadClubs, sendError } from '../_lib/shared.js'
+import { DEFAULT_THEME } from '../_lib/themes.js'
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   try {
@@ -16,10 +17,17 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }
     }
     const applicants = await listPublicApplicants()
+    let theme = DEFAULT_THEME
+    try {
+      theme = await getSiteTheme()
+    } catch {
+      // Keep default if settings table is unavailable.
+    }
     return response.json({
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
       source: 'uma.moe',
+      theme,
       clubs,
       applicants,
     })

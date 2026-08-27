@@ -84,5 +84,7 @@ This app is meant to be forked. Bunny-specific names live in config and a few as
 8. **Planner colors** — transfer tags still tint Dust / Dirt / Damp / Dusk by club **name**. Other names use a generic “other” color unless you add CSS in `src/App.css`.
 9. **Do not copy** — Bunny `access.json` IDs, Neon data, Discord secrets, or uma.moe keys. `public-data/input.json` is a Bunny snapshot for the static Pages build; regenerate it with `npm run sync:public` after you change clubs.
 
+Owners stay in `config/access.json` (they cannot be demoted in the UI). Extra staff are added from **Staff → settings** and stored in the database. Color themes from that tab apply to both public and staff pages.
+
 Tenure still treats every club in `config/clubs.json` as one network (transfers inside the list do not reset; gaps outside it do not count).
 

@@ -11,6 +11,7 @@ import { MemberProfileModal } from './MemberProfile'
 import { TourneyPage } from './TourneyPage'
 import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, MemberDirectoryRow, PublicData, Status } from './types'
 import { site } from './site'
+import { applySiteTheme, THEMES } from './themes'
 import './App.css'
 
 const number = new Intl.NumberFormat('en-US')
@@ -650,6 +651,10 @@ function PublicSite({ path, navigate }: { path: string; navigate: (to: string) =
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    if (data?.theme) applySiteTheme(data.theme)
+  }, [data?.theme])
+
   if (error) return <main className="center-message"><h1>{site.siteName}</h1><p>{error}</p></main>
   if (!data) return <main className="center-message"><h1>{site.siteName}</h1><p>Gathering the latest club vibes…</p></main>
 
@@ -781,6 +786,147 @@ function StaffApplicants({
       </article>)}</div>
     </section>
   </section>
+}
+
+function StaffNetworkSettings({
+  members,
+  directory,
+  staff,
+  theme,
+  reload,
+}: {
+  members: Member[]
+  directory: MemberDirectoryRow[]
+  staff: Array<{ discordId: string; label: string; source: 'owner' | 'staff'; clubIds: string[] }>
+  theme: string
+  reload: () => Promise<void>
+}) {
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const staffIds = new Set(staff.map((row) => row.discordId))
+  const byUma = new Map<string, { ign: string; discordId: string }>()
+  for (const member of members) {
+    if (member.discordId && !staffIds.has(member.discordId)) {
+      byUma.set(member.umaId, { ign: member.ign, discordId: member.discordId })
+    }
+  }
+  for (const row of directory) {
+    if (row.discordId && !staffIds.has(row.discordId) && !byUma.has(row.umaId)) {
+      byUma.set(row.umaId, { ign: row.ign, discordId: row.discordId })
+    }
+  }
+  const candidates = [...byUma.entries()].map(([umaId, value]) => ({ umaId, ...value }))
+    .sort((a, b) => a.ign.localeCompare(b.ign))
+
+  const saveTheme = async (next: string) => {
+    setBusy(true)
+    try {
+      const saved = await api.staffSaveTheme(next)
+      applySiteTheme(saved.theme)
+      setMessage(`Theme set to ${THEMES.find((item) => item.id === saved.theme)?.label || saved.theme}.`)
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const promote = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const discordId = String(form.get('discordId') || '')
+    const selected = candidates.find((item) => item.discordId === discordId)
+    if (!discordId) return
+    setBusy(true)
+    try {
+      await api.staffAddStaff({ discordId, label: selected?.ign || 'Staff' })
+      setMessage(`Promoted ${selected?.ign || discordId} to staff.`)
+      event.currentTarget.reset()
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const demote = async (row: { discordId: string; label: string }) => {
+    if (!confirm(`Demote ${row.label || row.discordId} from staff?`)) return
+    setBusy(true)
+    try {
+      await api.staffRemoveStaff(row.discordId)
+      setMessage(`Removed ${row.label || row.discordId} from staff.`)
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <>
+    <section className="panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Appearance</p>
+          <h2>Color theme</h2>
+          <p>This theme is used on the public site and staff pages for everyone.</p>
+        </div>
+      </div>
+      <div className="theme-grid">
+        {THEMES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`theme-swatch ${theme === item.id ? 'active' : ''}`}
+            disabled={busy}
+            onClick={() => saveTheme(item.id)}
+          >
+            <span className="theme-swatch-chip" style={{ background: item.swatch }} />
+            <strong>{item.label}</strong>
+            <small>{item.hint}</small>
+          </button>
+        ))}
+      </div>
+    </section>
+    <section className="split-layout">
+      <form className="panel form-stack" onSubmit={promote}>
+        <div><p className="eyebrow">Access</p><h2>Add staff</h2></div>
+        <p className="muted">Promote a member who already has a Discord ID saved on Overview. They can sign in at /staff after Discord login.</p>
+        <label>Member
+          <select name="discordId" required defaultValue="">
+            <option value="">Select a linked member</option>
+            {candidates.map((item) => (
+              <option key={item.umaId} value={item.discordId}>{item.ign} · {item.discordId}</option>
+            ))}
+          </select>
+        </label>
+        {!candidates.length && <p className="muted">No members with a Discord ID are left to promote. Save Discord IDs on Overview first.</p>}
+        <div className="button-row"><button className="primary" disabled={busy || !candidates.length}>Promote to staff</button></div>
+      </form>
+      <section className="panel">
+        <div className="section-heading"><div><p className="eyebrow">Staff</p><h2>{staff.length} accounts</h2></div></div>
+        <div className="stack-list">
+          {staff.map((row) => (
+            <article key={row.discordId}>
+              <div>
+                <strong>{row.label}</strong>
+                <small className="id">{row.discordId}</small>
+                <small className="id">{row.source === 'owner' ? 'Owner' : 'Staff'}</small>
+              </div>
+              {row.source === 'staff' ? (
+                <button type="button" className="danger-link" disabled={busy} onClick={() => demote(row)}>Demote</button>
+              ) : (
+                <span className="muted">Pinned in access.json</span>
+              )}
+            </article>
+          ))}
+        </div>
+      </section>
+    </section>
+    {message && <p className="notice">{message}</p>}
+  </>
 }
 
 function StaffClubSettings({
@@ -1329,6 +1475,8 @@ function StaffPage() {
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([])
   const [memberLinks, setMemberLinks] = useState<Array<{ umaId: string; discordId: string }>>([])
   const [directory, setDirectory] = useState<MemberDirectoryRow[]>([])
+  const [staffPeople, setStaffPeople] = useState<Array<{ discordId: string; label: string; source: 'owner' | 'staff'; clubIds: string[] }>>([])
+  const [theme, setTheme] = useState('blossom')
   const [profileUmaId, setProfileUmaId] = useState<string | null>(null)
   const [boardStatus, setBoardStatus] = useState('draft')
   const [error, setError] = useState('')
@@ -1355,6 +1503,12 @@ function StaffPage() {
     setClubs(clubPayload.clubs)
     setMemberLinks(clubPayload.memberLinks || [])
     setDirectory(clubPayload.directory || [])
+    setStaffPeople(clubPayload.staff || [])
+    if (clubPayload.theme) {
+      setTheme(clubPayload.theme)
+      applySiteTheme(clubPayload.theme)
+    }
+    if (dash.theme) applySiteTheme(dash.theme)
     setAssignments(plan.assignments)
     setBoardStatus(plan.board.status || 'draft')
     setBlacklist(blocked.entries)
@@ -1378,7 +1532,7 @@ function StaffPage() {
       {(loginError === 'unauthorized' || loginError === 'login_failed') && (
         <p className="notice error">
           {loginError === 'unauthorized'
-            ? 'That Discord account is not in config/access.json.'
+            ? 'That Discord account is not a staff member.'
             : 'Discord login failed. Try again.'}
         </p>
       )}
@@ -1462,7 +1616,16 @@ function StaffPage() {
       <StaffBlacklist entries={blacklist} reload={safeReload} />
     )}
     {tab === 'settings' && (
-      <StaffClubSettings clubs={clubs} reload={safeReload} />
+      <div className="settings-stack">
+        <StaffNetworkSettings
+          members={members}
+          directory={directory}
+          staff={staffPeople}
+          theme={theme}
+          reload={safeReload}
+        />
+        <StaffClubSettings clubs={clubs} reload={safeReload} />
+      </div>
     )}
     {profileUmaId ? <MemberProfileModal umaId={profileUmaId} onClose={() => setProfileUmaId(null)} /> : null}
   </main>
@@ -1925,6 +2088,11 @@ export default function App() {
 
 function OnlineApp() {
   const { path, navigate } = usePath()
+  useEffect(() => {
+    api.me()
+      .then((payload) => applySiteTheme(payload.theme))
+      .catch(() => applySiteTheme())
+  }, [])
   if (path.startsWith('/staff')) return <StaffPage />
   if (path.startsWith('/tourney')) return <TourneyPage path={path} navigate={navigate} />
   return <PublicSite path={path} navigate={navigate} />

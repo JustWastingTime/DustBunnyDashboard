@@ -20,6 +20,7 @@ export type SessionUser = {
   clubIds: string[]
   label: string | null
   isManager: boolean
+  isOwner: boolean
 }
 
 const SESSION_COOKIE = readSite().sessionCookie
@@ -44,8 +45,31 @@ export function readAccess(): ManagerAccess[] {
   return payload.managers
 }
 
-export function findManager(discordId: string) {
-  return readAccess().find((manager) => manager.discordId === String(discordId)) || null
+export async function findManager(discordId: string) {
+  const id = String(discordId)
+  const fromFile = readAccess().find((manager) => manager.discordId === id)
+  if (fromFile) {
+    return { discordId: fromFile.discordId, label: fromFile.label, clubIds: fromFile.clubIds.map(String), source: 'config' as const }
+  }
+  try {
+    const { findStaffAccount } = await import('./db.js')
+    const row = await findStaffAccount(id)
+    if (!row) return null
+    const clubIds = row.clubIds.length ? row.clubIds : fallbackClubIds()
+    return { discordId: row.discordId, label: row.label || 'Staff', clubIds, source: 'staff' as const }
+  } catch {
+    return null
+  }
+}
+
+function fallbackClubIds() {
+  try {
+    const file = path.join(process.cwd(), 'config', 'clubs.json')
+    const payload = JSON.parse(readFileSync(file, 'utf8')) as { clubs: Array<{ circleId: string }> }
+    return payload.clubs.map((club) => String(club.circleId))
+  } catch {
+    return readAccess()[0]?.clubIds.map(String) || []
+  }
 }
 
 async function sessionSecret() {
@@ -61,6 +85,7 @@ export async function createSessionToken(user: SessionUser) {
     clubIds: user.clubIds,
     label: user.label,
     isManager: user.isManager,
+    isOwner: user.isOwner,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -76,7 +101,7 @@ export async function readSession(request: VercelRequest): Promise<SessionUser |
     const { payload } = await jwtVerify(token, await sessionSecret())
     const discordId = String(payload.discordId || '')
     if (!discordId) return null
-    const manager = findManager(discordId)
+    const manager = await findManager(discordId)
     return {
       discordId,
       username: String(payload.username || ''),
@@ -85,6 +110,7 @@ export async function readSession(request: VercelRequest): Promise<SessionUser |
       clubIds: manager ? manager.clubIds.map(String) : [],
       label: manager?.label || null,
       isManager: Boolean(manager),
+      isOwner: manager?.source === 'config',
     }
   } catch {
     return null

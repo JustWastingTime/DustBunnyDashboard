@@ -22,16 +22,159 @@
   --club-text: #fff7fa;
   --club-muted: #d4b8c4;
   --club-accent: #ffb4c8;
+  --wash-1: rgba(255, 170, 198, 0.45);
+  --wash-2: rgba(170, 210, 255, 0.38);
+  --wash-3: rgba(255, 210, 170, 0.32);
   --display: "Fraunces", Georgia, serif;
+}
+
+html[data-theme="ocean"] {
+  --ink: #1e3344;
+  --muted: #5e7a8a;
+  --page: #eef6fb;
+  --surface: #f7fbfd;
+  --surface-2: #dceef8;
+  --line: #c5dce8;
+  --accent: #3d8ebd;
+  --accent-dark: #2b6f96;
+  --accent-soft: #d5ecf8;
+  --muted-chart: #7eabbf;
+  --gain: #4aa3c8;
+  --club-card: #1e3344;
+  --club-card-2: #2a465c;
+  --club-text: #f4fafd;
+  --club-muted: #b4c9d6;
+  --club-accent: #8fd0ee;
+  --wash-1: rgba(120, 190, 230, 0.42);
+  --wash-2: rgba(160, 210, 180, 0.28);
+  --wash-3: rgba(180, 210, 240, 0.3);
+}
+
+html[data-theme="forest"] {
+  --ink: #24352a;
+  --muted: #5d7464;
+  --page: #eef6ef;
+  --surface: #f7fbf7;
+  --surface-2: #dceee0;
+  --line: #c5d9c8;
+  --accent: #4f9a6a;
+  --accent-dark: #3b7a53;
+  --accent-soft: #d7eedf;
+  --muted-chart: #86b494;
+  --gain: #5aa8c8;
+  --club-card: #24352a;
+  --club-card-2: #31483a;
+  --club-text: #f4faf5;
+  --club-muted: #b7cbbd;
+  --club-accent: #9ad4ae;
+  --wash-1: rgba(140, 210, 160, 0.4);
+  --wash-2: rgba(180, 220, 170, 0.28);
+  --wash-3: rgba(210, 230, 170, 0.28);
+}
+
+html[data-theme="dusk"] {
+  --ink: #32263f;
+  --muted: #74608a;
+  --page: #f4eef8;
+  --surface: #fbf8fd;
+  --surface-2: #eadcf4;
+  --line: #d9c6e6;
+  --accent: #8a5cad;
+  --accent-dark: #6d458c;
+  --accent-soft: #eadcf6;
+  --muted-chart: #b094c4;
+  --gain: #7eb6e0;
+  --club-card: #32263f;
+  --club-card-2: #443456;
+  --club-text: #f8f4fc;
+  --club-muted: #cbb8d8;
+  --club-accent: #d4b4ee;
+  --wash-1: rgba(180, 140, 220, 0.4);
+  --wash-2: rgba(170, 150, 230, 0.28);
+  --wash-3: rgba(230, 180, 210, 0.28);
+}
+
+html[data-theme="sand"] {
+  --ink: #4a3728;
+  --muted: #8a6f58;
+  --page: #fbf4ea;
+  --surface: #fffaf4;
+  --surface-2: #f3e4d0;
+  --line: #e4d2bc;
+  --accent: #c4844a;
+  --accent-dark: #a36834;
+  --accent-soft: #f5e4d0;
+  --muted-chart: #c4a078;
+  --gain: #5aa8c8;
+  --club-card: #4a3728;
+  --club-card-2: #5d4634;
+  --club-text: #fff8f0;
+  --club-muted: #d4c0a8;
+  --club-accent: #efc48a;
+  --wash-1: rgba(230, 180, 120, 0.42);
+  --wash-2: rgba(220, 200, 140, 0.28);
+  --wash-3: rgba(240, 200, 170, 0.3);
+}
+
+html[data-theme="slate"] {
+  --ink: #2c3338;
+  --muted: #66747c;
+  --page: #eef1f3;
+  --surface: #f7f9fa;
+  --surface-2: #dde3e7;
+  --line: #c8d0d6;
+  --accent: #5b7c8a;
+  --accent-dark: #456370;
+  --accent-soft: #d7e4ea;
+  --muted-chart: #8aa0aa;
+  --gain: #5aa8c8;
+  --club-card: #2c3338;
+  --club-card-2: #3c474e;
+  --club-text: #f4f7f8;
+  --club-muted: #b8c4ca;
+  --club-accent: #9ec4d2;
+  --wash-1: rgba(140, 180, 200, 0.38);
+  --wash-2: rgba(160, 190, 190, 0.26);
+  --wash-3: rgba(180, 190, 200, 0.28);
+}
+
+html[data-theme="night"] {
+  --ink: #f3eef1;
+  --muted: #b8a8b0;
+  --page: #1c1a1f;
+  --surface: #262228;
+  --surface-2: #322c34;
+  --line: #4a4248;
+  --accent: #e57a9b;
+  --accent-dark: #f09ab4;
+  --accent-soft: #3a3036;
+  --muted-chart: #8a707a;
+  --gain: #7ec8ee;
+  --club-card: #141216;
+  --club-card-2: #221e24;
+  --club-text: #fff7fa;
+  --club-muted: #c4b0b8;
+  --club-accent: #ffb4c8;
+  --wash-1: rgba(229, 122, 155, 0.16);
+  --wash-2: rgba(80, 120, 180, 0.12);
+  --wash-3: rgba(40, 30, 36, 0.4);
+}
+
+html[data-theme="night"] input,
+html[data-theme="night"] select,
+html[data-theme="night"] textarea {
+  background: #1f1c21;
+  color: var(--ink);
+  border-color: #5a5056;
 }
 
 * { box-sizing: border-box; }
 html {
   min-width: 320px;
   background:
-    radial-gradient(900px 420px at 6% -8%, rgba(255, 170, 198, 0.45), transparent 58%),
-    radial-gradient(780px 380px at 96% 2%, rgba(170, 210, 255, 0.38), transparent 55%),
-    radial-gradient(720px 480px at 48% 108%, rgba(255, 210, 170, 0.32), transparent 52%),
+    radial-gradient(900px 420px at 6% -8%, var(--wash-1), transparent 58%),
+    radial-gradient(780px 380px at 96% 2%, var(--wash-2), transparent 55%),
+    radial-gradient(720px 480px at 48% 108%, var(--wash-3), transparent 52%),
     var(--page);
   background-attachment: fixed;
 }
