@@ -1307,9 +1307,10 @@ export async function upsertStaffAccount(input: {
 }) {
   await ensureSchema()
   const db = getSql()
+  const clubIdsJson = JSON.stringify(input.clubIds)
   const rows = await db`
     INSERT INTO staff_accounts (discord_id, label, club_ids, created_by, created_at)
-    VALUES (${input.discordId}, ${input.label}, ${input.clubIds}, ${input.createdBy}, NOW())
+    VALUES (${input.discordId}, ${input.label}, ${clubIdsJson}::jsonb, ${input.createdBy}, NOW())
     ON CONFLICT (discord_id) DO UPDATE SET
       label = EXCLUDED.label,
       club_ids = EXCLUDED.club_ids
