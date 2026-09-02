@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       host: '127.0.0.1',
       port: 5173,
       proxy: {
-        '/api': 'http://127.0.0.1:4174',
+        '/api': process.env.TAZUNA_API_PROXY || 'http://127.0.0.1:3000',
       },
     },
   }

@@ -10,8 +10,9 @@ import { StaffTournaments } from './StaffTournaments'
 import { MemberProfileModal } from './MemberProfile'
 import { TourneyPage } from './TourneyPage'
 import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, MemberDirectoryRow, PublicData, Status } from './types'
-import { site } from './site'
+import { site, applyRuntimeSite } from './site'
 import { applySiteTheme, THEMES } from './themes'
+import { authLoginHref, restPath, tenantFromPath, tenantPrefix } from './guild'
 import './App.css'
 
 const number = new Intl.NumberFormat('en-US')
@@ -149,9 +150,11 @@ function usePath() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
   const navigate = (to: string) => {
-    if (to === path) return
-    window.history.pushState({}, '', to)
-    setPath(to)
+    const prefix = tenantPrefix()
+    const next = to.startsWith('/g/') || to.startsWith('/api') ? to : `${prefix}${to.startsWith('/') ? to : `/${to}`}`
+    if (next === path) return
+    window.history.pushState({}, '', next)
+    setPath(next)
   }
   return { path, navigate }
 }
@@ -646,7 +649,11 @@ function PublicSite({ path, navigate }: { path: string; navigate: (to: string) =
   useEffect(() => {
     let cancelled = false
     loadPublicDashboard()
-      .then((payload) => { if (!cancelled) setData(payload) })
+      .then((payload) => {
+        if (cancelled) return
+        if (payload.site) applyRuntimeSite(payload.site)
+        setData(payload)
+      })
       .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)) })
     return () => { cancelled = true }
   }, [])
@@ -1127,6 +1134,11 @@ function StaffPlanner({
     assignmentsRef.current = next
   }, [initialAssignments])
 
+  const memberIds = useMemo(() => new Set(members.map((member) => member.umaId)), [members])
+  const memberIgns = useMemo(
+    () => new Set(members.map((member) => member.ign.trim().toLowerCase()).filter(Boolean)),
+    [members],
+  )
   const entities = useMemo<PlannerEntity[]>(() => [
     ...members.map((member) => ({
       key: `member:${member.umaId}`,
@@ -1138,7 +1150,11 @@ function StaffPlanner({
       sortValue: member.dailyAverage,
     })),
     ...applicants
-      .filter((applicant) => applicant.status !== 'rejected')
+      .filter((applicant) => (
+        applicant.status !== 'rejected'
+        && !memberIds.has(applicant.umaId)
+        && !memberIgns.has(applicant.ign.trim().toLowerCase())
+      ))
       .map((applicant) => ({
         key: `applicant:${applicant.umaId}`,
         kind: 'applicant' as const,
@@ -1148,7 +1164,7 @@ function StaffPlanner({
         fallback: 'applicants',
         sortValue: applicant.dailyAverage,
       })),
-  ], [members, applicants])
+  ], [members, applicants, memberIds, memberIgns])
 
   const destination = (entity: PlannerEntity) => {
     const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
@@ -1528,7 +1544,7 @@ function StaffPage() {
   if (auth === 'guest') {
     return <main className="center-message staff-login">
       <h1>Staff login</h1>
-      <p>Sign in with Discord. Only allowlisted managers can open applicants.</p>
+      <p>Sign in with Discord. Tazuna admins (<code>tazuna-admin-role</code>) on this premium server can open applicants.</p>
       {(loginError === 'unauthorized' || loginError === 'login_failed') && (
         <p className="notice error">
           {loginError === 'unauthorized'
@@ -1538,8 +1554,8 @@ function StaffPage() {
       )}
       {error && <p className="notice error">{error}</p>}
       <div className="button-row">
-        <a className="primary button-link" href="/api/auth/login?returnTo=/staff">Log in with Discord</a>
-        <a href="/">Public overview</a>
+        <a className="primary button-link" href={authLoginHref('/staff')}>Log in with Discord</a>
+        <a href={tenantPrefix() || '/'}>Public overview</a>
       </div>
     </main>
   }
@@ -1573,7 +1589,7 @@ function StaffPage() {
     <Header>
       <div className="button-row">
         <span className="muted">{userLabel}</span>
-        <button type="button" onClick={async () => { await api.logout(); window.location.href = '/staff' }}>Log out</button>
+        <button type="button" onClick={async () => { await api.logout(); window.location.href = `${tenantPrefix()}/staff` }}>Log out</button>
       </div>
     </Header>
     {error && <p className="notice error">{error}</p>}
@@ -1892,6 +1908,11 @@ function Lane({ id, title, count, movedCount, children }: { id: string; title: s
 
 function Planner({ state, reload }: { state: DashboardState; reload: () => Promise<void> }) {
   const clubNames = useMemo(() => new Map(state.clubs.map((club) => [club.circleId, club.name])), [state.clubs])
+  const memberIds = useMemo(() => new Set(state.members.map((member) => member.umaId)), [state.members])
+  const memberIgns = useMemo(
+    () => new Set(state.members.map((member) => member.ign.trim().toLowerCase()).filter(Boolean)),
+    [state.members],
+  )
   const entities = useMemo(() => [
     ...state.members.map((member) => ({
       key: `member:${member.umaId}` as const,
@@ -1903,7 +1924,11 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       sortValue: member.dailyAverage,
     })),
     ...state.applicants
-      .filter((applicant) => applicant.status !== 'rejected')
+      .filter((applicant) => (
+        applicant.status !== 'rejected'
+        && !memberIds.has(applicant.umaId)
+        && !memberIgns.has(applicant.ign.trim().toLowerCase())
+      ))
       .map((applicant) => ({
       key: `applicant:${applicant.umaId}` as const,
       kind: 'applicant' as const,
@@ -1913,7 +1938,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       fallback: 'applicants',
       sortValue: applicant.dailyAverage,
     })),
-  ], [state])
+  ], [state, memberIds, memberIgns])
   const [assignments, setAssignments] = useState<Assignment[]>(state.assignments)
   const assignmentsRef = useRef(assignments)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
@@ -2086,6 +2111,28 @@ export default function App() {
   return <OnlineApp />
 }
 
+function TenantLanding() {
+  const [tenants, setTenants] = useState<Array<{ guildId: string; slug: string; siteName: string }>>([])
+  const [error, setError] = useState('')
+  useEffect(() => {
+    api.publicTenants()
+      .then((payload) => setTenants(payload.tenants || []))
+      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+  }, [])
+  return <main className="center-message">
+    <h1>Tazuna club dashboards</h1>
+    <p>Premium servers open their dashboard from <code>/club dashboard</code> in Discord, or pick a network below.</p>
+    {error && <p className="notice error">{error}</p>}
+    <div className="button-row" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+      {tenants.map((tenant) => (
+        <a key={tenant.guildId} className="primary button-link" href={`/g/${tenant.slug || tenant.guildId}`}>
+          {tenant.siteName}
+        </a>
+      ))}
+    </div>
+  </main>
+}
+
 function OnlineApp() {
   const { path, navigate } = usePath()
   useEffect(() => {
@@ -2093,7 +2140,9 @@ function OnlineApp() {
       .then((payload) => applySiteTheme(payload.theme))
       .catch(() => applySiteTheme())
   }, [])
-  if (path.startsWith('/staff')) return <StaffPage />
-  if (path.startsWith('/tourney')) return <TourneyPage path={path} navigate={navigate} />
-  return <PublicSite path={path} navigate={navigate} />
+  if (!tenantFromPath(path)) return <TenantLanding />
+  const rest = restPath(path)
+  if (rest.startsWith('/staff')) return <StaffPage />
+  if (rest.startsWith('/tourney')) return <TourneyPage path={rest} navigate={navigate} />
+  return <PublicSite path={rest} navigate={navigate} />
 }

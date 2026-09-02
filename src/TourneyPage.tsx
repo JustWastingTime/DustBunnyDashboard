@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, Fragment } from 'react'
 import { api, type SessionUser } from './api'
 import { CharacterPicker } from './CharacterPicker'
+import { authLoginHref, tenantPrefix } from './guild'
 import type { Tournament, TournamentBoard, TournamentDistance, TournamentPick, TournamentPlayer } from './types'
 
 const distanceOrder: TournamentDistance[] = ['sprint', 'mile', 'medium', 'long', 'dirt']
@@ -133,8 +134,8 @@ export function TourneyPage({
       {loginError && <p className="notice error">Discord login failed. Try again.</p>}
       {error && <p className="notice error">{error}</p>}
       <div className="button-row">
-        <a className="primary button-link" href="/api/auth/login?returnTo=/tourney">Log in with Discord</a>
-        <a href="/">Public overview</a>
+        <a className="primary button-link" href={authLoginHref('/tourney')}>Log in with Discord</a>
+        <a href={tenantPrefix() || '/'}>Public overview</a>
       </div>
     </main>
   }
@@ -154,7 +155,7 @@ export function TourneyPage({
         <div className="button-row">
           <span className="muted">{user?.globalName || user?.username}</span>
           <button type="button" onClick={() => { setBoard(null); navigate('/tourney') }}>All tournaments</button>
-          <button type="button" onClick={async () => { await api.logout(); window.location.href = '/tourney' }}>Log out</button>
+          <button type="button" onClick={async () => { await api.logout(); window.location.href = `${tenantPrefix()}/tourney` }}>Log out</button>
         </div>
       </header>
       {board.locked && !board.canEditAll ? (
@@ -234,8 +235,8 @@ export function TourneyPage({
       </div>
       <div className="button-row">
         <span className="muted">{user?.globalName || user?.username}</span>
-        {user?.isManager ? <a href="/staff">Staff</a> : null}
-        <button type="button" onClick={async () => { await api.logout(); window.location.href = '/tourney' }}>Log out</button>
+        {user?.isManager ? <a href={`${tenantPrefix()}/staff`}>Staff</a> : null}
+        <button type="button" onClick={async () => { await api.logout(); window.location.href = `${tenantPrefix()}/tourney` }}>Log out</button>
       </div>
     </header>
     {error && <p className="notice error">{error}</p>}

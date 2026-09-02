@@ -181,6 +181,16 @@ export type PublicData = {
   schemaVersion: number
   generatedAt: string
   source: string
+  guildId?: string
+  slug?: string | null
+  site?: {
+    siteName?: string
+    networkName?: string
+    description?: string
+    publicEyebrow?: string
+    applyTitle?: string
+    applyBlocked?: string
+  }
   theme?: string
   clubs: Array<Club & { members: Member[] }>
   applicants: Applicant[]

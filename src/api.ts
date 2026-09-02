@@ -1,5 +1,7 @@
+import { withGuildQuery } from './guild'
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(withGuildQuery(url), {
     ...init,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
@@ -30,6 +32,7 @@ export type SessionUser = {
 export const api = {
   // Online (Vercel) endpoints
   publicDashboard: () => request<import('./types').PublicData>('/api/public/dashboard'),
+  publicTenants: () => request<{ tenants: Array<{ guildId: string; slug: string; siteName: string }> }>('/api/public/tenants'),
   applyClubs: () => request<{ clubs: Array<{ circleId: string; name: string }> }>('/api/apply'),
   submitApplication: (body: unknown) => request<{ ok: true }>('/api/apply', { method: 'POST', body: JSON.stringify(body) }),
   me: () => request<{ authenticated: boolean; user?: SessionUser; theme?: string }>('/api/auth/me'),
