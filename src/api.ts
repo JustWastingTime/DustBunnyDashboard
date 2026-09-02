@@ -53,6 +53,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
+  staffAddClub: (circleId: string) =>
+    request<import('./types').Club>('/api/clubs', {
+      method: 'POST',
+      body: JSON.stringify({ create: true, circleId }),
+    }),
   staffSaveMemberLink: (umaId: string, discordId: string | null) =>
     request<{ umaId: string; discordId: string | null }>('/api/clubs?link=1', {
       method: 'PUT',

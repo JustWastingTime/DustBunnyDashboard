@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, upsertMemberLink, getSiteTheme, setSiteTheme, listStaffAccounts, upsertStaffAccount, deleteStaffAccount, findStaffAccount } from './_lib/db.js'
+import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, insertClub, upsertMemberLink, getSiteTheme, setSiteTheme, listStaffAccounts, upsertStaffAccount, deleteStaffAccount, findStaffAccount } from './_lib/db.js'
 import { fetchUmaJson, readAccess, requireManager, sendError } from './_lib/shared.js'
 import { bunnyHistoryStints } from './_lib/tenure.js'
 import { isThemeId } from './_lib/themes.js'
@@ -15,6 +15,13 @@ const updateSchema = z.object({
   inactiveDays: z.number().int().positive(),
   promotionEnabled: z.boolean(),
   rankGrade: z.enum(rankGrades).nullish(),
+  cardColor: z.string().trim().regex(/^#(?:[0-9a-fA-F]{6})$/).nullish(),
+  cardColor2: z.string().trim().regex(/^#(?:[0-9a-fA-F]{6})$/).nullish(),
+})
+
+const createSchema = z.object({
+  create: z.literal(true),
+  circleId: z.string().trim().regex(/^\d+$/, 'Circle ID must contain only digits.'),
 })
 
 const themeSchema = z.object({
@@ -111,6 +118,29 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.json({ clubs, memberLinks, directory, user, rankGrades, theme, staff })
     }
 
+    if (request.method === 'POST') {
+      const input = createSchema.parse(request.body)
+      const existing = await listClubs()
+      if (existing.some((club) => club.circleId === input.circleId)) {
+        return response.status(409).json({ error: 'That club is already in this dashboard.' })
+      }
+      const data = await fetchUmaJson<any>(`https://uma.moe/api/v4/circles?circle_id=${encodeURIComponent(input.circleId)}`)
+      const name = String(data?.circle?.name || '').trim()
+      if (!name) throw new Error('No club was found for that circle ID on uma.moe.')
+      const template = existing[0]
+      const club = await insertClub({
+        circleId: input.circleId,
+        name,
+        dailyTarget: template?.dailyTarget || 2_000_000,
+        promotionRatio: template?.promotionRatio || 1.25,
+        severeRatio: template?.severeRatio || 0.5,
+        inactiveDays: template?.inactiveDays || 3,
+        promotionEnabled: true,
+      })
+      if (!club) throw new Error('Could not add that club.')
+      return response.status(201).json(club)
+    }
+
     if (request.method === 'PUT' || request.method === 'PATCH') {
       if (request.body?.link === true) {
         const input = linkSchema.parse(request.body)
@@ -161,6 +191,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
         inactiveDays: input.inactiveDays,
         promotionEnabled: input.promotionEnabled,
         rankGrade: input.rankGrade ?? null,
+        cardColor: input.cardColor ?? null,
+        cardColor2: input.cardColor2 ?? null,
       })
       if (!club) return response.status(404).json({ error: 'Club not found.' })
       return response.json(club)

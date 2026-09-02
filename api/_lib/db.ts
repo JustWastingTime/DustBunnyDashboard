@@ -22,6 +22,8 @@ export type ClubRow = {
   inactiveDays: number
   promotionEnabled: boolean
   rankGrade: string | null
+  cardColor: string | null
+  cardColor2: string | null
   sortOrder: number
 }
 
@@ -48,6 +50,8 @@ function mapClub(row: any): ClubRow {
     inactiveDays: Number(row.inactive_days || 3),
     promotionEnabled: row.promotion_enabled !== false && row.promotion_enabled !== 0,
     rankGrade: row.rank_grade == null || row.rank_grade === '' ? null : String(row.rank_grade),
+    cardColor: row.card_color == null || row.card_color === '' ? null : String(row.card_color),
+    cardColor2: row.card_color_2 == null || row.card_color_2 === '' ? null : String(row.card_color_2),
     sortOrder: Number(row.sort_order || 0),
   }
 }
@@ -124,6 +128,8 @@ export async function ensureSchema() {
         `,
         tx`ALTER TABLE applicants ADD COLUMN IF NOT EXISTS performance_synced_at TIMESTAMPTZ`,
         tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rank_grade TEXT`,
+        tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS card_color TEXT`,
+        tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS card_color_2 TEXT`,
         tx`
           CREATE TABLE IF NOT EXISTS planning_boards (
             id INTEGER PRIMARY KEY,
@@ -529,6 +535,8 @@ export async function updateClub(
     inactiveDays: number
     promotionEnabled: boolean
     rankGrade: string | null
+    cardColor?: string | null
+    cardColor2?: string | null
   },
 ) {
   await ensureSchema()
@@ -543,11 +551,47 @@ export async function updateClub(
       inactive_days = ${input.inactiveDays},
       promotion_enabled = ${input.promotionEnabled},
       rank_grade = ${input.rankGrade},
+      card_color = ${input.cardColor ?? null},
+      card_color_2 = ${input.cardColor2 ?? null},
       updated_at = NOW()
     WHERE circle_id = ${circleId} AND circle_id = ANY(${clubIds})
     RETURNING *
   `
   return rows[0] ? mapClub(rows[0]) : null
+}
+
+export async function insertClub(input: {
+  circleId: string
+  name: string
+  dailyTarget: number
+  promotionRatio: number
+  severeRatio: number
+  inactiveDays: number
+  promotionEnabled: boolean
+  rankGrade?: string | null
+  cardColor?: string | null
+  cardColor2?: string | null
+}) {
+  await ensureSchema()
+  const db = getSql()
+  const existing = await db`SELECT sort_order FROM clubs ORDER BY sort_order DESC LIMIT 1`
+  const sortOrder = Number(existing[0]?.sort_order || 0) + 1
+  const rows = await db`
+    INSERT INTO clubs (
+      circle_id, name, daily_target, promotion_ratio, severe_ratio,
+      inactive_days, promotion_enabled, rank_grade, card_color, card_color_2, sort_order, updated_at
+    ) VALUES (
+      ${input.circleId}, ${input.name}, ${input.dailyTarget}, ${input.promotionRatio},
+      ${input.severeRatio}, ${input.inactiveDays}, ${input.promotionEnabled},
+      ${input.rankGrade ?? null}, ${input.cardColor ?? null}, ${input.cardColor2 ?? null},
+      ${sortOrder}, NOW()
+    )
+    ON CONFLICT (circle_id) DO NOTHING
+    RETURNING *
+  `
+  if (rows[0]) return mapClub(rows[0])
+  const found = await db`SELECT * FROM clubs WHERE circle_id = ${input.circleId} LIMIT 1`
+  return found[0] ? mapClub(found[0]) : null
 }
 
 export async function getPlanningBoard(): Promise<BoardRow> {

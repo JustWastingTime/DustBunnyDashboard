@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
@@ -63,9 +63,17 @@ function RankDelta({ delta }: { delta?: number | null }) {
   return <span className="rank-delta down" title="Positions lost today">▼ {Math.abs(delta)}</span>
 }
 
+function clubCardStyle(club: { cardColor?: string | null; cardColor2?: string | null }): CSSProperties | undefined {
+  if (!club.cardColor) return undefined
+  return {
+    '--club-card': club.cardColor,
+    '--club-card-2': club.cardColor2 || club.cardColor,
+  } as CSSProperties
+}
+
 function ClubOverviewCard({ club }: { club: Club & { members?: Member[] } }) {
   const memberCount = club.members?.length ?? 0
-  return <article className="club-card">
+  return <article className="club-card" style={clubCardStyle(club)}>
     <div className="club-card-top">
       <div className="club-card-heading">
         <p className="eyebrow club-live-rank">
@@ -584,6 +592,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
             key={club.circleId}
             type="button"
             className={`apply-club-pick ${selected ? 'selected' : ''}`}
+            style={club.cardColor ? { borderColor: club.cardColor } : undefined}
             onClick={() => setSelectedClubId(club.circleId)}
             aria-pressed={selected}
           >
@@ -945,12 +954,29 @@ function StaffClubSettings({
 }) {
   const [editing, setEditing] = useState<Club | null>(clubs[0] || null)
   const [message, setMessage] = useState('')
+  const current = editing && clubs.find((club) => club.circleId === editing.circleId) || clubs[0] || null
+
+  const addClub = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const formEl = event.currentTarget
+    const circleId = String(new FormData(formEl).get('circleId') || '').trim()
+    try {
+      const club = await api.staffAddClub(circleId)
+      setMessage(`Added ${club.name}.`)
+      setEditing(club)
+      formEl.reset()
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    }
+  }
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!editing) return
+    if (!current) return
     const form = new FormData(event.currentTarget)
     try {
-      await api.staffUpdateClub(editing.circleId, {
+      await api.staffUpdateClub(current.circleId, {
         name: String(form.get('name')),
         dailyTarget: Number(form.get('dailyTarget')),
         promotionRatio: Number(form.get('promotionRatio')),
@@ -958,6 +984,8 @@ function StaffClubSettings({
         inactiveDays: Number(form.get('inactiveDays')),
         promotionEnabled: form.get('promotionEnabled') === 'on',
         rankGrade: String(form.get('rankGrade') || '') || null,
+        cardColor: String(form.get('cardColor') || '') || null,
+        cardColor2: String(form.get('cardColor2') || '') || null,
       })
       setMessage(`Saved ${String(form.get('name'))}.`)
       await reload()
@@ -965,56 +993,105 @@ function StaffClubSettings({
       setMessage((reason as Error).message)
     }
   }
-  if (!clubs.length) {
-    return <section className="panel"><p className="muted">No managed clubs in your ACL.</p></section>
+
+  const clearColors = async () => {
+    if (!current) return
+    try {
+      await api.staffUpdateClub(current.circleId, {
+        name: current.name,
+        dailyTarget: current.dailyTarget,
+        promotionRatio: current.promotionRatio,
+        severeRatio: current.severeRatio,
+        inactiveDays: current.inactiveDays,
+        promotionEnabled: current.promotionEnabled !== false,
+        rankGrade: current.rankGrade || null,
+        cardColor: null,
+        cardColor2: null,
+      })
+      setMessage(`Reset ${current.name} card colors to the site theme.`)
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    }
   }
-  const current = editing && clubs.find((club) => club.circleId === editing.circleId) || clubs[0]
-  return <section className="split-layout">
-    <form className="panel form-stack" onSubmit={submit} key={current.circleId}>
-      <div><p className="eyebrow">Configuration</p><h2>Edit club settings</h2></div>
-      <label>Club
-        <select
-          value={current.circleId}
-          onChange={(event) => setEditing(clubs.find((club) => club.circleId === event.target.value) || null)}
-        >
-          {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
-        </select>
-      </label>
-      <label>Display name<input name="name" required defaultValue={current.name} /></label>
-      <label>Club rank badge
-        <select name="rankGrade" defaultValue={current.rankGrade || ''}>
-          <option value="">No badge</option>
-          {rankGradeOptions.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-      </label>
-      <p className="muted">Shown on the public overview card. Uses images from /club-ranks.</p>
-      <label>Daily requirement<input name="dailyTarget" type="number" min="0" required defaultValue={current.dailyTarget} /></label>
-      <div className="field-row">
-        <label>Promotion ratio<input name="promotionRatio" type="number" min="1" step=".05" defaultValue={current.promotionRatio || 1.25} /></label>
-        <label>Severe ratio<input name="severeRatio" type="number" min="0" max="1" step=".05" defaultValue={current.severeRatio || .5} /></label>
-      </div>
-      <label>Inactive after days<input name="inactiveDays" type="number" min="1" defaultValue={current.inactiveDays || 3} /></label>
-      <label className="check"><input name="promotionEnabled" type="checkbox" defaultChecked={current.promotionEnabled ?? true} /> Enable promotion-candidate assessments for this club</label>
-      <p className="muted">Turn this off for your main club where members cannot be promoted further.</p>
-      <div className="button-row"><button className="primary">Save club</button></div>
-      {message && <p className="notice">{message}</p>}
+
+  return <div className="settings-stack">
+    <form className="panel form-stack" onSubmit={addClub}>
+      <div><p className="eyebrow">Clubs</p><h2>Add club</h2></div>
+      <p className="muted">Paste the uma.moe circle ID. The club name is loaded from uma.moe.</p>
+      <label>Circle ID<input name="circleId" inputMode="numeric" pattern="\d+" required placeholder="883948934" /></label>
+      <div className="button-row"><button className="primary">Add club</button></div>
     </form>
-    <section className="panel">
-      <div className="section-heading"><div><p className="eyebrow">Requirements</p><h2>Managed clubs</h2></div></div>
-      <div className="stack-list">{clubs.map((club) => <article key={club.circleId}>
-        <div>
-          <strong>{club.name}</strong>
-          <small className="id">{club.circleId}</small>
-          <small className="id">Rank {rankGradeLabel(club.rankGrade)}</small>
-          <small className="id">{club.promotionEnabled === false ? 'Promotion disabled' : 'Promotion enabled'}</small>
-        </div>
-        <span>{number.format(club.dailyTarget)} / day</span>
-        <button type="button" onClick={() => setEditing(club)}>Edit</button>
-      </article>)}</div>
-    </section>
-  </section>
+    {!current ? (
+      <section className="panel"><p className="muted">No clubs yet. Add one with a circle ID.</p></section>
+    ) : (
+      <section className="split-layout">
+        <form className="panel form-stack" onSubmit={submit} key={current.circleId}>
+          <div><p className="eyebrow">Configuration</p><h2>Edit club settings</h2></div>
+          <label>Club
+            <select
+              value={current.circleId}
+              onChange={(event) => setEditing(clubs.find((club) => club.circleId === event.target.value) || null)}
+            >
+              {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
+            </select>
+          </label>
+          <label>Display name<input name="name" required defaultValue={current.name} /></label>
+          <div className="field-row">
+            <label>Card color<input name="cardColor" type="color" defaultValue={current.cardColor || '#3a2a32'} /></label>
+            <label>Card color 2<input name="cardColor2" type="color" defaultValue={current.cardColor2 || current.cardColor || '#4a3540'} /></label>
+          </div>
+          <p className="muted">These colors are used on the public overview and apply cards for this club.</p>
+          <div className="button-row">
+            <button type="button" onClick={() => void clearColors()}>Use site theme</button>
+          </div>
+          <label>Club rank badge
+            <select name="rankGrade" defaultValue={current.rankGrade || ''}>
+              <option value="">No badge</option>
+              {rankGradeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <p className="muted">Shown on the public overview card. Uses images from /club-ranks.</p>
+          <label>Daily requirement<input name="dailyTarget" type="number" min="0" required defaultValue={current.dailyTarget} /></label>
+          <div className="field-row">
+            <label>Promotion ratio<input name="promotionRatio" type="number" min="1" step=".05" defaultValue={current.promotionRatio || 1.25} /></label>
+            <label>Severe ratio<input name="severeRatio" type="number" min="0" max="1" step=".05" defaultValue={current.severeRatio || .5} /></label>
+          </div>
+          <label>Inactive after days<input name="inactiveDays" type="number" min="1" defaultValue={current.inactiveDays || 3} /></label>
+          <label className="check"><input name="promotionEnabled" type="checkbox" defaultChecked={current.promotionEnabled ?? true} /> Enable promotion-candidate assessments for this club</label>
+          <p className="muted">Turn this off for your main club where members cannot be promoted further.</p>
+          <div className="button-row"><button className="primary">Save club</button></div>
+          {message && <p className="notice">{message}</p>}
+        </form>
+        <section className="panel">
+          <div className="section-heading"><div><p className="eyebrow">Requirements</p><h2>Managed clubs</h2></div></div>
+          <div className="stack-list">{clubs.map((club) => <article key={club.circleId}>
+            <div>
+              <strong>{club.name}</strong>
+              <small className="id">{club.circleId}</small>
+              <small className="id">Rank {rankGradeLabel(club.rankGrade)}</small>
+              <small className="id">{club.promotionEnabled === false ? 'Promotion disabled' : 'Promotion enabled'}</small>
+            </div>
+            <span
+              className="theme-swatch-chip"
+              style={{
+                width: 36,
+                height: 18,
+                background: club.cardColor
+                  ? `linear-gradient(160deg, ${club.cardColor2 || club.cardColor}, ${club.cardColor})`
+                  : 'var(--club-card)',
+              }}
+            />
+            <span>{number.format(club.dailyTarget)} / day</span>
+            <button type="button" onClick={() => setEditing(club)}>Edit</button>
+          </article>)}</div>
+        </section>
+      </section>
+    )}
+    {message && !current ? <p className="notice">{message}</p> : null}
+  </div>
 }
 
 type PlannerEntity = {

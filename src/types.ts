@@ -20,6 +20,8 @@ export type Club = {
   fansSinceYesterday?: number | null
   /** Letter grade for rank badge image (SS/S/A/…). */
   rankGrade?: string | null
+  cardColor?: string | null
+  cardColor2?: string | null
   sourceUpdatedAt?: string | null
   syncedAt?: string | null
   members?: Member[]

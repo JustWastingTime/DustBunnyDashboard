@@ -49,17 +49,34 @@ export async function findManager(discordId: string) {
   const id = String(discordId)
   const fromFile = readAccess().find((manager) => manager.discordId === id)
   if (fromFile) {
-    return { discordId: fromFile.discordId, label: fromFile.label, clubIds: fromFile.clubIds.map(String), source: 'config' as const }
+    return {
+      discordId: fromFile.discordId,
+      label: fromFile.label,
+      clubIds: await managedClubIds(fromFile.clubIds.map(String)),
+      source: 'config' as const,
+    }
   }
   try {
     const { findStaffAccount } = await import('./db.js')
     const row = await findStaffAccount(id)
     if (!row) return null
-    const clubIds = row.clubIds.length ? row.clubIds : fallbackClubIds()
-    return { discordId: row.discordId, label: row.label || 'Staff', clubIds, source: 'staff' as const }
+    const base = row.clubIds.length ? row.clubIds : fallbackClubIds()
+    return { discordId: row.discordId, label: row.label || 'Staff', clubIds: await managedClubIds(base), source: 'staff' as const }
   } catch {
     return null
   }
+}
+
+async function managedClubIds(base: string[]) {
+  try {
+    const { listClubs } = await import('./db.js')
+    const rows = await listClubs()
+    const ids = rows.map((club) => club.circleId)
+    if (ids.length) return [...new Set([...base, ...ids])]
+  } catch {
+    // Keep ACL IDs if the database is unavailable.
+  }
+  return base
 }
 
 function fallbackClubIds() {

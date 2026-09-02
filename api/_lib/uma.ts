@@ -22,6 +22,8 @@ export type ClubConfig = {
   inactiveDays: number
   promotionEnabled?: boolean
   rankGrade?: string | null
+  cardColor?: string | null
+  cardColor2?: string | null
 }
 
 export function readClubs(): ClubConfig[] {
@@ -45,6 +47,8 @@ export async function loadClubs(clubIds?: string[]): Promise<ClubConfig[]> {
         inactiveDays: club.inactiveDays,
         promotionEnabled: club.promotionEnabled,
         rankGrade: club.rankGrade,
+        cardColor: club.cardColor,
+        cardColor2: club.cardColor2,
       }))
     }
   } catch (error) {
