@@ -2140,8 +2140,8 @@ function OnlineApp() {
       .then((payload) => applySiteTheme(payload.theme))
       .catch(() => applySiteTheme())
   }, [])
-  if (!tenantFromPath(path)) return <TenantLanding />
-  const rest = restPath(path)
+  const rest = tenantFromPath(path) ? restPath(path) : path
+  if (path === '/g' || path === '/g/') return <TenantLanding />
   if (rest.startsWith('/staff')) return <StaffPage />
   if (rest.startsWith('/tourney')) return <TourneyPage path={rest} navigate={navigate} />
   return <PublicSite path={rest} navigate={navigate} />

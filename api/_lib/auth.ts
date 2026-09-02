@@ -152,7 +152,8 @@ export function clearSessionCookie(response: VercelResponse) {
 export function safeReturnTo(value: unknown, fallback = '/tourney') {
   const raw = String(value || '').trim()
   if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('://')) return fallback
-  if (raw.startsWith('/staff') || raw.startsWith('/tourney')) return raw
+  const path = raw.replace(/^\/g\/[^/]+/, '') || '/'
+  if (path === '/' || path.startsWith('/staff') || path.startsWith('/tourney') || path.startsWith('/apply')) return raw
   return fallback
 }
 
