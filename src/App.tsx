@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
@@ -1104,6 +1104,59 @@ type PlannerEntity = {
   sortValue: number
 }
 
+function membersByUmaId(members: Member[]): Map<string, Member[]> {
+  const map = new Map<string, Member[]>()
+  for (const member of members) {
+    const list = map.get(member.umaId) || []
+    list.push(member)
+    map.set(member.umaId, list)
+  }
+  return map
+}
+
+function isClubDestination(destination: string) {
+  return destination !== 'kick' && destination !== 'waitlist' && destination !== 'applicants' && destination !== 'unassigned'
+}
+
+function pickLiveMember(copies: Member[], plannedDest?: string): Member {
+  if (plannedDest && isClubDestination(plannedDest)) {
+    const atDest = copies.find((member) => member.circleId === plannedDest)
+    if (atDest) return atDest
+  }
+  return [...copies].sort((a, b) => {
+    const byFans = b.dailyAverage - a.dailyAverage
+    if (byFans !== 0) return byFans
+    return String(b.lastUpdatedAt || '').localeCompare(String(a.lastUpdatedAt || ''))
+  })[0]
+}
+
+function uniqueLiveMembers(members: Member[], assignments: Assignment[]): Member[] {
+  const destByUma = new Map(
+    assignments.filter((item) => item.entityType === 'member').map((item) => [item.entityId, item.destination]),
+  )
+  return [...membersByUmaId(members).values()].map((copies) => pickLiveMember(copies, destByUma.get(copies[0].umaId)))
+}
+
+function pruneCompletedAssignments(assignments: Assignment[], members: Member[]): Assignment[] {
+  const copies = membersByUmaId(members)
+  return assignments.filter((item) => {
+    const dest = item.destination === 'unassigned' ? 'applicants' : item.destination
+    const homes = copies.get(item.entityId) || []
+    if (dest === 'kick') return homes.length > 0
+    if (!isClubDestination(dest)) return true
+    return !homes.some((member) => member.circleId === dest)
+  })
+}
+
+function assignmentsEqual(left: Assignment[], right: Assignment[]) {
+  if (left.length !== right.length) return false
+  const signature = (items: Assignment[]) => items
+    .map((item) => `${item.entityType}:${item.entityId}:${item.destination}:${item.position}`)
+    .sort()
+    .join('|')
+  return signature(left) === signature(right)
+}
+
 function copyUmaId(umaId: string) {
   void navigator.clipboard.writeText(umaId).catch(() => undefined)
 }
@@ -1203,21 +1256,45 @@ function StaffPlanner({
   const [busy, setBusy] = useState(false)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
-  useEffect(() => {
-    const next = initialAssignments.map((item) => (
-      item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
-    ))
+  const persist = useCallback((next: Assignment[]) => {
     setAssignments(next)
     assignmentsRef.current = next
-  }, [initialAssignments])
+    setBusy(true)
+    const run = saveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await api.staffSavePlan(assignmentsRef.current)
+        } catch (error) {
+          alert((error as Error).message)
+          await reload()
+        }
+      })
+    saveChainRef.current = run
+    void run.finally(() => {
+      if (saveChainRef.current === run) setBusy(false)
+    })
+    return run
+  }, [reload])
+
+  useEffect(() => {
+    const normalized = initialAssignments.map((item) => (
+      item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
+    ))
+    const pruned = pruneCompletedAssignments(normalized, members)
+    setAssignments(pruned)
+    assignmentsRef.current = pruned
+    if (!assignmentsEqual(pruned, normalized)) void persist(pruned)
+  }, [initialAssignments, members, persist])
 
   const memberIds = useMemo(() => new Set(members.map((member) => member.umaId)), [members])
   const memberIgns = useMemo(
     () => new Set(members.map((member) => member.ign.trim().toLowerCase()).filter(Boolean)),
     [members],
   )
+  const liveMembers = useMemo(() => uniqueLiveMembers(members, assignments), [members, assignments])
   const entities = useMemo<PlannerEntity[]>(() => [
-    ...members.map((member) => ({
+    ...liveMembers.map((member) => ({
       key: `member:${member.umaId}`,
       kind: 'member' as const,
       umaId: member.umaId,
@@ -1241,7 +1318,7 @@ function StaffPlanner({
         fallback: 'applicants',
         sortValue: applicant.dailyAverage,
       })),
-  ], [members, applicants, memberIds, memberIgns])
+  ], [liveMembers, applicants, memberIds, memberIgns])
 
   const destination = (entity: PlannerEntity) => {
     const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
@@ -1252,27 +1329,6 @@ function StaffPlanner({
   const originLabel = (fallback: string) => {
     if (fallback === 'applicants' || fallback === 'unassigned') return 'Applicants'
     return clubNames.get(fallback) || fallback
-  }
-
-  const persist = (next: Assignment[]) => {
-    setAssignments(next)
-    assignmentsRef.current = next
-    setBusy(true)
-    const run = saveChainRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        try {
-          await api.staffSavePlan(assignmentsRef.current)
-        } catch (error) {
-          alert((error as Error).message)
-          await reload()
-        }
-      })
-    saveChainRef.current = run
-    void run.finally(() => {
-      if (saveChainRef.current === run) setBusy(false)
-    })
-    return run
   }
 
   const resolveDropDestination = (overId: string) => {
@@ -1990,8 +2046,26 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     () => new Set(state.members.map((member) => member.ign.trim().toLowerCase()).filter(Boolean)),
     [state.members],
   )
+  const [assignments, setAssignments] = useState<Assignment[]>(state.assignments)
+  const assignmentsRef = useRef(assignments)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const persistPlan = useCallback(async (next: Assignment[]) => {
+    setAssignments(next)
+    assignmentsRef.current = next
+    try { await api.savePlan(next) } catch (error) { alert((error as Error).message); await reload() }
+  }, [reload])
+  useEffect(() => {
+    const normalized = state.assignments.map((item) => (
+      item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
+    ))
+    const pruned = pruneCompletedAssignments(normalized, state.members)
+    setAssignments(pruned)
+    assignmentsRef.current = pruned
+    if (!assignmentsEqual(pruned, normalized)) void persistPlan(pruned)
+  }, [state.assignments, state.members, persistPlan])
+  const liveMembers = useMemo(() => uniqueLiveMembers(state.members, assignments), [state.members, assignments])
   const entities = useMemo(() => [
-    ...state.members.map((member) => ({
+    ...liveMembers.map((member) => ({
       key: `member:${member.umaId}` as const,
       kind: 'member' as const,
       umaId: member.umaId,
@@ -2015,17 +2089,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       fallback: 'applicants',
       sortValue: applicant.dailyAverage,
     })),
-  ], [state, memberIds, memberIgns])
-  const [assignments, setAssignments] = useState<Assignment[]>(state.assignments)
-  const assignmentsRef = useRef(assignments)
-  const [activeDragId, setActiveDragId] = useState<string | null>(null)
-  useEffect(() => {
-    const next = state.assignments.map((item) => (
-      item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
-    ))
-    setAssignments(next)
-    assignmentsRef.current = next
-  }, [state.assignments])
+  ], [liveMembers, state.applicants, memberIds, memberIgns])
   const destination = (entity: typeof entities[number]) => {
     const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
     if (!assigned) return entity.fallback
@@ -2060,9 +2124,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     if (dest !== entity.fallback) {
       next.push({ entityType, entityId, destination: dest, position: next.filter((item) => item.destination === dest).length })
     }
-    setAssignments(next)
-    assignmentsRef.current = next
-    try { await api.savePlan(next) } catch (error) { alert((error as Error).message); await reload() }
+    await persistPlan(next)
   }
   const originLabel = (fallback: string) => {
     if (fallback === 'applicants' || fallback === 'unassigned') return 'Applicants'
