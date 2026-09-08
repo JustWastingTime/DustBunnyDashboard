@@ -560,6 +560,29 @@ export async function updateClub(
   return rows[0] ? mapClub(rows[0]) : null
 }
 
+export async function reorderClubs(orderedIds: string[], allowedIds: string[]) {
+  await ensureSchema()
+  const managed = await listClubs(allowedIds)
+  const managedIds = new Set(managed.map((club) => club.circleId))
+  if (
+    orderedIds.length !== managed.length
+    || new Set(orderedIds).size !== orderedIds.length
+    || orderedIds.some((id) => !managedIds.has(id))
+  ) {
+    throw new Error('Club order must include every managed club exactly once.')
+  }
+  const db = getSql()
+  for (let index = 0; index < orderedIds.length; index += 1) {
+    const circleId = orderedIds[index]
+    await db`
+      UPDATE clubs
+      SET sort_order = ${index + 1}, updated_at = NOW()
+      WHERE circle_id = ${circleId} AND circle_id = ANY(${allowedIds})
+    `
+  }
+  return listClubs(allowedIds)
+}
+
 export async function insertClub(input: {
   circleId: string
   name: string

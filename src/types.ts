@@ -22,6 +22,7 @@ export type Club = {
   rankGrade?: string | null
   cardColor?: string | null
   cardColor2?: string | null
+  sortOrder?: number
   sourceUpdatedAt?: string | null
   syncedAt?: string | null
   members?: Member[]

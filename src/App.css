@@ -707,7 +707,18 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 }
 .theme-swatch strong { font-size: .88rem; }
 .theme-swatch small { color: var(--muted); font-size: .72rem; }
-.settings-stack { display: flex; flex-direction: column; gap: 24px; }
+.settings-stack { display: flex; flex-direction: column; gap: 24px; overflow: visible; }
+.settings-stack .form-stack { position: static; }
+.settings-stack .panel { overflow: visible; }
+.order-buttons { display: flex; flex-direction: column; gap: 4px; }
+.order-buttons button {
+  min-width: 36px;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: .72rem;
+  line-height: 1;
+}
+.stack-list.club-order-list article { grid-template-columns: auto 1fr auto auto auto; }
 
 @media (max-width: 900px) {
   .tourney-add-grid { grid-template-columns: 1fr; }

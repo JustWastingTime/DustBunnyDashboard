@@ -58,6 +58,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ create: true, circleId }),
     }),
+  staffReorderClubs: (circleIds: string[]) =>
+    request<{ clubs: import('./types').Club[] }>('/api/clubs', {
+      method: 'PUT',
+      body: JSON.stringify({ order: true, circleIds }),
+    }),
   staffSaveMemberLink: (umaId: string, discordId: string | null) =>
     request<{ umaId: string; discordId: string | null }>('/api/clubs?link=1', {
       method: 'PUT',

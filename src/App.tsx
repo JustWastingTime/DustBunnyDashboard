@@ -32,6 +32,10 @@ function rankGradeLabel(grade?: string | null) {
   return rankGradeOptions.find((option) => option.value === grade)?.label || grade || 'Unset'
 }
 
+function byClubOrder<T extends { sortOrder?: number; name: string }>(clubs: T[]) {
+  return [...clubs].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+}
+
 function Freshness({ date }: { date?: string | null }) {
   if (!date) return <span className="freshness stale">Not synced</span>
   const hours = Math.max(0, (Date.now() - new Date(date).getTime()) / 3_600_000)
@@ -532,20 +536,22 @@ function loadPublicDashboard(): Promise<PublicData> {
 }
 
 function OverviewBody({ data }: { data: PublicData }) {
+  const clubs = byClubOrder(data.clubs)
   return <>
-    <section className="club-grid">{data.clubs.map((club) => <ClubOverviewCard key={club.circleId} club={club} />)}</section>
-    <ClubSummary clubs={data.clubs} />
-    <MemberTable clubs={data.clubs} />
-    <PublicApplicants applicants={data.applicants} clubs={data.clubs} />
+    <section className="club-grid">{clubs.map((club) => <ClubOverviewCard key={club.circleId} club={club} />)}</section>
+    <ClubSummary clubs={clubs} />
+    <MemberTable clubs={clubs} />
+    <PublicApplicants applicants={data.applicants} clubs={clubs} />
   </>
 }
 
 function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
+  const orderedClubs = useMemo(() => byClubOrder(clubs), [clubs])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [selectedClubId, setSelectedClubId] = useState(clubs[0]?.circleId || '')
-  const selectedClub = clubs.find((club) => club.circleId === selectedClubId)
+  const [selectedClubId, setSelectedClubId] = useState(orderedClubs[0]?.circleId || '')
+  const selectedClub = orderedClubs.find((club) => club.circleId === selectedClubId)
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -563,7 +569,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
       })
       setMessage('Application received. Managers will review it privately.')
       formEl.reset()
-      setSelectedClubId(clubs[0]?.circleId || '')
+      setSelectedClubId(orderedClubs[0]?.circleId || '')
     } catch (reason) {
       const text = (reason as Error).message || 'Could not submit the application.'
       if (/reading ['"]reset['"]/i.test(text)) {
@@ -585,7 +591,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
 
     <div className="apply-layout">
       <aside className="apply-clubs" aria-label="Choose a club">
-        {clubs.map((club) => {
+        {orderedClubs.map((club) => {
           const memberCount = club.members?.length ?? 0
           const selected = selectedClubId === club.circleId
           return <button
@@ -952,9 +958,32 @@ function StaffClubSettings({
   clubs: Club[]
   reload: () => Promise<void>
 }) {
-  const [editing, setEditing] = useState<Club | null>(clubs[0] || null)
+  const ordered = useMemo(() => byClubOrder(clubs), [clubs])
+  const [editing, setEditing] = useState<Club | null>(ordered[0] || null)
   const [message, setMessage] = useState('')
-  const current = editing && clubs.find((club) => club.circleId === editing.circleId) || clubs[0] || null
+  const [busyOrder, setBusyOrder] = useState(false)
+  const current = editing && ordered.find((club) => club.circleId === editing.circleId) || ordered[0] || null
+
+  const moveClub = async (circleId: string, direction: -1 | 1) => {
+    const ids = ordered.map((club) => club.circleId)
+    const index = ids.indexOf(circleId)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= ids.length) return
+    const next = [...ids]
+    const swap = next[index]
+    next[index] = next[nextIndex]
+    next[nextIndex] = swap
+    setBusyOrder(true)
+    try {
+      await api.staffReorderClubs(next)
+      setMessage('Club order saved. Home, Apply, and the planner use this order.')
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    } finally {
+      setBusyOrder(false)
+    }
+  }
 
   const addClub = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1031,9 +1060,9 @@ function StaffClubSettings({
           <label>Club
             <select
               value={current.circleId}
-              onChange={(event) => setEditing(clubs.find((club) => club.circleId === event.target.value) || null)}
+              onChange={(event) => setEditing(ordered.find((club) => club.circleId === event.target.value) || null)}
             >
-              {clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
+              {ordered.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}
             </select>
           </label>
           <label>Display name<input name="name" required defaultValue={current.name} /></label>
@@ -1066,8 +1095,18 @@ function StaffClubSettings({
           {message && <p className="notice">{message}</p>}
         </form>
         <section className="panel">
-          <div className="section-heading"><div><p className="eyebrow">Requirements</p><h2>Managed clubs</h2></div></div>
-          <div className="stack-list">{clubs.map((club) => <article key={club.circleId}>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Requirements</p>
+              <h2>Managed clubs</h2>
+              <p>Use the arrows to set display order. This is the order used on Home, Apply, and the planner.</p>
+            </div>
+          </div>
+          <div className="stack-list club-order-list">{ordered.map((club, index) => <article key={club.circleId}>
+            <div className="order-buttons">
+              <button type="button" disabled={busyOrder || index === 0} aria-label={`Move ${club.name} up`} onClick={() => void moveClub(club.circleId, -1)}>▲</button>
+              <button type="button" disabled={busyOrder || index === ordered.length - 1} aria-label={`Move ${club.name} down`} onClick={() => void moveClub(club.circleId, 1)}>▼</button>
+            </div>
             <div>
               <strong>{club.name}</strong>
               <small className="id">{club.circleId}</small>
@@ -1647,9 +1686,9 @@ function StaffPage() {
       api.staffPlan(),
       api.staffBlacklist(),
     ])
-    setDashboard(dash)
+    setDashboard({ ...dash, clubs: byClubOrder(dash.clubs) })
     setApplicants(staff.applicants)
-    setClubs(clubPayload.clubs)
+    setClubs(byClubOrder(clubPayload.clubs))
     setMemberLinks(clubPayload.memberLinks || [])
     setDirectory(clubPayload.directory || [])
     setStaffPeople(clubPayload.staff || [])
@@ -1733,9 +1772,9 @@ function StaffPage() {
     </nav>
     {tab === 'overview' && dashboard && (
       <>
-        <ClubSummary clubs={dashboard.clubs} />
+        <ClubSummary clubs={byClubOrder(dashboard.clubs)} />
         <MemberTable
-          clubs={dashboard.clubs}
+          clubs={byClubOrder(dashboard.clubs)}
           members={members}
           assignments={assignments}
           onSaveDiscord={saveMemberDiscord}

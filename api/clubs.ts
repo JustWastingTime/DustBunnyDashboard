@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, insertClub, upsertMemberLink, getSiteTheme, setSiteTheme, listStaffAccounts, upsertStaffAccount, deleteStaffAccount, findStaffAccount } from './_lib/db.js'
+import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, reorderClubs, insertClub, upsertMemberLink, getSiteTheme, setSiteTheme, listStaffAccounts, upsertStaffAccount, deleteStaffAccount, findStaffAccount } from './_lib/db.js'
 import { fetchUmaJson, readAccess, requireManager, sendError } from './_lib/shared.js'
 import { bunnyHistoryStints } from './_lib/tenure.js'
 import { isThemeId } from './_lib/themes.js'
@@ -40,6 +40,11 @@ const linkSchema = z.object({
   link: z.literal(true),
   umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
   discordId: z.string().trim().max(32).optional().default(''),
+})
+
+const orderSchema = z.object({
+  order: z.literal(true),
+  circleIds: z.array(z.string().trim().min(1)).min(1),
 })
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -152,6 +157,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (!isThemeId(input.theme)) return response.status(400).json({ error: 'Unknown color theme.' })
         const theme = await setSiteTheme(input.theme)
         return response.json({ theme })
+      }
+      if (request.body?.order === true) {
+        const input = orderSchema.parse(request.body)
+        const clubs = await reorderClubs(input.circleIds, user.clubIds)
+        return response.json({ clubs })
       }
       if (request.body?.staff === true) {
         const input = staffSchema.parse(request.body)

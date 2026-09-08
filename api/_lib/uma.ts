@@ -24,6 +24,7 @@ export type ClubConfig = {
   rankGrade?: string | null
   cardColor?: string | null
   cardColor2?: string | null
+  sortOrder?: number
 }
 
 export function readClubs(): ClubConfig[] {
@@ -49,6 +50,7 @@ export async function loadClubs(clubIds?: string[]): Promise<ClubConfig[]> {
         rankGrade: club.rankGrade,
         cardColor: club.cardColor,
         cardColor2: club.cardColor2,
+        sortOrder: club.sortOrder,
       }))
     }
   } catch (error) {
