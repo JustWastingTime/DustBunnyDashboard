@@ -25,6 +25,7 @@ export type ClubRow = {
   cardColor: string | null
   cardColor2: string | null
   sortOrder: number
+  dynamicRequirement: boolean
 }
 
 export type AssignmentRow = {
@@ -53,6 +54,7 @@ function mapClub(row: any): ClubRow {
     cardColor: row.card_color == null || row.card_color === '' ? null : String(row.card_color),
     cardColor2: row.card_color_2 == null || row.card_color_2 === '' ? null : String(row.card_color_2),
     sortOrder: Number(row.sort_order || 0),
+    dynamicRequirement: row.dynamic_requirement === true || row.dynamic_requirement === 1,
   }
 }
 
@@ -130,6 +132,8 @@ export async function ensureSchema() {
         tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rank_grade TEXT`,
         tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS card_color TEXT`,
         tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS card_color_2 TEXT`,
+        tx`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS dynamic_requirement BOOLEAN NOT NULL DEFAULT FALSE`,
+        tx`ALTER TABLE applicants ADD COLUMN IF NOT EXISTS target_club_ids JSONB`,
         tx`
           CREATE TABLE IF NOT EXISTS planning_boards (
             id INTEGER PRIMARY KEY,
@@ -278,12 +282,33 @@ export async function ensureSchema() {
   await ready
 }
 
+function parseTargetClubIds(row: any): string[] {
+  const primary = String(row.target_club_id || '')
+  let extra: string[] = []
+  const raw = row.target_club_ids
+  if (Array.isArray(raw)) extra = raw.map(String)
+  else if (typeof raw === 'string' && raw.trim()) {
+    try { extra = JSON.parse(raw).map(String) } catch { extra = [] }
+  }
+  return [...new Set([primary, ...extra].filter(Boolean))]
+}
+
+function normalizeTargetClubs(targetClubId: string, targetClubIds?: string[]) {
+  const ids = [...new Set((targetClubIds?.length ? targetClubIds : [targetClubId]).map((id) => String(id).trim()).filter(Boolean))]
+  return {
+    targetClubId: ids[0] || targetClubId,
+    targetClubIds: ids,
+  }
+}
+
 function mapApplicant(row: any) {
+  const targetClubIds = parseTargetClubIds(row)
   return {
     umaId: String(row.uma_id),
     ign: String(row.ign),
     discordUsername: String(row.discord_username || ''),
-    targetClubId: String(row.target_club_id),
+    targetClubId: targetClubIds[0] || String(row.target_club_id),
+    targetClubIds,
     status: row.status as 'pending' | 'approved' | 'waitlisted' | 'rejected',
     privateNotes: String(row.private_notes || ''),
     publishPublicly: Boolean(row.publish_publicly),
@@ -537,6 +562,7 @@ export async function updateClub(
     rankGrade: string | null
     cardColor?: string | null
     cardColor2?: string | null
+    dynamicRequirement?: boolean
   },
 ) {
   await ensureSchema()
@@ -553,6 +579,7 @@ export async function updateClub(
       rank_grade = ${input.rankGrade},
       card_color = ${input.cardColor ?? null},
       card_color_2 = ${input.cardColor2 ?? null},
+      dynamic_requirement = ${input.dynamicRequirement === true},
       updated_at = NOW()
     WHERE circle_id = ${circleId} AND circle_id = ANY(${clubIds})
     RETURNING *
@@ -683,6 +710,11 @@ export async function listApplicants(clubIds?: string[]) {
     const rows = await db`
       SELECT * FROM applicants
       WHERE target_club_id = ANY(${clubIds})
+         OR EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements_text(COALESCE(target_club_ids, '[]'::jsonb)) AS cid
+           WHERE cid = ANY(${clubIds})
+         )
       ORDER BY updated_at DESC
     `
     return rows.map(mapApplicant)
@@ -703,6 +735,7 @@ export async function listPublicApplicants() {
     umaId: applicant.umaId,
     ign: applicant.ign,
     targetClubId: applicant.targetClubId,
+    targetClubIds: applicant.targetClubIds,
     status: applicant.status,
     currentClubId: applicant.currentClubId,
     currentClubName: applicant.currentClubName,
@@ -720,6 +753,7 @@ export async function upsertApplicant(input: {
   ign: string
   discordUsername: string
   targetClubId: string
+  targetClubIds?: string[]
   status: string
   privateNotes: string
   publishPublicly: boolean
@@ -735,13 +769,15 @@ export async function upsertApplicant(input: {
   await ensureSchema()
   const db = getSql()
   const syncPerformance = options?.syncPerformance !== false
+  const clubs = normalizeTargetClubs(input.targetClubId, input.targetClubIds)
+  const clubIdsJson = JSON.stringify(clubs.targetClubIds)
   const rows = await db`
     INSERT INTO applicants (
-      uma_id, ign, discord_username, target_club_id, status, private_notes, publish_publicly,
+      uma_id, ign, discord_username, target_club_id, target_club_ids, status, private_notes, publish_publicly,
       current_club_id, current_club_name, last_updated_at, total_fans, monthly_gain, daily_average,
       today_gain, daily_gains_json, performance_synced_at, created_at, updated_at
     ) VALUES (
-      ${input.umaId}, ${input.ign}, ${input.discordUsername}, ${input.targetClubId}, ${input.status},
+      ${input.umaId}, ${input.ign}, ${input.discordUsername}, ${clubs.targetClubId}, ${clubIdsJson}::jsonb, ${input.status},
       ${input.privateNotes}, ${input.publishPublicly}, ${input.currentClubId}, ${input.currentClubName},
       ${input.lastUpdatedAt}, ${input.totalFans}, ${input.monthlyGain}, ${input.dailyAverage},
       ${input.todayGain}, ${JSON.stringify(input.dailyGains)}, NOW(), NOW(), NOW()
@@ -750,6 +786,7 @@ export async function upsertApplicant(input: {
       ign = EXCLUDED.ign,
       discord_username = EXCLUDED.discord_username,
       target_club_id = EXCLUDED.target_club_id,
+      target_club_ids = EXCLUDED.target_club_ids,
       status = EXCLUDED.status,
       private_notes = EXCLUDED.private_notes,
       publish_publicly = EXCLUDED.publish_publicly,
@@ -812,7 +849,15 @@ export async function updateApplicantStatus(umaId: string, status: string, clubI
   const rows = await db`
     UPDATE applicants
     SET status = ${status}, updated_at = NOW()
-    WHERE uma_id = ${umaId} AND target_club_id = ANY(${clubIds})
+    WHERE uma_id = ${umaId}
+      AND (
+        target_club_id = ANY(${clubIds})
+        OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements_text(COALESCE(target_club_ids, '[]'::jsonb)) AS cid
+          WHERE cid = ANY(${clubIds})
+        )
+      )
     RETURNING *
   `
   return rows[0] ? mapApplicant(rows[0]) : null
@@ -826,6 +871,7 @@ export async function updateApplicantFields(
     privateNotes?: string
     publishPublicly?: boolean
     targetClubId?: string
+    targetClubIds?: string[]
     discordUsername?: string
   },
 ) {
@@ -838,6 +884,7 @@ export async function updateApplicantFields(
     privateNotes: fields.privateNotes ?? current.privateNotes,
     publishPublicly: fields.publishPublicly ?? current.publishPublicly,
     targetClubId: fields.targetClubId ?? current.targetClubId,
+    targetClubIds: fields.targetClubIds ?? current.targetClubIds,
     discordUsername: fields.discordUsername ?? current.discordUsername,
   }, { syncPerformance: false })
 }
@@ -847,7 +894,15 @@ export async function deleteApplicant(umaId: string, clubIds: string[]) {
   const db = getSql()
   const rows = await db`
     DELETE FROM applicants
-    WHERE uma_id = ${umaId} AND target_club_id = ANY(${clubIds})
+    WHERE uma_id = ${umaId}
+      AND (
+        target_club_id = ANY(${clubIds})
+        OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements_text(COALESCE(target_club_ids, '[]'::jsonb)) AS cid
+          WHERE cid = ANY(${clubIds})
+        )
+      )
     RETURNING uma_id
   `
   return rows.length > 0

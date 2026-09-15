@@ -25,6 +25,65 @@ export type ClubConfig = {
   cardColor?: string | null
   cardColor2?: string | null
   sortOrder?: number
+  dynamicRequirement?: boolean
+}
+
+const RANK_GRADE_NAMES: Record<string, string> = {
+  ss: 'SS',
+  splus: 'S+',
+  s: 'S',
+  aplus: 'A+',
+  a: 'A',
+  bplus: 'B+',
+  b: 'B',
+}
+
+export type RankThreshold = {
+  name: string
+  current_fans_per_day?: number | null
+}
+
+let thresholdCache: { at: number; rows: RankThreshold[] } | null = null
+const THRESHOLD_TTL_MS = 10 * 60 * 1000
+const CLUB_CAPACITY = 30
+
+export function dailyTargetFromThreshold(
+  rankGrade: string | null | undefined,
+  thresholds: RankThreshold[],
+  fallback: number,
+) {
+  const name = RANK_GRADE_NAMES[String(rankGrade || '').toLowerCase()]
+  if (!name) return fallback
+  const row = thresholds.find((item) => item.name === name)
+  const clubDaily = Number(row?.current_fans_per_day)
+  if (!Number.isFinite(clubDaily) || clubDaily <= 0) return fallback
+  return Math.max(1, Math.round(clubDaily / CLUB_CAPACITY))
+}
+
+export async function fetchRankThresholds(): Promise<RankThreshold[]> {
+  if (thresholdCache && Date.now() - thresholdCache.at < THRESHOLD_TTL_MS) {
+    return thresholdCache.rows
+  }
+  const payload = await fetchUmaJson<{ thresholds?: RankThreshold[] }>('https://uma.moe/api/v4/circles/rank-thresholds')
+  const rows = Array.isArray(payload?.thresholds) ? payload.thresholds : []
+  thresholdCache = { at: Date.now(), rows }
+  return rows
+}
+
+export async function withResolvedDailyTargets<T extends ClubConfig>(clubs: T[]): Promise<Array<T & { storedDailyTarget: number }>> {
+  const withStored = clubs.map((club) => ({ ...club, storedDailyTarget: club.dailyTarget }))
+  if (!withStored.some((club) => club.dynamicRequirement)) return withStored
+  try {
+    const thresholds = await fetchRankThresholds()
+    return withStored.map((club) => (
+      club.dynamicRequirement
+        ? { ...club, dailyTarget: dailyTargetFromThreshold(club.rankGrade, thresholds, club.dailyTarget) }
+        : club
+    ))
+  } catch (error) {
+    console.error('Failed to load uma.moe rank thresholds; using stored daily targets.', error)
+    return withStored
+  }
 }
 
 export function readClubs(): ClubConfig[] {
@@ -39,7 +98,7 @@ export async function loadClubs(clubIds?: string[]): Promise<ClubConfig[]> {
     const { listClubs } = await import('./db.js')
     const rows = await listClubs(clubIds)
     if (rows.length) {
-      return rows.map((club) => ({
+      return withResolvedDailyTargets(rows.map((club) => ({
         circleId: club.circleId,
         name: club.name,
         dailyTarget: club.dailyTarget,
@@ -51,14 +110,15 @@ export async function loadClubs(clubIds?: string[]): Promise<ClubConfig[]> {
         cardColor: club.cardColor,
         cardColor2: club.cardColor2,
         sortOrder: club.sortOrder,
-      }))
+        dynamicRequirement: club.dynamicRequirement,
+      })))
     }
   } catch (error) {
     console.error('Failed to load clubs from database; using config file.', error)
   }
   const fallback = readClubs()
-  if (clubIds?.length) return fallback.filter((club) => clubIds.includes(club.circleId))
-  return fallback
+  const filtered = clubIds?.length ? fallback.filter((club) => clubIds.includes(club.circleId)) : fallback
+  return withResolvedDailyTargets(filtered)
 }
 
 export async function fetchUmaJson<T>(url: string): Promise<T> {

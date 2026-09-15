@@ -36,6 +36,18 @@ function byClubOrder<T extends { sortOrder?: number; name: string }>(clubs: T[])
   return [...clubs].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
 }
 
+function applicantClubIds(applicant: { targetClubId: string; targetClubIds?: string[] | null }) {
+  const extra = Array.isArray(applicant.targetClubIds) ? applicant.targetClubIds : []
+  return [...new Set([applicant.targetClubId, ...extra].filter(Boolean))]
+}
+
+function joinClubNames(ids: string[], names: Map<string, string>) {
+  const labels = ids.map((id) => names.get(id) || id)
+  if (labels.length <= 1) return labels[0] || '—'
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`
+  return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`
+}
+
 function Freshness({ date }: { date?: string | null }) {
   if (!date) return <span className="freshness stale">Not synced</span>
   const hours = Math.max(0, (Date.now() - new Date(date).getTime()) / 3_600_000)
@@ -101,10 +113,6 @@ function ClubOverviewCard({ club }: { club: Club & { members?: Member[] } }) {
             ? `${club.fansSinceYesterday >= 0 ? '+' : ''}${number.format(club.fansSinceYesterday)}`
             : '—'}
         </strong>
-      </div>
-      <div>
-        <span>Requirement</span>
-        <strong className="requirement">{compact.format(club.dailyTarget)}<small>/mem/day</small></strong>
       </div>
     </div>
     <div className="club-band">
@@ -515,7 +523,7 @@ function PublicApplicants({ applicants, clubs }: { applicants: Applicant[]; club
       <thead><tr><th>Trainer</th><th>Applying to</th><th>Status</th><th>Current club</th><th>Monthly</th><th>Daily avg</th></tr></thead>
       <tbody>{applicants.map((applicant) => <tr key={applicant.umaId}>
         <td><a href={`https://uma.moe/profile/${applicant.umaId}`} target="_blank" rel="noreferrer"><strong>{applicant.ign}</strong></a><small className="id">{applicant.umaId}</small></td>
-        <td>{names.get(applicant.targetClubId) || applicant.targetClubId}</td><td><span className={`status status-${applicant.status}`}>{applicant.status}</span></td>
+        <td>{joinClubNames(applicantClubIds(applicant), names)}</td><td><span className={`status status-${applicant.status}`}>{applicant.status}</span></td>
         <td>{applicant.currentClubName || 'Unattached'}</td><td>{number.format(applicant.monthlyGain)}</td><td>{number.format(applicant.dailyAverage)}</td>
       </tr>)}</tbody>
     </table></div>
@@ -550,8 +558,18 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [selectedClubId, setSelectedClubId] = useState(orderedClubs[0]?.circleId || '')
-  const selectedClub = orderedClubs.find((club) => club.circleId === selectedClubId)
+  const [selectedClubIds, setSelectedClubIds] = useState<string[]>(orderedClubs[0] ? [orderedClubs[0].circleId] : [])
+  const selectedClubs = orderedClubs.filter((club) => selectedClubIds.includes(club.circleId))
+  const selectedLabel = joinClubNames(selectedClubIds, new Map(orderedClubs.map((club) => [club.circleId, club.name])))
+
+  const toggleClub = (circleId: string) => {
+    setSelectedClubIds((current) => {
+      if (current.includes(circleId)) {
+        return current.length === 1 ? current : current.filter((id) => id !== circleId)
+      }
+      return [...current, circleId]
+    })
+  }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -564,12 +582,13 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
       await api.submitApplication({
         umaId: String(form.get('umaId') || '').trim(),
         discordUsername: String(form.get('discordUsername') || '').trim(),
-        targetClubId: selectedClubId,
+        targetClubId: selectedClubIds[0],
+        targetClubIds: selectedClubIds,
         notes: String(form.get('notes') || ''),
       })
       setMessage('Application received. Managers will review it privately.')
       formEl.reset()
-      setSelectedClubId(orderedClubs[0]?.circleId || '')
+      setSelectedClubIds(orderedClubs[0] ? [orderedClubs[0].circleId] : [])
     } catch (reason) {
       const text = (reason as Error).message || 'Could not submit the application.'
       if (/reading ['"]reset['"]/i.test(text)) {
@@ -586,20 +605,20 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
     <header className="apply-intro">
       <p className="eyebrow">Recruitment</p>
       <h2>{site.applyTitle}</h2>
-      <p className="muted">Pick a club on the left, then send your Uma ID and Discord username. Managers review applications privately.</p>
+      <p className="muted">Select one or more clubs, then send your Uma ID and Discord username. One application can cover both S clubs or both A+ clubs. Managers review applications privately.</p>
     </header>
 
     <div className="apply-layout">
-      <aside className="apply-clubs" aria-label="Choose a club">
+      <aside className="apply-clubs" aria-label="Choose clubs">
         {orderedClubs.map((club) => {
           const memberCount = club.members?.length ?? 0
-          const selected = selectedClubId === club.circleId
+          const selected = selectedClubIds.includes(club.circleId)
           return <button
             key={club.circleId}
             type="button"
             className={`apply-club-pick ${selected ? 'selected' : ''}`}
             style={club.cardColor ? { borderColor: club.cardColor } : undefined}
-            onClick={() => setSelectedClubId(club.circleId)}
+            onClick={() => toggleClub(club.circleId)}
             aria-pressed={selected}
           >
             <div className="apply-club-copy">
@@ -633,8 +652,8 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
       <section className="panel form-stack apply-form">
         <div>
           <p className="eyebrow">Your application</p>
-          <h2>Apply to {selectedClub?.name || 'a club'}</h2>
-          <p className="muted">Discord details stay off the public overview.</p>
+          <h2>Apply to {selectedLabel}</h2>
+          <p className="muted">{selectedClubs.length > 1 ? 'One application is sent for every selected club.' : 'Discord details stay off the public overview.'}</p>
         </div>
         <form className="form-stack" onSubmit={submit}>
           <div className="field-row">
@@ -643,8 +662,8 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
           </div>
           <label>Notes for managers<textarea name="notes" rows={5} maxLength={2000} placeholder="Optional — availability, current club, anything managers should know" /></label>
           <div className="button-row">
-            <button className="primary" disabled={busy || !selectedClubId}>
-              {busy ? 'Submitting…' : `Submit to ${selectedClub?.name || 'club'}`}
+            <button className="primary" disabled={busy || !selectedClubIds.length}>
+              {busy ? 'Submitting…' : `Submit to ${selectedLabel}`}
             </button>
           </div>
         </form>
@@ -724,10 +743,16 @@ function StaffApplicants({
     event.preventDefault()
     const formEl = event.currentTarget
     const form = new FormData(formEl)
+    const selected = form.getAll('targetClubIds').map(String).filter(Boolean)
+    if (!selected.length) {
+      alert('Select at least one club.')
+      return
+    }
     const body = {
       umaId: String(form.get('umaId')),
       discordUsername: String(form.get('discordUsername') || ''),
-      targetClubId: String(form.get('targetClubId')),
+      targetClubId: selected[0] || '',
+      targetClubIds: selected,
       status: String(form.get('status')),
       privateNotes: String(form.get('privateNotes') || ''),
       publishPublicly: form.get('publishPublicly') === 'on',
@@ -749,7 +774,20 @@ function StaffApplicants({
       <div><p className="eyebrow">Intake</p><h2>{editing ? 'Edit applicant' : 'Add applicant'}</h2></div>
       <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required readOnly={Boolean(editing)} defaultValue={editing?.umaId} /></label>
       <label>Discord username<input name="discordUsername" defaultValue={editing?.discordUsername || ''} /></label>
-      <label>Applying to<select name="targetClubId" required defaultValue={editing?.targetClubId}><option value="">Select a club</option>{clubs.map((club) => <option key={club.circleId} value={club.circleId}>{club.name}</option>)}</select></label>
+      <fieldset className="club-pick-list">
+        <legend>Applying to</legend>
+        {clubs.map((club) => (
+          <label className="check" key={club.circleId}>
+            <input
+              type="checkbox"
+              name="targetClubIds"
+              value={club.circleId}
+              defaultChecked={editing ? applicantClubIds(editing).includes(club.circleId) : false}
+            />
+            {club.name}
+          </label>
+        ))}
+      </fieldset>
       <label>Status<select name="status" defaultValue={editing?.status || 'pending'}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></label>
       <label>Private notes<textarea name="privateNotes" rows={4} defaultValue={editing?.privateNotes} /></label>
       <label className="check"><input name="publishPublicly" type="checkbox" defaultChecked={editing?.publishPublicly ?? true} /> Show on public overview</label>
@@ -786,7 +824,7 @@ function StaffApplicants({
         <dl>
           <div><dt>Discord</dt><dd>{applicant.discordUsername || '—'}</dd></div>
           <div><dt>Daily average</dt><dd>{number.format(applicant.dailyAverage)}</dd></div>
-          <div><dt>Applying to</dt><dd>{clubNames.get(applicant.targetClubId) || applicant.targetClubId}</dd></div>
+          <div><dt>Applying to</dt><dd>{joinClubNames(applicantClubIds(applicant), clubNames)}</dd></div>
           <div><dt>Current club</dt><dd>{applicant.currentClubName || '—'}</dd></div>
           <div><dt>Monthly</dt><dd>{number.format(applicant.monthlyGain)}</dd></div>
         </dl>
@@ -1012,6 +1050,7 @@ function StaffClubSettings({
         severeRatio: Number(form.get('severeRatio')),
         inactiveDays: Number(form.get('inactiveDays')),
         promotionEnabled: form.get('promotionEnabled') === 'on',
+        dynamicRequirement: form.get('dynamicRequirement') === 'on',
         rankGrade: String(form.get('rankGrade') || '') || null,
         cardColor: String(form.get('cardColor') || '') || null,
         cardColor2: String(form.get('cardColor2') || '') || null,
@@ -1028,11 +1067,12 @@ function StaffClubSettings({
     try {
       await api.staffUpdateClub(current.circleId, {
         name: current.name,
-        dailyTarget: current.dailyTarget,
+        dailyTarget: current.storedDailyTarget ?? current.dailyTarget,
         promotionRatio: current.promotionRatio,
         severeRatio: current.severeRatio,
         inactiveDays: current.inactiveDays,
         promotionEnabled: current.promotionEnabled !== false,
+        dynamicRequirement: current.dynamicRequirement === true,
         rankGrade: current.rankGrade || null,
         cardColor: null,
         cardColor2: null,
@@ -1083,7 +1123,15 @@ function StaffClubSettings({
             </select>
           </label>
           <p className="muted">Shown on the public overview card. Uses images from /club-ranks.</p>
-          <label>Daily requirement<input name="dailyTarget" type="number" min="0" required defaultValue={current.dailyTarget} /></label>
+          <label className="check">
+            <input name="dynamicRequirement" type="checkbox" defaultChecked={current.dynamicRequirement === true} />
+            Set daily requirement from the uma.moe rank threshold
+          </label>
+          <p className="muted">
+            Uses this club rank badge and uma.moe live fans-per-day threshold, split across 30 members.
+            {current.dynamicRequirement ? ` Live value: ${number.format(current.dailyTarget)} / member / day.` : ''}
+          </p>
+          <label>{current.dynamicRequirement ? 'Fallback daily requirement' : 'Daily requirement'}<input name="dailyTarget" type="number" min="0" required defaultValue={current.storedDailyTarget ?? current.dailyTarget} /></label>
           <div className="field-row">
             <label>Promotion ratio<input name="promotionRatio" type="number" min="1" step=".05" defaultValue={current.promotionRatio || 1.25} /></label>
             <label>Severe ratio<input name="severeRatio" type="number" min="0" max="1" step=".05" defaultValue={current.severeRatio || .5} /></label>
@@ -1930,7 +1978,7 @@ function ApplicantManager({ state, reload }: { state: DashboardState; reload: ()
         <span className={`status status-${applicant.status}`}>{applicant.status}</span>
         <dl>
           <div><dt>Daily average</dt><dd>{number.format(applicant.dailyAverage)}</dd></div>
-          <div><dt>Applying to</dt><dd>{clubNames.get(applicant.targetClubId) || applicant.targetClubId}</dd></div>
+          <div><dt>Applying to</dt><dd>{joinClubNames(applicantClubIds(applicant), clubNames)}</dd></div>
           <div><dt>Current club</dt><dd>{applicant.currentClubName || '—'}</dd></div>
           <div><dt>Monthly</dt><dd>{number.format(applicant.monthlyGain)}</dd></div>
         </dl>

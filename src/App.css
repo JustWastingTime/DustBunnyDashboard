@@ -9,7 +9,7 @@
 .summary-grid article { background: var(--club-card); color: var(--club-text); min-height: 120px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; border-radius: 16px; }
 .summary-grid span { color: var(--club-muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .summary-grid strong { font-size: 2.3rem; line-height: 1; font-family: var(--display); }.summary-grid .text-value { font-size: 1.25rem; text-transform: capitalize; }
-.club-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 18px 0 28px; }
+.club-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 18px 0 28px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
 .club-card {
   background: linear-gradient(160deg, var(--club-card-2), var(--club-card));
@@ -18,13 +18,15 @@
   border-radius: 20px;
   padding: 22px;
   min-height: 230px;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 16px;
   box-shadow: 0 14px 30px rgba(36, 48, 44, 0.16);
 }
 .club-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.club-card-heading h2 { margin: 0; font-size: 1.55rem; line-height: 1.12; color: var(--club-text); }
+.club-card-heading h2 { margin: 0; font-size: 1.35rem; line-height: 1.12; color: var(--club-text); overflow-wrap: anywhere; }
 .club-card .eyebrow { color: var(--club-accent); }
 .club-id { margin: 6px 0 0; color: var(--club-muted); font-size: .68rem; font-family: ui-monospace, Consolas, monospace; }
 .club-live-rank { display: inline-flex; align-items: center; gap: 8px; }
@@ -38,9 +40,9 @@
   border-radius: 50%; border: 2px solid #c4a35a; background: linear-gradient(160deg, #f7efd8, #e2c984);
   color: #5a3f12; font-weight: 900; font-size: 1.05rem;
 }
-.club-card-stats { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 12px; }
+.club-card-stats { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .club-card-stats span { display: block; color: var(--club-muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
-.club-card-stats strong { font-size: 1.08rem; font-variant-numeric: tabular-nums; line-height: 1.2; color: var(--club-text); }
+.club-card-stats strong { font-size: 1rem; font-variant-numeric: tabular-nums; line-height: 1.2; color: var(--club-text); overflow-wrap: anywhere; }
 .club-card-stats strong.gain { color: var(--gain); }
 .club-card-stats strong.requirement { font-size: .95rem; }
 .club-card-stats strong small { font-size: .65rem; color: var(--club-muted); font-weight: 600; margin-left: 2px; }
@@ -105,6 +107,20 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
 .apply-club-pick.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft), 0 10px 22px rgba(36, 48, 44, 0.12);
+}
+.club-pick-list {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.club-pick-list legend {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 .apply-club-copy { min-width: 0; }
 .apply-club-title-row {

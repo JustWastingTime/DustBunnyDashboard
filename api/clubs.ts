@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { listClubs, listMemberDirectory, listMemberLinks, getMemberProfileRecord, updateClub, reorderClubs, insertClub, upsertMemberLink, getSiteTheme, setSiteTheme, listStaffAccounts, upsertStaffAccount, deleteStaffAccount, findStaffAccount } from './_lib/db.js'
-import { fetchUmaJson, readAccess, requireManager, sendError } from './_lib/shared.js'
+import { fetchUmaJson, readAccess, requireManager, sendError, withResolvedDailyTargets } from './_lib/shared.js'
 import { bunnyHistoryStints } from './_lib/tenure.js'
 import { isThemeId } from './_lib/themes.js'
 
@@ -17,6 +17,7 @@ const updateSchema = z.object({
   rankGrade: z.enum(rankGrades).nullish(),
   cardColor: z.string().trim().regex(/^#(?:[0-9a-fA-F]{6})$/).nullish(),
   cardColor2: z.string().trim().regex(/^#(?:[0-9a-fA-F]{6})$/).nullish(),
+  dynamicRequirement: z.boolean().optional().default(false),
 })
 
 const createSchema = z.object({
@@ -96,13 +97,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
           umaMoeUrl: `https://uma.moe/profile/${encodeURIComponent(profileId)}`,
         })
       }
-      const [clubs, memberLinks, directory, theme, extraStaff] = await Promise.all([
+      const [clubRows, memberLinks, directory, theme, extraStaff] = await Promise.all([
         listClubs(user.clubIds),
         listMemberLinks(),
         listMemberDirectory(),
         getSiteTheme(),
         listStaffAccounts(),
       ])
+      const clubs = await withResolvedDailyTargets(clubRows)
       const ownerIds = new Set(readAccess().map((manager) => manager.discordId))
       const staff = [
         ...readAccess().map((manager) => ({
@@ -203,6 +205,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         rankGrade: input.rankGrade ?? null,
         cardColor: input.cardColor ?? null,
         cardColor2: input.cardColor2 ?? null,
+        dynamicRequirement: input.dynamicRequirement === true,
       })
       if (!club) return response.status(404).json({ error: 'Club not found.' })
       return response.json(club)

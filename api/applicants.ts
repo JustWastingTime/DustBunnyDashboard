@@ -11,11 +11,15 @@ import { requireManager, refreshStaleApplicantStats, resolveUmaProfile, sendErro
 
 const createSchema = z.object({
   umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
-  targetClubId: z.string().trim().min(1),
+  targetClubId: z.string().trim().optional().default(''),
+  targetClubIds: z.array(z.string().trim().min(1)).optional(),
   status: z.enum(['pending', 'approved', 'waitlisted', 'rejected']).default('pending'),
   privateNotes: z.string().max(4000).default(''),
   publishPublicly: z.boolean().default(true),
   discordUsername: z.string().trim().max(64).default(''),
+}).superRefine((input, ctx) => {
+  const ids = input.targetClubIds?.length ? input.targetClubIds : (input.targetClubId ? [input.targetClubId] : [])
+  if (!ids.length) ctx.addIssue({ code: 'custom', message: 'Select at least one club.', path: ['targetClubIds'] })
 })
 
 const patchSchema = z.object({
@@ -23,6 +27,7 @@ const patchSchema = z.object({
   privateNotes: z.string().max(4000).optional(),
   publishPublicly: z.boolean().optional(),
   targetClubId: z.string().min(1).optional(),
+  targetClubIds: z.array(z.string().trim().min(1)).optional(),
   discordUsername: z.string().trim().max(64).optional(),
   refresh: z.boolean().optional(),
 })
@@ -41,7 +46,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (request.method === 'POST') {
       const input = createSchema.parse(request.body)
-      if (!user.clubIds.includes(input.targetClubId)) {
+      const targetClubIds = [...new Set((input.targetClubIds?.length ? input.targetClubIds : [input.targetClubId]).filter(Boolean))]
+      if (targetClubIds.some((id) => !user.clubIds.includes(id))) {
         return response.status(403).json({ error: 'You do not manage that club.' })
       }
       const profile = await resolveUmaProfile(input.umaId)
@@ -49,7 +55,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
         umaId: input.umaId,
         ign: profile.ign,
         discordUsername: input.discordUsername,
-        targetClubId: input.targetClubId,
+        targetClubId: targetClubIds[0],
+        targetClubIds,
         status: input.status,
         privateNotes: input.privateNotes,
         publishPublicly: input.publishPublicly,
@@ -80,11 +87,17 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const current = currentList.find((item) => item.umaId === umaId)
         if (!current) return response.status(404).json({ error: 'Applicant not found.' })
         const profile = await resolveUmaProfile(umaId)
+        const targetClubIds = input.targetClubIds?.length
+          ? input.targetClubIds
+          : input.targetClubId
+            ? [input.targetClubId]
+            : current.targetClubIds
         const updated = await upsertApplicant({
           ...current,
           ...profile,
           discordUsername: input.discordUsername ?? current.discordUsername,
-          targetClubId: input.targetClubId || current.targetClubId,
+          targetClubId: targetClubIds[0] || current.targetClubId,
+          targetClubIds,
           status: input.status || current.status,
           privateNotes: input.privateNotes ?? current.privateNotes,
           publishPublicly: input.publishPublicly ?? current.publishPublicly,
@@ -97,6 +110,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         || input.privateNotes !== undefined
         || input.publishPublicly !== undefined
         || input.targetClubId !== undefined
+        || input.targetClubIds !== undefined
         || input.discordUsername !== undefined
 
       if (!hasFieldUpdate) return response.status(400).json({ error: 'Nothing to update.' })
@@ -106,6 +120,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         && input.privateNotes === undefined
         && input.publishPublicly === undefined
         && input.targetClubId === undefined
+        && input.targetClubIds === undefined
         && input.discordUsername === undefined
       ) {
         const updated = await updateApplicantStatus(umaId, input.status, user.clubIds)

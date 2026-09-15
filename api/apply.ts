@@ -8,8 +8,12 @@ import { readSite } from './_lib/site.js'
 const applySchema = z.object({
   umaId: z.string().trim().regex(/^\d+$/, 'Uma ID must contain only digits.'),
   discordUsername: z.string().trim().min(2).max(64),
-  targetClubId: z.string().trim().min(1),
+  targetClubId: z.string().trim().optional().default(''),
+  targetClubIds: z.array(z.string().trim().min(1)).optional(),
   notes: z.string().trim().max(2000).default(''),
+}).superRefine((input, ctx) => {
+  const ids = input.targetClubIds?.length ? input.targetClubIds : (input.targetClubId ? [input.targetClubId] : [])
+  if (!ids.length) ctx.addIssue({ code: 'custom', message: 'Select at least one club.', path: ['targetClubIds'] })
 })
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -24,8 +28,12 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     const input = applySchema.parse(request.body)
     const clubs = await loadClubs()
-    const club = clubs.find((item) => item.circleId === input.targetClubId)
-    if (!club) return response.status(400).json({ error: 'Selected club is not accepting applications.' })
+    const targetClubIds = [...new Set((input.targetClubIds?.length ? input.targetClubIds : [input.targetClubId]).filter(Boolean))]
+    const selected = targetClubIds.map((id) => clubs.find((item) => item.circleId === id))
+    if (!targetClubIds.length || selected.some((club) => !club)) {
+      return response.status(400).json({ error: 'Selected club is not accepting applications.' })
+    }
+    const clubNames = selected.map((club) => club!.name)
 
     const blocked = await findBlacklistMatch(input.umaId, input.discordUsername)
     if (blocked) {
@@ -37,7 +45,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
       umaId: input.umaId,
       ign: profile.ign,
       discordUsername: input.discordUsername,
-      targetClubId: input.targetClubId,
+      targetClubId: targetClubIds[0],
+      targetClubIds,
       status: 'pending',
       privateNotes: input.notes,
       publishPublicly: true,
@@ -55,7 +64,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       ign: applicant.ign,
       umaId: applicant.umaId,
       discordUsername: input.discordUsername,
-      clubName: club.name,
+      clubName: clubNames.join(', '),
       dailyAverage: profile.dailyAverage,
       monthlyGain: profile.monthlyGain,
       dailyGains: profile.dailyGains,
@@ -69,6 +78,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         umaId: applicant.umaId,
         ign: applicant.ign,
         targetClubId: applicant.targetClubId,
+        targetClubIds: applicant.targetClubIds,
         status: applicant.status,
       },
     })

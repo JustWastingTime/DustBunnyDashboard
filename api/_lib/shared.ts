@@ -22,5 +22,6 @@ export {
   readClubs,
   refreshStaleApplicantStats,
   resolveUmaProfile,
+  withResolvedDailyTargets,
   type ClubConfig,
 } from './uma.js'

@@ -23,6 +23,8 @@ export type Club = {
   cardColor?: string | null
   cardColor2?: string | null
   sortOrder?: number
+  dynamicRequirement?: boolean
+  storedDailyTarget?: number
   sourceUpdatedAt?: string | null
   syncedAt?: string | null
   members?: Member[]
@@ -52,6 +54,7 @@ export type Applicant = {
   ign: string
   discordUsername?: string
   targetClubId: string
+  targetClubIds?: string[]
   status: Status
   privateNotes?: string
   publishPublicly?: boolean
