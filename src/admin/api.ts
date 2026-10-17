@@ -51,6 +51,7 @@ export const adminApi = {
     adminFetch<SaveResult>(`/api/admin/data/${dataset}/raw`, { method: 'PUT', body: JSON.stringify(body) }),
   datasets: () => adminFetch<{ datasets: Array<{ name: string; mode: string; public: boolean; file: string; count: number }> }>('/api/admin/datasets'),
   catalog: () => adminFetch<{ maps: Array<{ name: string }>; meets: Array<{ number: string; name: string }> }>('/api/admin/public/catalog/maps'),
+  races: () => adminFetch<{ races: Array<{ id: string; name: string; grade: string; date: string }> }>('/api/admin/public/catalog/races'),
   preview: (body: { skill?: unknown; skillName?: string; cmNumber?: string; mapQuery?: string }) =>
     adminFetch<{ label: string; shouldShowChart: boolean; doesNotWork: boolean; reasons: string[]; pngBase64: string | null }>(
       '/api/admin/public/skill-preview',

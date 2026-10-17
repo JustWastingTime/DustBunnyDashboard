@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AdminError, adminApi } from './api'
-import { Area, Choice, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedEntry } from './entryForm'
+import { CharacterFields } from './CharacterFields'
+import { Area, Choice, DiffPreview, SaveBar, Text, useLoadedEntry } from './entryForm'
 import { UMA_RARITIES, UMA_TYPES } from './icons'
 
 export function CharacterEditor({ entryKey, creating, owner, navigate }: {
@@ -25,7 +26,7 @@ export function CharacterEditor({ entryKey, creating, owner, navigate }: {
   const save = async () => {
     setBusy(true); setConflict(''); setWarnings([])
     try {
-      const body = { entry: draft, message, baseBlobSha: loaded.blobSha }
+      const body = { entry: cleanCharacter(draft), message, baseBlobSha: loaded.blobSha }
       const saved = creating
         ? await adminApi.create('characters', body)
         : await adminApi.update('characters', entryKey || String(draft.id || ''), body)
@@ -51,16 +52,11 @@ export function CharacterEditor({ entryKey, creating, owner, navigate }: {
       <Text label="Costume" value={String(draft.costume || '')} disabled={!owner} onChange={(costume) => set({ costume })} />
       <Text label="Unique skill" value={String(draft.unique || '')} disabled={!owner} onChange={(unique) => set({ unique })} />
       <Area label="Unique explanation" value={String(draft.unique_explanation || '')} disabled={!owner} onChange={(unique_explanation) => set({ unique_explanation })} />
-      <Area label="Skills" value={lines(draft.skills)} disabled={!owner} onChange={(value) => set({ skills: splitLines(value) })} />
-      <Area label="Potential" value={lines(draft.potential)} disabled={!owner} onChange={(value) => set({ potential: splitLines(value) })} />
-      <Area label="Event skills" value={lines(draft.event_skills)} disabled={!owner} onChange={(value) => set({ event_skills: splitLines(value) })} />
-      <Area label="Races" value={lines(draft.races)} disabled={!owner} onChange={(value) => set({ races: splitLines(value) })} />
-      <Area label="Aliases" value={lines(draft.aliases)} disabled={!owner} onChange={(value) => set({ aliases: splitLines(value) })} />
+      <CharacterFields draft={draft} owner={owner} onChange={loaded.setEntry} />
+      <Area label="Aliases" value={aliasesText(draft.aliases)} disabled={!owner} onChange={(value) => set({ aliases: value.split('\n').map((line) => line.trim()).filter(Boolean) })} />
       <Text label="URL" value={String(draft.url || '')} disabled={!owner} onChange={(url) => set({ url })} />
       <Text label="Thumbnail" value={String(draft.thumbnail || '')} disabled={!owner} onChange={(thumbnail) => set({ thumbnail })} />
       <Area label="Review" value={String(draft.review || '')} disabled={!owner} onChange={(review) => set({ review })} />
-      <Area label="Stat bonuses JSON" value={JSON.stringify(draft.stat_bonuses ?? [], null, 2)} disabled={!owner} onChange={(value) => { try { set({ stat_bonuses: JSON.parse(value) }) } catch { /* typing */ } }} />
-      <Area label="Aptitudes JSON" value={JSON.stringify(draft.aptitudes ?? [], null, 2)} disabled={!owner} onChange={(value) => { try { set({ aptitudes: JSON.parse(value) }) } catch { /* typing */ } }} />
       <Area label="Secrets JSON" value={JSON.stringify(draft.secrets ?? [], null, 2)} disabled={!owner} onChange={(value) => { try { set({ secrets: JSON.parse(value) }) } catch { /* typing */ } }} />
     </div>}
     <h2>Diff</h2>
@@ -81,4 +77,26 @@ export function CharacterEditor({ entryKey, creating, owner, navigate }: {
 
 function safeParse(text: string, fallback: Record<string, unknown>) {
   try { return JSON.parse(text) as Record<string, unknown> } catch { return fallback }
+}
+
+function aliasesText(value: unknown) {
+  return Array.isArray(value) ? value.map((item) => String(item)).join('\n') : ''
+}
+
+function cleanList(value: unknown) {
+  return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : []
+}
+
+function cleanCharacter(draft: Record<string, unknown>) {
+  const next = { ...draft }
+  for (const key of ['skills', 'potential', 'event_skills', 'races']) {
+    if (Array.isArray(next[key])) next[key] = cleanList(next[key])
+  }
+  if (Array.isArray(next.evo_skills)) {
+    const skills = cleanList(next.evo_skills)
+    if (skills.length) next.evo_skills = skills
+    else delete next.evo_skills
+  }
+  if (String(next.type || 'Original') !== 'Original' && cleanList(next.races).length === 0) delete next.races
+  return next
 }

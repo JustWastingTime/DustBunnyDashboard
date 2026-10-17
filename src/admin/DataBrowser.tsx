@@ -169,7 +169,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
         {visible.map((row) => (
           <button key={row.key} type="button" className="card-tile" onClick={() => open(row.key)}>
             <span className="portrait">
-              {row.thumbnail ? <img src={row.thumbnail} alt="" /> : <span className="portrait-empty">No image</span>}
+              {row.thumbnail ? <img className="portrait-art" src={row.thumbnail} alt="" /> : <span className="portrait-empty">No image</span>}
               {dataset === 'supporters' && row.category && (
                 SUPPORT_ICONS[row.category]
                   ? <img className="type-badge" src={SUPPORT_ICONS[row.category]} alt={row.category} />
