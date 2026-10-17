@@ -1,6 +1,6 @@
 // Paths that can never be a network slug; the bot reserves them for pages and APIs.
 const RESERVED_SEGMENTS = new Set([
-  'api', 'assets', 'g', 'staff', 'apply', 'tourney', 'interactions',
+  'api', 'assets', 'g', 'staff', 'apply', 'tourney', 'interactions', 'admin',
 ])
 
 /**

@@ -12,6 +12,7 @@ import { TourneyPage } from './TourneyPage'
 import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, MemberDirectoryRow, PublicData, Status } from './types'
 import { site, applyRuntimeSite } from './site'
 import { applySiteTheme, THEMES } from './themes'
+import { AdminApp } from './admin/AdminApp'
 import { authLoginHref, restPath, tenantFromPath, tenantPrefix } from './guild'
 import './App.css'
 
@@ -163,15 +164,18 @@ function Header({ children, publicMode = false }: { children?: ReactNode; public
 }
 
 function usePath() {
-  const [path, setPath] = useState(() => window.location.pathname)
+  const here = () => window.location.pathname + window.location.search
+  const [path, setPath] = useState(here)
   useEffect(() => {
-    const onPop = () => setPath(window.location.pathname)
+    const onPop = () => setPath(here())
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
   const navigate = (to: string) => {
     const prefix = tenantPrefix()
-    const next = to.startsWith('/g/') || to.startsWith('/api') ? to : `${prefix}${to.startsWith('/') ? to : `/${to}`}`
+    const next = to.startsWith('/g/') || to.startsWith('/api') || to.startsWith('/admin')
+      ? to
+      : `${prefix}${to.startsWith('/') ? to : `/${to}`}`
     if (next === path) return
     window.history.pushState({}, '', next)
     setPath(next)
@@ -2366,6 +2370,7 @@ function OnlineApp() {
       .then((payload) => applySiteTheme(payload.theme))
       .catch(() => applySiteTheme())
   }, [])
+  if (path === '/admin' || path.startsWith('/admin/')) return <AdminApp path={path} navigate={navigate} />
   const rest = tenantFromPath(path) ? restPath(path) : path
   if (path === '/g' || path === '/g/') return <TenantLanding />
   if (rest.startsWith('/staff')) return <StaffPage />
