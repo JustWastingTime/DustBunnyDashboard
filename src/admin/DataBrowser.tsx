@@ -25,7 +25,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
   const [types, setTypes] = useState<string[]>([])
   const [outfit, setOutfit] = useState('')
   const [upcoming, setUpcoming] = useState(true)
-  const [sort, setSort] = useState('name')
+  const [sort, setSort] = useState(defaultSort(dataset))
   const [shown, setShown] = useState(PAGE)
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
   }, [dataset])
 
-  useEffect(() => { setShown(PAGE); setQ(''); setRarity(''); setTypes([]); setOutfit('') }, [dataset])
+  useEffect(() => { setShown(PAGE); setQ(''); setRarity(''); setTypes([]); setOutfit(''); setSort(defaultSort(dataset)) }, [dataset])
 
   const outfits = useMemo(() => {
     if (dataset !== 'characters') return []
@@ -67,6 +67,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
     })
     const rarityRank: Record<string, number> = { normal: 0, rare: 1, unique: 2, evo: 3, r: 0, sr: 1, ssr: 2 }
     list.sort((a, b) => {
+      if (sort === 'id') return compareId(a, b, dataset)
       if (sort === 'rarity') return (rarityRank[a.rarity] ?? 9) - (rarityRank[b.rarity] ?? 9) || labelOf(a, dataset).localeCompare(labelOf(b, dataset))
       if (sort === 'category') return (a.category || '').localeCompare(b.category || '') || labelOf(a, dataset).localeCompare(labelOf(b, dataset))
       return labelOf(a, dataset).localeCompare(labelOf(b, dataset))
@@ -122,7 +123,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       </div>}
       {dataset === 'skills' && <label className="check-line">
         <input type="checkbox" checked={upcoming} onChange={(event) => setUpcoming(event.target.checked)} />
-        Show upcoming skills
+        <span>Show upcoming skills</span>
       </label>}
       {dataset === 'skills' && <div className="icon-row">
         {SKILL_TYPE_FILTERS.map((type) => (
@@ -146,6 +147,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       {shown < filtered.length && <button type="button" className="text-button" onClick={() => setShown(filtered.length)}>Show all</button>}
       <label className="sort-label">Sort by
         <select value={sort} onChange={(event) => setSort(event.target.value)}>
+          {(dataset === 'skills' || dataset === 'supporters') && <option value="id">ID</option>}
           <option value="name">Name</option>
           <option value="rarity">Rarity</option>
           {dataset !== 'characters' && <option value="category">Type</option>}
@@ -184,6 +186,25 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       </div>}
     {!filtered.length && !error && <p className="muted">Nothing matches these filters.</p>}
   </section>
+}
+
+function defaultSort(dataset: string) {
+  if (dataset === 'skills' || dataset === 'supporters') return 'id'
+  return 'name'
+}
+
+function idNumber(value: string) {
+  const match = String(value || '').match(/\d+/)
+  return match ? Number(match[0]) : Number.NaN
+}
+
+function compareId(a: Summary, b: Summary, dataset: string) {
+  const desc = dataset === 'supporters'
+  const an = idNumber(dataset === 'skills' ? a.gametora_id : a.id)
+  const bn = idNumber(dataset === 'skills' ? b.gametora_id : b.id)
+  if (Number.isNaN(an) || Number.isNaN(bn)) return Number.isNaN(an) === Number.isNaN(bn) ? 0 : Number.isNaN(an) ? 1 : -1
+  const byId = desc ? bn - an : an - bn
+  return byId || labelOf(a, dataset).localeCompare(labelOf(b, dataset))
 }
 
 function labelOf(row: Summary, dataset: string) {

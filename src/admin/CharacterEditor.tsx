@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { AdminError, adminApi } from './api'
-import { CharacterFields } from './CharacterFields'
+import { CharacterFields, CharacterStats, UmaTypeField } from './CharacterFields'
 import { Area, Choice, DiffPreview, SaveBar, Text, useLoadedEntry } from './entryForm'
-import { UMA_RARITIES, UMA_TYPES } from './icons'
+import { UMA_RARITIES } from './icons'
 
 export function CharacterEditor({ entryKey, creating, owner, navigate }: {
   entryKey?: string
@@ -46,12 +46,12 @@ export function CharacterEditor({ entryKey, creating, owner, navigate }: {
       <Text label="ID" value={String(draft.id || '')} disabled={!owner} onChange={(id) => set({ id })} />
       <Text label="Name" value={String(draft.character_name || '')} disabled={!owner} onChange={(character_name) => set({ character_name })} />
       <div className="field-pair">
-        <Choice label="Type" value={String(draft.type || 'Original')} options={UMA_TYPES} disabled={!owner} onChange={(type) => set({ type })} />
+        <UmaTypeField value={String(draft.type || '')} disabled={!owner} onChange={(type) => set({ type })} />
         <Choice label="Rarity" value={String(draft.rarity || '⭐⭐⭐')} options={UMA_RARITIES} disabled={!owner} onChange={(rarity) => set({ rarity })} />
       </div>
       <Text label="Costume" value={String(draft.costume || '')} disabled={!owner} onChange={(costume) => set({ costume })} />
+      <CharacterStats draft={draft} owner={owner} onChange={loaded.setEntry} />
       <Text label="Unique skill" value={String(draft.unique || '')} disabled={!owner} onChange={(unique) => set({ unique })} />
-      <Area label="Unique explanation" value={String(draft.unique_explanation || '')} disabled={!owner} onChange={(unique_explanation) => set({ unique_explanation })} />
       <CharacterFields draft={draft} owner={owner} onChange={loaded.setEntry} />
       <Area label="Aliases" value={aliasesText(draft.aliases)} disabled={!owner} onChange={(value) => set({ aliases: value.split('\n').map((line) => line.trim()).filter(Boolean) })} />
       <Text label="URL" value={String(draft.url || '')} disabled={!owner} onChange={(url) => set({ url })} />

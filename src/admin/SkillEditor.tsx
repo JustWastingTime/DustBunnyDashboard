@@ -22,8 +22,7 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
   const [conflict, setConflict] = useState('')
   const [rawMode, setRawMode] = useState(false)
   const [rawText, setRawText] = useState('')
-  const [paste, setPaste] = useState('')
-  const [proposal, setProposal] = useState('')
+  const [codeByEffect, setCodeByEffect] = useState<Record<number, string>>({})
   const original = loaded.baseline
 
   if (loaded.loading) return <p>Loading skill…</p>
@@ -73,27 +72,29 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
             next[index] = { ...effect, description }
             set({ effect: next })
           }} />
-          <Area label="Conditions (one per line)" value={lines(effect.conditions)} disabled={!owner} onChange={(value) => {
+          <Area label="Conditions" value={lines(effect.conditions)} disabled={!owner} onChange={(value) => {
             const next = effects.slice()
             next[index] = { ...effect, conditions: splitLines(value) }
             set({ effect: next })
           }} />
+          <details className="condition-paste">
+            <summary>Paste condition code</summary>
+            <Area label="Condition code" value={codeByEffect[index] || ''} disabled={!owner} onChange={(value) => setCodeByEffect((current) => ({ ...current, [index]: value }))} />
+            {owner && <button type="button" onClick={() => {
+              const code = codeByEffect[index] || ''
+              const converted = convertConditions(code)
+              const next = effects.slice()
+              next[index] = { ...effect, conditions: converted.lines }
+              const map = suggestActivationMap(code)
+              set({ effect: next, ...(map ? { activation_map: map } : {}) })
+            }}>Convert to English</button>}
+          </details>
         </fieldset>
       ))}
       {owner && <button type="button" onClick={() => set({ effect: [...effects, { description: '', conditions: [] }] })}>Add effect</button>}
       <Area label="Activation map JSON" value={JSON.stringify(draft.activation_map ?? { show_chart: false }, null, 2)} disabled={!owner} onChange={(value) => {
         try { set({ activation_map: JSON.parse(value) }) } catch { /* keep typing */ }
       }} />
-      <Area label="Paste condition code" value={paste} disabled={!owner} onChange={setPaste} />
-      {owner && <button type="button" onClick={() => {
-        const converted = convertConditions(paste)
-        const next = effects.length ? effects.slice() : [{ description: '', conditions: [] }]
-        next[0] = { ...next[0], conditions: converted.lines }
-        const map = suggestActivationMap(paste)
-        setProposal(map ? JSON.stringify(map, null, 2) : 'No activation map suggested.')
-        set({ effect: next, ...(map ? { activation_map: map } : {}) })
-      }}>Convert into the first effect</button>}
-      {proposal && <pre className="diff">{proposal}</pre>}
     </div>}
     <SkillMapPreview skill={draft} />
     <h2>Diff</h2>

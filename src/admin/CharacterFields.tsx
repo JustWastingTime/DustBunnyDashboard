@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { adminApi } from './api'
-import { SUPPORT_ICONS } from './icons'
+import { SUPPORT_ICONS, UMA_TYPES } from './icons'
 
 const STATS = ['speed', 'stamina', 'power', 'guts', 'wit'] as const
 const GRADES = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
@@ -51,43 +51,33 @@ function stringList(raw: unknown) {
   return Array.isArray(raw) ? raw.map((item) => String(item)) : []
 }
 
-export function CharacterFields({ draft, owner, onChange }: {
+export function UmaTypeField({ value, disabled, onChange }: {
+  value: string
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  const listId = useId()
+  const [known, setKnown] = useState<string[]>([])
+  useEffect(() => {
+    adminApi.publicList('characters').then((payload) => {
+      setKnown([...new Set(payload.entries.map((entry) => entry.type).filter(Boolean))])
+    }).catch(() => setKnown([]))
+  }, [])
+  const options = [...new Set([...UMA_TYPES.map((type) => type.value), ...known, value].filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  return <label className="admin-field">Type
+    <input list={listId} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+    <datalist id={listId}>{options.map((type) => <option key={type} value={type} />)}</datalist>
+  </label>
+}
+
+export function CharacterStats({ draft, owner, onChange }: {
   draft: Record<string, unknown>
   owner: boolean
   onChange: (next: Record<string, unknown>) => void
 }) {
-  const [skillNames, setSkillNames] = useState<string[]>([])
-  const [races, setRaces] = useState<RaceOption[]>([])
-  const [inherited, setInherited] = useState<string[]>([])
-  const name = String(draft.character_name || '')
-  const isOriginal = String(draft.type || 'Original') === 'Original'
   const bonuses = readStatBonuses(draft.stat_bonuses)
   const aptitudes = readAptitudes(draft.aptitudes)
-  const ownRaces = stringList(draft.races)
   const spent = STATS.reduce((sum, key) => sum + bonuses[key], 0)
-
-  useEffect(() => {
-    adminApi.publicList('skills').then((payload) => {
-      setSkillNames(payload.entries.map((entry) => entry.skill_name).filter(Boolean).sort((a, b) => a.localeCompare(b)))
-    }).catch(() => setSkillNames([]))
-    adminApi.races().then((payload) => setRaces(payload.races)).catch(() => setRaces([]))
-  }, [])
-
-  useEffect(() => {
-    if (isOriginal || !name) {
-      setInherited([])
-      return
-    }
-    let cancel = false
-    adminApi.publicList('characters').then(async (payload) => {
-      const original = payload.entries.find((entry) => entry.character_name === name && entry.type === 'Original')
-      if (!original || cancel) return
-      const full = await adminApi.publicEntry('characters', original.key)
-      if (!cancel) setInherited(stringList(full.entry.races))
-    }).catch(() => { if (!cancel) setInherited([]) })
-    return () => { cancel = true }
-  }, [isOriginal, name])
-
   const setStat = (key: (typeof STATS)[number], raw: string) => {
     const next = { ...bonuses }
     const others = spent - next[key]
@@ -95,20 +85,11 @@ export function CharacterFields({ draft, owner, onChange }: {
     next[key] = Math.min(parsed, Math.max(0, STAT_CAP - others))
     onChange({ ...draft, stat_bonuses: statBonusEntry(next) })
   }
-
   const setGrade = (group: number, key: string, grade: string) => {
     const next = aptitudes.map((row) => ({ ...row }))
     next[group][key] = grade
     onChange({ ...draft, aptitudes: next })
   }
-
-  const setList = (key: string, values: string[]) => {
-    const next = { ...draft }
-    if (key === 'evo_skills' && values.length === 0) delete next.evo_skills
-    else next[key] = values
-    onChange(next)
-  }
-
   return <>
     <fieldset className="stat-panel">
       <legend>Stat bonuses</legend>
@@ -138,6 +119,51 @@ export function CharacterFields({ draft, owner, onChange }: {
       <GradeRow title="Distance" keys={DISTANCE} values={aptitudes[1]} disabled={!owner} onChange={(key, grade) => setGrade(1, key, grade)} />
       <GradeRow title="Style" keys={STYLE} values={aptitudes[2]} disabled={!owner} onChange={(key, grade) => setGrade(2, key, grade)} />
     </fieldset>
+  </>
+}
+
+export function CharacterFields({ draft, owner, onChange }: {
+  draft: Record<string, unknown>
+  owner: boolean
+  onChange: (next: Record<string, unknown>) => void
+}) {
+  const [skillNames, setSkillNames] = useState<string[]>([])
+  const [races, setRaces] = useState<RaceOption[]>([])
+  const [inherited, setInherited] = useState<string[]>([])
+  const name = String(draft.character_name || '')
+  const isOriginal = String(draft.type || 'Original') === 'Original'
+  const ownRaces = stringList(draft.races)
+
+  useEffect(() => {
+    adminApi.publicList('skills').then((payload) => {
+      setSkillNames(payload.entries.map((entry) => entry.skill_name).filter(Boolean).sort((a, b) => a.localeCompare(b)))
+    }).catch(() => setSkillNames([]))
+    adminApi.races().then((payload) => setRaces(payload.races)).catch(() => setRaces([]))
+  }, [])
+
+  useEffect(() => {
+    if (isOriginal || !name) {
+      setInherited([])
+      return
+    }
+    let cancel = false
+    adminApi.publicList('characters').then(async (payload) => {
+      const original = payload.entries.find((entry) => entry.character_name === name && entry.type === 'Original')
+      if (!original || cancel) return
+      const full = await adminApi.publicEntry('characters', original.key)
+      if (!cancel) setInherited(stringList(full.entry.races))
+    }).catch(() => { if (!cancel) setInherited([]) })
+    return () => { cancel = true }
+  }, [isOriginal, name])
+
+  const setList = (key: string, values: string[]) => {
+    const next = { ...draft }
+    if (key === 'evo_skills' && values.length === 0) delete next.evo_skills
+    else next[key] = values
+    onChange(next)
+  }
+
+  return <>
     <StringList label="Skills" values={stringList(draft.skills)} suggestions={skillNames} disabled={!owner} onChange={(values) => setList('skills', values)} />
     <StringList label="Potential" values={stringList(draft.potential)} suggestions={skillNames} disabled={!owner} onChange={(values) => setList('potential', values)} />
     <StringList label="Event skills" values={stringList(draft.event_skills)} suggestions={skillNames} disabled={!owner} onChange={(values) => setList('event_skills', values)} />
