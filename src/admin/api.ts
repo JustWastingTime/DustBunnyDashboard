@@ -32,8 +32,8 @@ export type AdminMe = {
 
 export const adminApi = {
   me: () => adminFetch<AdminMe>('/api/admin/me'),
-  publicList: (dataset: string, q: string) =>
-    adminFetch<{ total: number; entries: Summary[] }>(`/api/admin/public/${dataset}?q=${encodeURIComponent(q)}&limit=80`),
+  publicList: (dataset: string, q = '', limit = 5000) =>
+    adminFetch<{ total: number; entries: Summary[] }>(`/api/admin/public/${dataset}?q=${encodeURIComponent(q)}&limit=${limit}`),
   publicEntry: (dataset: string, key: string) =>
     adminFetch<{ entry: Record<string, unknown> }>(`/api/admin/public/${dataset}/entry?key=${encodeURIComponent(key)}`),
   gitEntry: (dataset: string, key: string) =>

@@ -40,10 +40,17 @@ function pageOf(path: string) {
 export function AdminApp({ path, navigate }: { path: string; navigate: (to: string) => void }) {
   const [me, setMe] = useState<AdminMe | null>(null)
   const [error, setError] = useState('')
+  const [showOwnerNote, setShowOwnerNote] = useState(false)
   useEffect(() => {
     adminApi.me().then(setMe).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
   }, [])
   const owner = Boolean(me?.isOwner)
+  useEffect(() => {
+    if (!owner) return
+    setShowOwnerNote(true)
+    const timer = window.setTimeout(() => setShowOwnerNote(false), 4000)
+    return () => window.clearTimeout(timer)
+  }, [owner])
   const { name, key } = pageOf(path)
   const go = (href: string) => navigate(href)
 
@@ -75,12 +82,12 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
     </nav>
     <main className="admin-main">
       {error && <p className="notice error">{error}</p>}
-      <div className="admin-banner">
+      {(me == null || (me && !owner) || showOwnerNote) && <div className="admin-banner">
         {me == null && 'Checking Discord login…'}
         {me && !me.authenticated && <span>Read-only. <a href={authLoginHref('/admin')}>Log in with Discord</a> to edit.</span>}
         {me?.authenticated && !owner && <span>Signed in as {me.user?.globalName || me.user?.username}. This account cannot edit.</span>}
-        {owner && <span>Signed in as {me?.user?.globalName || me?.user?.username}. Saves commit to GitHub.</span>}
-      </div>
+        {owner && showOwnerNote && <span>Signed in as {me?.user?.globalName || me?.user?.username}. Saves commit to GitHub.</span>}
+      </div>}
       {body}
     </main>
   </div>

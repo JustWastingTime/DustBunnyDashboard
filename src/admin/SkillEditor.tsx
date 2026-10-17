@@ -3,6 +3,7 @@ import { AdminError, adminApi } from './api'
 import { suggestActivationMap } from './lib/activationMap'
 import { convertConditions } from './lib/convertConditions'
 import { Area, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedEntry } from './entryForm'
+import { SkillMapPreview } from './tools/SkillMapPreview'
 
 type Effect = { description?: string; conditions?: string[] }
 
@@ -91,6 +92,7 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
       }}>Convert into the first effect</button>}
       {proposal && <pre className="diff">{proposal}</pre>}
     </div>}
+    <SkillMapPreview skill={draft} />
     <h2>Diff</h2>
     <DiffPreview before={original} after={draft} />
     <SaveBar owner={owner && Boolean(loaded.blobSha)} message={message} setMessage={setMessage} busy={busy} onSave={save} warnings={warnings} conflict={conflict} reload={loaded.reload} onDelete={!creating && owner ? async () => {
