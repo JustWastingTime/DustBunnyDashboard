@@ -151,7 +151,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
           {dataset !== 'characters' && <option value="category">Type</option>}
         </select>
       </label>
-      {shown < filtered.length && <button type="button" className="pager" onClick={() => setShown((count) => count + PAGE)}>+</button>}
+      {shown < filtered.length && <button type="button" className="pager" onClick={() => setShown((count) => count + PAGE)}>Show {Math.min(PAGE, filtered.length - shown)} more</button>}
     </div>
     {dataset === 'skills'
       ? <div className="skill-table">

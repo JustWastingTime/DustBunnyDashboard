@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { AdminError, adminApi } from './api'
 import { parseEvents } from './lib/parseEvents'
-import { Area, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedEntry } from './entryForm'
+import { Area, Choice, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedEntry } from './entryForm'
+import { CARD_EVENT_STATUS, SUPPORT_RARITIES, SUPPORT_TYPES } from './icons'
 
 export function SupporterEditor({ entryKey, creating, owner, navigate }: {
   entryKey?: string
@@ -47,12 +48,14 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
     <button type="button" onClick={() => { setRawMode(!rawMode); setRawText(JSON.stringify(draft, null, 2)) }}>{rawMode ? 'Form' : 'Raw JSON'}</button>
     {rawMode ? <Area label="JSON" value={rawText} disabled={!owner} onChange={setRawText} /> : <div className="admin-grid">
       <Text label="ID" value={String(draft.id || '')} disabled={!owner} onChange={(id) => set({ id })} />
-      <Text label="Event status" value={String(draft._event || '')} disabled={!owner} onChange={(_event) => set({ _event })} />
+      <Choice label="Event status" value={String(draft._event || 'todo')} options={CARD_EVENT_STATUS} disabled={!owner} onChange={(_event) => set({ _event })} />
       <Text label="Card name" value={String(draft.card_name || '')} disabled={!owner} onChange={(card_name) => set({ card_name })} />
       <Text label="Character" value={String(draft.character_name || '')} disabled={!owner} onChange={(character_name) => set({ character_name })} />
       <Text label="Unique skill" value={String(draft.unique || '')} disabled={!owner} onChange={(unique) => set({ unique })} />
-      <Text label="Rarity" value={String(draft.rarity || '')} disabled={!owner} onChange={(rarity) => set({ rarity })} />
-      <Text label="Category" value={String(draft.category || '')} disabled={!owner} onChange={(category) => set({ category })} />
+      <div className="field-pair">
+        <Choice label="Rarity" value={String(draft.rarity || 'r')} options={SUPPORT_RARITIES} disabled={!owner} onChange={(rarity) => set({ rarity })} />
+        <Choice label="Type" value={String(draft.category || 'speed')} options={SUPPORT_TYPES.map((type) => ({ value: type.id, label: type.label }))} disabled={!owner} onChange={(category) => set({ category })} />
+      </div>
       <Text label="URL" value={String(draft.url || '')} disabled={!owner} onChange={(url) => set({ url })} />
       <Text label="Thumbnail" value={String(draft.thumbnail || '')} disabled={!owner} onChange={(thumbnail) => set({ thumbnail })} />
       <Area label="Aliases" value={lines(draft.aliases)} disabled={!owner} onChange={(value) => set({ aliases: splitLines(value) })} />

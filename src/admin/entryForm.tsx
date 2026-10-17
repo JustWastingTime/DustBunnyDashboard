@@ -91,6 +91,22 @@ export function Text({ label, value, onChange, disabled }: { label: string; valu
   return <Field label={label}><input value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></Field>
 }
 
+export function Choice({ label, value, options, onChange, disabled }: {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const known = options.some((option) => option.value === value)
+  return <Field label={label}>
+    <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+      {!known && <option value={value}>{value || 'Select'}</option>}
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  </Field>
+}
+
 export function Area({ label, value, onChange, disabled }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
   return <Field label={label}><textarea value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></Field>
 }

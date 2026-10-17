@@ -51,16 +51,18 @@ export function SkillMapPreview({ skill }: { skill: Record<string, unknown> }) {
 
   return <section className="admin-grid preview-panel">
     <h2>Activation preview</h2>
-    <div className="admin-row">
+    <div className="preview-controls">
       <label className="admin-field">Champions Meet
-        <select value={cmNumber} onChange={(event) => setCmNumber(event.target.value)}>
-          <option value="">Upcoming</option>
+        <select value={cmNumber} disabled={Boolean(mapQuery)} onChange={(event) => setCmNumber(event.target.value)}>
+          <option value="">Next meet</option>
           {meets.map((meet) => <option key={meet.number} value={meet.number}>{meet.number} — {meet.name}</option>)}
         </select>
       </label>
       <label className="admin-field">Course
-        <input list="skill-map-names" value={mapQuery} placeholder="Optional course name" onChange={(event) => setMapQuery(event.target.value)} />
-        <datalist id="skill-map-names">{maps.map((map) => <option key={map.name} value={map.name} />)}</datalist>
+        <select value={mapQuery} onChange={(event) => setMapQuery(event.target.value)}>
+          <option value="">Use Champions Meet</option>
+          {maps.map((map) => <option key={map.name} value={map.name}>{map.name}</option>)}
+        </select>
       </label>
       <button type="button" disabled={busy} onClick={() => void render(skill, mapQuery, cmNumber)}>{busy ? 'Rendering…' : 'Render'}</button>
     </div>

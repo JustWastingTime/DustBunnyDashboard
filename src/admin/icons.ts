@@ -79,6 +79,65 @@ export function skillMatchesType(category: string, typeId: string) {
   return group.families.includes(family(category))
 }
 
+export const SKILL_RARITIES = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'rare', label: 'Rare' },
+  { value: 'unique', label: 'Unique' },
+  { value: 'evo', label: 'Evolved' },
+]
+
+function categoryLabel(value: string) {
+  const text = value
+    .replace(/^golden/, 'golden ')
+    .replace(/^rainbow/, 'rainbow ')
+    .replace(/^evo/, 'evolved ')
+    .replace('negative', ' negative')
+    .replace('debuff', ' debuff')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+export const SKILL_CATEGORIES = [
+  'speed', 'goldenspeed', 'speednegative', 'evospeed',
+  'stamina', 'goldenstamina', 'staminanegative',
+  'power', 'goldenpower', 'powernegative',
+  'guts', 'gutsnegative',
+  'gate', 'gatenegative',
+  'super7', 'goldensuper7',
+  'recovery', 'goldenrecovery', 'rainbowrecovery', 'recoverynegative', 'recoverydebuff', 'goldenrecoverydebuff',
+  'velocity', 'goldenvelocity', 'rainbowvelocity', 'velocitynegative', 'goldenvelocitynegative', 'velocitydebuff', 'goldenvelocitydebuff',
+  'accel', 'goldenaccel', 'rainbowaccel', 'accelnegative', 'acceldebuff', 'goldenacceldebuff',
+  'flow', 'goldenflow',
+  'focus', 'goldenfocus', 'focusnegative',
+  'vision', 'goldenvision', 'visiondebuff', 'goldenvisiondebuff',
+  'frenzy', 'runaway', 'carnival',
+].map((value) => ({ value, label: categoryLabel(value) }))
+
+export const SUPPORT_RARITIES = [
+  { value: 'r', label: 'R' },
+  { value: 'sr', label: 'SR' },
+  { value: 'ssr', label: 'SSR' },
+]
+
+export const CARD_EVENT_STATUS = [
+  { value: 'done', label: 'Done' },
+  { value: 'partial', label: 'Partial' },
+  { value: 'todo', label: 'To do' },
+]
+
+export const UMA_RARITIES = [
+  { value: '⭐⭐⭐', label: '⭐⭐⭐' },
+  { value: '⭐⭐', label: '⭐⭐' },
+  { value: '⭐', label: '⭐' },
+]
+
+export const UMA_TYPES = [
+  'Original', 'Summer', 'Commander', 'Anime Collab', 'Ballroom', 'Christmas', 'Camping',
+  'Fantasy', 'New Year', 'BLAZE', 'Festival', 'Wedding', 'Halloween', 'Valentines',
+  'Steampunk', 'Grand Live', 'Full Armor', 'Cheerleader',
+].map((value) => ({ value, label: value }))
+
 export const SUPPORT_TYPES = [
   { id: 'speed', label: 'Speed' },
   { id: 'stamina', label: 'Stamina' },

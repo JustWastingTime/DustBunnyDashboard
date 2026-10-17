@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { AdminError, adminApi } from './api'
 import { suggestActivationMap } from './lib/activationMap'
 import { convertConditions } from './lib/convertConditions'
-import { Area, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedEntry } from './entryForm'
+import { Area, Choice, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedEntry } from './entryForm'
+import { SKILL_CATEGORIES, SKILL_RARITIES } from './icons'
 import { SkillMapPreview } from './tools/SkillMapPreview'
 
 type Effect = { description?: string; conditions?: string[] }
@@ -57,8 +58,10 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
     {rawMode ? <Area label="JSON" value={rawText} disabled={!owner} onChange={setRawText} /> : <div className="admin-grid">
       <Text label="Name" value={String(draft.skill_name || '')} disabled={!owner} onChange={(skill_name) => set({ skill_name })} />
       <Area label="Description" value={String(draft.description || '')} disabled={!owner} onChange={(description) => set({ description })} />
-      <Text label="Rarity" value={String(draft.rarity || '')} disabled={!owner} onChange={(rarity) => set({ rarity })} />
-      <Text label="Category" value={String(draft.category || '')} disabled={!owner} onChange={(category) => set({ category })} />
+      <div className="field-pair">
+        <Choice label="Rarity" value={String(draft.rarity || 'normal')} options={SKILL_RARITIES} disabled={!owner} onChange={(rarity) => set({ rarity })} />
+        <Choice label="Category" value={String(draft.category || 'speed')} options={SKILL_CATEGORIES} disabled={!owner} onChange={(category) => set({ category })} />
+      </div>
       <Text label="Upgrade" value={String(draft.upgrade || '')} disabled={!owner} onChange={(upgrade) => set({ upgrade })} />
       <Text label="Gametora ID" value={String(draft.gametora_id || '')} disabled={!owner} onChange={(gametora_id) => set({ gametora_id })} />
       <Area label="Aliases (one per line)" value={lines(draft.aliases)} disabled={!owner} onChange={(value) => set({ aliases: splitLines(value) })} />
