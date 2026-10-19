@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { authLoginHref } from '../guild'
 import { adminApi, type AdminMe } from './api'
 import { AuditLog } from './AuditLog'
+import { GambaEventEditor, GambaEventList } from './GambaEvents'
 import { ClubsOverview } from './ClubsOverview'
 import { DataBrowser } from './DataBrowser'
 import { CharacterEditor } from './CharacterEditor'
@@ -20,6 +21,7 @@ const LINKS = [
   ['/admin/skills', 'Skills'],
   ['/admin/supporters', 'Supporters'],
   ['/admin/characters', 'Umas'],
+  ['/admin/gamba', 'Gamba events'],
   ['/admin/tools/conditions', 'Condition converter'],
   ['/admin/tools/events', 'Event formatter'],
   ['/admin/tools/activation', 'Activation map'],
@@ -64,6 +66,9 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
   else if (name.startsWith('/admin/characters/new')) body = <CharacterEditor creating owner={owner} navigate={go} />
   else if (name.startsWith('/admin/characters/edit')) body = <CharacterEditor entryKey={key} owner={owner} navigate={go} />
   else if (name.startsWith('/admin/characters')) body = <DataBrowser dataset="characters" title="Umas" owner={owner} navigate={go} />
+  else if (name.startsWith('/admin/gamba/new')) body = <GambaEventEditor creating owner={owner} navigate={go} />
+  else if (name.startsWith('/admin/gamba/edit')) body = <GambaEventEditor eventId={key} owner={owner} navigate={go} />
+  else if (name.startsWith('/admin/gamba')) body = <GambaEventList owner={owner} navigate={go} />
   else if (name.startsWith('/admin/tools/conditions')) body = <ConditionTool />
   else if (name.startsWith('/admin/tools/events')) body = <EventTool />
   else if (name.startsWith('/admin/tools/activation')) body = <ActivationTool />

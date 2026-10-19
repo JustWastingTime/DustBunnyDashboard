@@ -94,12 +94,15 @@
 .string-row { display: flex; gap: .4rem; margin-bottom: .4rem; }
 .string-row input, .string-row select { flex: 1; }
 .inherited { margin: 0 0 .5rem; color: var(--muted); }
+.entry-head, .entry-row { display: grid; grid-template-columns: 4.5rem 1.4fr .8fr 1fr 5.5rem auto; gap: .4rem; align-items: center; }
+.entry-head { color: var(--muted); font-size: .82rem; }
+.entry-row input { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .4rem .5rem; }
 .condition-paste { border: 1px solid var(--line); border-radius: 8px; padding: .45rem .7rem .7rem; }
 .condition-paste summary { cursor: pointer; }
 .admin-field.inline { display: flex; gap: .4rem; align-items: center; }
 @media (max-width: 800px) {
   .admin-shell { grid-template-columns: 1fr; }
-  .admin-split, .field-pair, .stat-grid { grid-template-columns: 1fr; }
+  .admin-split, .field-pair, .stat-grid, .entry-head, .entry-row { grid-template-columns: 1fr 1fr; }
   .skill-row { grid-template-columns: 32px 1fr; }
   .skill-row .muted, .skill-row em { grid-column: 2; }
 }
