@@ -9,7 +9,7 @@ export function isThemeId(value: unknown): value is ThemeId {
 }
 
 export const THEMES: Array<{ id: ThemeId; label: string; hint: string; swatch: string }> = [
-  { id: 'blossom', label: 'Blossom', hint: 'Dust Bunny pink', swatch: '#e57a9b' },
+  { id: 'blossom', label: 'Blossom', hint: 'Pink', swatch: '#e57a9b' },
   { id: 'ocean', label: 'Ocean', hint: 'Cool blue', swatch: '#3d8ebd' },
   { id: 'forest', label: 'Forest', hint: 'Leaf green', swatch: '#4f9a6a' },
   { id: 'dusk', label: 'Dusk', hint: 'Violet', swatch: '#8a5cad' },

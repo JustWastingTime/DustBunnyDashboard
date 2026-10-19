@@ -10,9 +10,6 @@ import { SkillEditor } from './SkillEditor'
 import { SupporterEditor } from './SupporterEditor'
 import { PremiumServers } from './PremiumServers'
 import { RawAssetEditor } from './RawAssetEditor'
-import { ActivationTool } from './tools/ActivationTool'
-import { ConditionTool } from './tools/ConditionTool'
-import { EventTool } from './tools/EventTool'
 import { VisualizerTool } from './tools/VisualizerTool'
 import './admin.css'
 
@@ -22,9 +19,6 @@ const LINKS = [
   ['/admin/supporters', 'Supporters'],
   ['/admin/characters', 'Umas'],
   ['/admin/gamba', 'Gamba events'],
-  ['/admin/tools/conditions', 'Condition converter'],
-  ['/admin/tools/events', 'Event formatter'],
-  ['/admin/tools/activation', 'Activation map'],
   ['/admin/tools/visualizer', 'Skill visualizer'],
   ['/admin/premium', 'Premium servers'],
   ['/admin/clubs', 'Clubs'],
@@ -69,9 +63,6 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
   else if (name.startsWith('/admin/gamba/new')) body = <GambaEventEditor creating owner={owner} navigate={go} />
   else if (name.startsWith('/admin/gamba/edit')) body = <GambaEventEditor eventId={key} owner={owner} navigate={go} />
   else if (name.startsWith('/admin/gamba')) body = <GambaEventList owner={owner} navigate={go} />
-  else if (name.startsWith('/admin/tools/conditions')) body = <ConditionTool />
-  else if (name.startsWith('/admin/tools/events')) body = <EventTool />
-  else if (name.startsWith('/admin/tools/activation')) body = <ActivationTool />
   else if (name.startsWith('/admin/tools/visualizer')) body = <VisualizerTool />
   else if (name.startsWith('/admin/premium')) body = <PremiumServers owner={owner} />
   else if (name.startsWith('/admin/clubs')) body = <ClubsOverview owner={owner} />

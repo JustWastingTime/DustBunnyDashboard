@@ -71,9 +71,9 @@ export const adminApi = {
       '/api/admin/public/skill-preview',
       { method: 'POST', body: JSON.stringify(body) },
     ),
-  premium: () => adminFetch<{ guilds: Array<{ guildId: string; premium: boolean; fromEnv: boolean; stored: boolean }> }>('/api/admin/premium'),
-  setPremium: (guildId: string, enabled: boolean) =>
-    adminFetch<{ guildId: string; premium: boolean }>(`/api/admin/premium/${guildId}`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
+  premium: () => adminFetch<{ guilds: Array<{ guildId: string; premium: boolean; fromEnv: boolean; stored: boolean; note: string; endsAt: string | null }> }>('/api/admin/premium'),
+  setPremium: (guildId: string, body: { enabled?: boolean; note?: string; endsAt?: string | null; extendMonth?: boolean }) =>
+    adminFetch<{ guildId: string; premium: boolean; note: string; endsAt: string | null }>(`/api/admin/premium/${guildId}`, { method: 'PUT', body: JSON.stringify(body) }),
   clubs: () => adminFetch<{ guilds: Array<{ guildId: string; slug: string | null; siteName: string | null; premium: boolean; clubs: Array<{ circleId: string; circleName: string | null }> }> }>('/api/admin/clubs'),
   refreshCache: () => adminFetch<{ ok: true; events?: number }>('/api/admin/cache/refresh', { method: 'POST', body: '{}' }),
   gambaEvents: () => adminFetch<{ events: Array<{ id: string; name: string; status: string; startsAt: string | null; endsAt: string | null; file: string; entryCount: number }> }>('/api/admin/gamba-events'),

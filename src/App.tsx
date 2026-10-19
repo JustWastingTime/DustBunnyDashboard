@@ -2372,7 +2372,7 @@ function OnlineApp() {
   }, [])
   if (path === '/admin' || path.startsWith('/admin/')) return <AdminApp path={path} navigate={navigate} />
   const rest = tenantFromPath(path) ? restPath(path) : path
-  if (path === '/g' || path === '/g/') return <TenantLanding />
+  if (!tenantFromPath(path) && (path === '/' || path === '/g' || path === '/g/')) return <TenantLanding />
   if (rest.startsWith('/staff')) return <StaffPage />
   if (rest.startsWith('/tourney')) return <TourneyPage path={rest} navigate={navigate} />
   return <PublicSite path={rest} navigate={navigate} />

@@ -28,18 +28,34 @@ export function GambaEventList({ owner, navigate }: { owner: boolean; navigate: 
       <button type="button" className="primary" onClick={() => navigate('/admin/gamba/new')}>Add</button>
     </div>
     {error && <p className="notice error">{error}</p>}
-    <p className="muted">Saving writes the event file and reloads it in this bot process, so `/gamba` can find it without a restart.</p>
-    <ul className="admin-list">
-      {rows.map((row) => (
-        <li key={row.id}>
-          <button type="button" className="linkish" onClick={() => navigate(`/admin/gamba/edit?key=${encodeURIComponent(row.id)}`)}>
-            <strong>{row.name}</strong>
-            <div className="muted">{row.id} · {row.status} · {row.entryCount} entries · {row.startsAt || 'no start'}</div>
-          </button>
-        </li>
-      ))}
-      {!rows.length && !error && <li>No events loaded.</li>}
-    </ul>
+    <p className="muted">Saving writes the event file and reloads it in this bot process, so /gamba can find it without a restart.</p>
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Starts</th>
+            <th>Entries</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <button type="button" className="text-button" onClick={() => navigate(`/admin/gamba/edit?key=${encodeURIComponent(row.id)}`)}>{row.name}</button>
+              </td>
+              <td>{row.id}</td>
+              <td>{row.status}</td>
+              <td>{row.startsAt || '—'}</td>
+              <td>{row.entryCount}</td>
+            </tr>
+          ))}
+          {!rows.length && !error && <tr><td colSpan={5}>No events loaded.</td></tr>}
+        </tbody>
+      </table>
+    </div>
   </section>
 }
 
