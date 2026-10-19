@@ -45,7 +45,7 @@ describe('performance calculations', () => {
 
   it('explains target and inactivity classifications', () => {
     expect(classifyPerformance({
-      dailyAverage: 130, dailyTarget: 100, lastUpdatedAt: '2026-07-31T00:00:00Z',
+      dailyAverage: 130, dailyTarget: 100, promotionTarget: 120, lastUpdatedAt: '2026-07-31T00:00:00Z',
       now: new Date('2026-08-01T00:00:00Z'),
     }).band).toBe('promotion')
     expect(classifyPerformance({

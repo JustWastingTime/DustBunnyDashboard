@@ -191,7 +191,8 @@ export function classifyPerformance(input: {
   dailyAverage: number
   dailyTarget: number
   lastUpdatedAt?: string | null
-  promotionRatio?: number
+  promotionTarget?: number | null
+  promotionTier?: string | null
   meetingRatio?: number
   severeRatio?: number
   inactiveDays?: number
@@ -202,7 +203,8 @@ export function classifyPerformance(input: {
     dailyAverage,
     dailyTarget,
     lastUpdatedAt,
-    promotionRatio = 1.25,
+    promotionTarget = null,
+    promotionTier = null,
     meetingRatio = 0.9,
     severeRatio = 0.5,
     inactiveDays = 3,
@@ -216,7 +218,13 @@ export function classifyPerformance(input: {
   }
   const ratio = dailyTarget > 0 ? dailyAverage / dailyTarget : 1
   const reason = `${Math.round(ratio * 100)}% of daily requirement`
-  if (promotionEnabled && ratio >= promotionRatio) return { band: 'promotion' as DecisionBand, reason, ratio }
+  if (promotionEnabled && promotionTarget != null && promotionTarget > 0 && dailyAverage >= promotionTarget) {
+    return {
+      band: 'promotion' as DecisionBand,
+      reason: promotionTier ? `Meets ${promotionTier} requirement` : 'Meets next tier requirement',
+      ratio,
+    }
+  }
   if (ratio >= meetingRatio) return { band: 'meeting' as DecisionBand, reason, ratio }
   if (ratio < severeRatio) return { band: 'severe' as DecisionBand, reason, ratio }
   return { band: 'under' as DecisionBand, reason, ratio }

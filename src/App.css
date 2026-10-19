@@ -118,11 +118,12 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
   margin: 0;
   padding: 0;
   border: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .apply-club-options legend {
+  grid-column: 1 / -1;
   padding: 0;
   color: var(--muted);
   font-size: .78rem;
@@ -130,9 +131,10 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
 }
 .apply-club-option {
   margin: 0;
-  padding: 12px 14px;
+  min-width: 0;
+  padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--surface-2);
   cursor: pointer;
 }
@@ -141,12 +143,12 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
   background: var(--accent-soft);
 }
 .apply-club-option input {
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-top: 3px;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 2px;
 }
-.apply-club-option strong { display: block; font-size: .95rem; }
-.apply-club-option small { display: block; color: var(--muted); font-weight: 700; font-size: .75rem; }
+.apply-club-option strong { display: block; font-size: .82rem; line-height: 1.2; }
+.apply-club-option small { display: block; color: var(--muted); font-weight: 700; font-size: .68rem; line-height: 1.25; }
 .club-pick-list {
   margin: 0;
   padding: 0;
@@ -362,6 +364,10 @@ footer { color: var(--muted); text-align: center; font-size: .78rem; padding-top
 .form-stack { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 12px; }.form-stack label { color: var(--muted); font-size: .78rem; font-weight: 700; }
 .form-stack input, .form-stack select, .form-stack textarea { margin-top: 5px; }.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .check { display: grid !important; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; line-height: 1.4; }.check input { width: auto; margin-top: 2px; }
+.leaderboard-settings { display: grid; }
+.leaderboard-row { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line, rgba(0,0,0,.08)); }
+.leaderboard-row .checks { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.leaderboard-row .check { min-width: 7rem; }
 .stack-list { display: flex; flex-direction: column; }.stack-list article { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .applicant-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }.applicant-cards article { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: var(--surface); }
 .applicant-cards dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.applicant-cards dl div { background: var(--surface-2); padding: 9px; }
@@ -465,6 +471,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   .summary-grid { grid-template-columns: 1fr 1fr; }.summary-grid article { min-height: 105px; padding: 16px; }.summary-grid strong { font-size: 2rem; }
   .panel { padding: 16px; }.lanes { display: grid; grid-template-columns: 1fr; }.applicant-cards { grid-template-columns: 1fr; }
   .staff-lanes-top { grid-template-columns: 1fr; }
+  .apply-club-options { grid-template-columns: 1fr; }
   .stack-list article { grid-template-columns: 1fr auto; }.filters { width: 100%; }.filters input, .filters select { width: 100%; }
 }
 

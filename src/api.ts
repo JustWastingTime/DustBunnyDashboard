@@ -44,6 +44,7 @@ export const api = {
     directory?: import('./types').MemberDirectoryRow[]
     user: SessionUser
     theme?: string
+    applyWebhookUrl?: string
     staff?: Array<{ discordId: string; label: string; source: 'owner' | 'staff'; clubIds: string[] }>
   }>('/api/clubs'),
   staffMemberProfile: (umaId: string) =>
@@ -72,6 +73,16 @@ export const api = {
     request<{ theme: string }>('/api/clubs', {
       method: 'PUT',
       body: JSON.stringify({ site: true, theme }),
+    }),
+  staffSaveWebhook: (applyWebhookUrl: string) =>
+    request<{ applyWebhookUrl: string }>('/api/clubs', {
+      method: 'PUT',
+      body: JSON.stringify({ site: true, applyWebhookUrl }),
+    }),
+  staffSaveLeaderboard: (circleId: string, columns: { showTotal: boolean; showAvg: boolean; showToday: boolean }) =>
+    request<{ circleId: string }>('/api/clubs', {
+      method: 'PUT',
+      body: JSON.stringify({ leaderboard: true, circleId, ...columns }),
     }),
   staffAddStaff: (body: { discordId: string; label?: string }) =>
     request<{ staff: { discordId: string; label: string; source: 'staff'; clubIds: string[] } }>('/api/clubs', {

@@ -344,7 +344,8 @@ function MemberTable({
         dailyAverage: member.dailyAverage,
         dailyTarget: club.dailyTarget,
         lastUpdatedAt: member.lastUpdatedAt,
-        promotionRatio: club.promotionRatio,
+        promotionTarget: club.promotionTarget,
+        promotionTier: club.promotionTier,
         severeRatio: club.severeRatio,
         inactiveDays: club.inactiveDays,
         promotionEnabled: club.promotionEnabled !== false,
@@ -633,7 +634,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
     <div className="apply-layout">
       <aside className="apply-clubs" aria-label="Club details">
         {orderedClubs.map((club) => {
-          const memberCount = club.members?.length ?? 0
+          const memberCount = Math.min(30, club.plannedMembers ?? club.members?.length ?? 0)
           const selected = selectedClubIds.includes(club.circleId)
           return <article
             key={club.circleId}
@@ -689,7 +690,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
                   />
                   <span>
                     <strong>{club.name}</strong>
-                    <small>{compact.format(club.dailyTarget)}/day · {club.members?.length ?? 0}/30{club.rank != null ? ` · #${club.rank}` : ''}</small>
+                    <small>{compact.format(club.dailyTarget)}/day · {Math.min(30, club.plannedMembers ?? club.members?.length ?? 0)}/30{club.rank != null ? ` · #${club.rank}` : ''}</small>
                   </span>
                 </label>
               })}
@@ -898,12 +899,16 @@ function StaffNetworkSettings({
   directory,
   staff,
   theme,
+  clubs,
+  applyWebhookUrl,
   reload,
 }: {
   members: Member[]
   directory: MemberDirectoryRow[]
   staff: Array<{ discordId: string; label: string; source: 'owner' | 'staff'; clubIds: string[] }>
   theme: string
+  clubs: Club[]
+  applyWebhookUrl: string
   reload: () => Promise<void>
 }) {
   const [message, setMessage] = useState('')
@@ -970,6 +975,39 @@ function StaffNetworkSettings({
     }
   }
 
+  const saveWebhook = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const url = String(new FormData(event.currentTarget).get('applyWebhookUrl') || '').trim()
+    setBusy(true)
+    try {
+      await api.staffSaveWebhook(url)
+      setMessage(url ? 'Applications will be posted to that Discord channel.' : 'Application webhook cleared.')
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveLeaderboard = async (club: Club, form: HTMLFormElement) => {
+    const data = new FormData(form)
+    setBusy(true)
+    try {
+      await api.staffSaveLeaderboard(club.circleId, {
+        showTotal: data.get('showTotal') === 'on',
+        showAvg: data.get('showAvg') === 'on',
+        showToday: data.get('showToday') === 'on',
+      })
+      setMessage(`Leaderboard columns saved for ${club.name}.`)
+      await reload()
+    } catch (reason) {
+      setMessage((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return <>
     <section className="panel">
       <div className="section-heading">
@@ -992,6 +1030,49 @@ function StaffNetworkSettings({
             <strong>{item.label}</strong>
             <small>{item.hint}</small>
           </button>
+        ))}
+      </div>
+    </section>
+    <section className="panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Discord</p>
+          <h2>Applications channel</h2>
+          <p>In the applications channel, create a webhook and paste it here. Each new application is posted there.</p>
+        </div>
+      </div>
+      <form className="form-stack" key={applyWebhookUrl} onSubmit={saveWebhook}>
+        <label>Webhook URL
+          <input name="applyWebhookUrl" type="url" defaultValue={applyWebhookUrl} placeholder="https://discord.com/api/webhooks/…" autoComplete="off" spellCheck={false} />
+        </label>
+        <div className="button-row"><button className="primary" disabled={busy}>Save webhook</button></div>
+      </form>
+    </section>
+    <section className="panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Discord</p>
+          <h2>Leaderboards</h2>
+          <p>These columns are the ones on the auto-updating club leaderboard. Post that message with <span className="id">/club setleaderboardchannel</span> in the channel you want.</p>
+        </div>
+      </div>
+      <div className="leaderboard-settings">
+        {clubs.map((club) => (
+          <form
+            key={`${club.circleId}-${club.showTotal}-${club.showAvg}-${club.showToday}`}
+            className="leaderboard-row"
+            onChange={(event) => { void saveLeaderboard(club, event.currentTarget) }}
+          >
+            <div>
+              <strong>{club.name}</strong>
+              <small className="id">{club.leaderboardChannelId ? `Channel ${club.leaderboardChannelId}` : 'No leaderboard channel yet'}</small>
+            </div>
+            <div className="checks">
+              <label className="check"><input type="checkbox" name="showTotal" defaultChecked={club.showTotal !== false} disabled={busy} /> Total</label>
+              <label className="check"><input type="checkbox" name="showAvg" defaultChecked={club.showAvg !== false} disabled={busy} /> Average</label>
+              <label className="check"><input type="checkbox" name="showToday" defaultChecked={club.showToday !== false} disabled={busy} /> Today</label>
+            </div>
+          </form>
         ))}
       </div>
     </section>
@@ -1091,7 +1172,6 @@ function StaffClubSettings({
       await api.staffUpdateClub(current.circleId, {
         name: String(form.get('name')),
         dailyTarget: Number(form.get('dailyTarget')),
-        promotionRatio: Number(form.get('promotionRatio')),
         severeRatio: Number(form.get('severeRatio')),
         inactiveDays: Number(form.get('inactiveDays')),
         promotionEnabled: form.get('promotionEnabled') === 'on',
@@ -1140,7 +1220,7 @@ function StaffClubSettings({
       <section className="panel"><p className="muted">No clubs yet. Add one with a circle ID.</p></section>
     ) : (
       <section className="split-layout">
-        <form className="panel form-stack" onSubmit={submit} key={current.circleId}>
+        <form className="panel form-stack" onSubmit={submit} key={`${current.circleId}:${current.dynamicRequirement}:${current.rankGrade || ''}:${current.storedDailyTarget ?? current.dailyTarget}`}>
           <div><p className="eyebrow">Configuration</p><h2>Edit club settings</h2></div>
           <label>Club
             <select
@@ -1177,10 +1257,8 @@ function StaffClubSettings({
             {current.dynamicRequirement ? ` Live value: ${number.format(current.dailyTarget)} / member / day.` : ''}
           </p>
           <label>{current.dynamicRequirement ? 'Fallback daily requirement' : 'Daily requirement'}<input name="dailyTarget" type="number" min="0" required defaultValue={current.storedDailyTarget ?? current.dailyTarget} /></label>
-          <div className="field-row">
-            <label>Promotion ratio<input name="promotionRatio" type="number" min="1" step=".05" defaultValue={current.promotionRatio || 1.25} /></label>
-            <label>Severe ratio<input name="severeRatio" type="number" min="0" max="1" step=".05" defaultValue={current.severeRatio || .5} /></label>
-          </div>
+          <label>Severe ratio<input name="severeRatio" type="number" min="0" max="1" step=".05" defaultValue={current.severeRatio || .5} /></label>
+          <p className="muted">Promotion uses the next rank’s daily requirement. An A+ member is a promotion candidate once they reach the S clubs’ requirement.</p>
           <label>Inactive after days<input name="inactiveDays" type="number" min="1" defaultValue={current.inactiveDays || 3} /></label>
           <label className="check"><input name="promotionEnabled" type="checkbox" defaultChecked={current.promotionEnabled ?? true} /> Enable promotion-candidate assessments for this club</label>
           <p className="muted">Turn this off for your main club where members cannot be promoted further.</p>
@@ -1758,6 +1836,7 @@ function StaffPage() {
   const [directory, setDirectory] = useState<MemberDirectoryRow[]>([])
   const [staffPeople, setStaffPeople] = useState<Array<{ discordId: string; label: string; source: 'owner' | 'staff'; clubIds: string[] }>>([])
   const [theme, setTheme] = useState('blossom')
+  const [applyWebhookUrl, setApplyWebhookUrl] = useState('')
   const [profileUmaId, setProfileUmaId] = useState<string | null>(null)
   const [boardStatus, setBoardStatus] = useState('draft')
   const [error, setError] = useState('')
@@ -1792,6 +1871,7 @@ function StaffPage() {
       setTheme(clubPayload.theme)
       applySiteTheme(clubPayload.theme)
     }
+    setApplyWebhookUrl(clubPayload.applyWebhookUrl || '')
     setAssignments(plan.assignments)
     setBoardStatus(plan.board.status || 'draft')
     setBlacklist(blocked.entries)
@@ -1902,6 +1982,8 @@ function StaffPage() {
           directory={directory}
           staff={staffPeople}
           theme={theme}
+          clubs={clubs}
+          applyWebhookUrl={applyWebhookUrl}
           reload={safeReload}
         />
         <StaffClubSettings clubs={clubs} reload={safeReload} />

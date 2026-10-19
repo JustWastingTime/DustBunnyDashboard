@@ -6,7 +6,8 @@ export function assessMember(input: {
   dailyAverage: number
   dailyTarget: number
   lastUpdatedAt?: string | null
-  promotionRatio?: number
+  promotionTarget?: number | null
+  promotionTier?: string | null
   meetingRatio?: number
   severeRatio?: number
   inactiveDays?: number
@@ -17,7 +18,8 @@ export function assessMember(input: {
     dailyAverage,
     dailyTarget,
     lastUpdatedAt,
-    promotionRatio = 1.25,
+    promotionTarget = null,
+    promotionTier = null,
     meetingRatio = MEETING_RATIO,
     severeRatio = 0.5,
     inactiveDays = 3,
@@ -33,7 +35,9 @@ export function assessMember(input: {
   }
   const ratio = dailyTarget > 0 ? dailyAverage / dailyTarget : 1
   const reason = `${Math.round(ratio * 100)}% of daily requirement`
-  if (promotionEnabled && ratio >= promotionRatio) return { band: 'promotion', reason }
+  if (promotionEnabled && promotionTarget != null && promotionTarget > 0 && dailyAverage >= promotionTarget) {
+    return { band: 'promotion', reason: promotionTier ? `Meets ${promotionTier} requirement` : 'Meets next tier requirement' }
+  }
   if (ratio >= meetingRatio) return { band: 'meeting', reason }
   if (ratio < severeRatio) return { band: 'severe', reason }
   return { band: 'under', reason }

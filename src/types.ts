@@ -9,6 +9,11 @@ export type Club = {
   severeRatio: number
   inactiveDays: number
   promotionEnabled?: boolean
+  /** Daily average required to count as a promotion candidate: the next tier's join requirement. */
+  promotionTarget?: number | null
+  promotionTier?: string | null
+  /** Next-month planner roster, never above 30. */
+  plannedMembers?: number
   rank?: number | null
   yesterdayRank?: number | null
   /** Positions gained today (positive = rose). live vs yesterday. */
@@ -25,6 +30,10 @@ export type Club = {
   sortOrder?: number
   dynamicRequirement?: boolean
   storedDailyTarget?: number
+  showTotal?: boolean
+  showAvg?: boolean
+  showToday?: boolean
+  leaderboardChannelId?: string | null
   sourceUpdatedAt?: string | null
   syncedAt?: string | null
   members?: Member[]
