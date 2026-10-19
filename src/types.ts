@@ -44,7 +44,8 @@ export type Member = {
   reason: string
   discordId?: string | null
   former?: boolean
-  observedDays?: number
+  networkMonths?: number | null
+  historyIncomplete?: boolean
   firstSeenOn?: string | null
   lastSeenOn?: string | null
 }
@@ -149,7 +150,8 @@ export type MemberDirectoryRow = {
   lastCircleId: string | null
   firstSeenOn: string
   lastSeenOn: string
-  observedDays: number
+  networkMonths?: number | null
+  historyIncomplete?: boolean
   status: 'current' | 'former'
   discordId: string | null
 }
@@ -165,10 +167,12 @@ export type TrainerMiniProfile = {
   lastClubName: string | null
   firstSeenOn: string | null
   lastSeenOn: string | null
-  observedDays: number
-  networkMonths: number
-  firstNetworkMonth: string | null
-  lastNetworkMonth: string | null
+  observedDays?: number
+  networkMonths?: number | null
+  firstNetworkMonth?: string | null
+  lastNetworkMonth?: string | null
+  historyIncomplete?: boolean
+  historyNote?: string
   stints: Array<{
     circleId: string
     circleName: string
@@ -179,7 +183,6 @@ export type TrainerMiniProfile = {
     monthCount: number
   }>
   clubDays: Array<{ circleId: string; circleName: string; days: number; firstSeenOn: string; lastSeenOn: string }>
-  tournaments: Array<{ id: number; name: string; eventDate: string | null }>
   umaMoeUrl: string
 }
 

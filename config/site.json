@@ -10,6 +10,6 @@
   "applyBlocked": "This trainer cannot apply to this club network.",
   "discordFooter": "Club dashboard · pending review",
   "discordWebhookName": "Club Applications",
-  "tenureNote": "Time in any club in this network counts as one stay, even after moving between them. Months away from the network are not counted.",
+  "tenureNote": "Months in any registered club count together. uma.moe monthly history is the source, so months before it was tracking are missing.",
   "formerMemberReason": "Former club network member"
 }

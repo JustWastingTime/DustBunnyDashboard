@@ -99,15 +99,54 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
   background: linear-gradient(160deg, var(--club-card-2), var(--club-card));
   color: var(--club-text);
   box-shadow: 0 10px 22px rgba(36, 48, 44, 0.12);
-  cursor: pointer;
   text-align: left;
-  transition: border-color .15s ease, transform .15s ease;
 }
-.apply-club-pick:hover { transform: translateY(-1px); border-color: rgba(255, 248, 242, 0.18); }
 .apply-club-pick.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft), 0 10px 22px rgba(36, 48, 44, 0.12);
 }
+.apply-club-chosen {
+  color: var(--accent-dark, var(--accent));
+  background: #fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: .62rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.apply-club-options {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.apply-club-options legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.apply-club-option {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.apply-club-option.checked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.apply-club-option input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 3px;
+}
+.apply-club-option strong { display: block; font-size: .95rem; }
+.apply-club-option small { display: block; color: var(--muted); font-weight: 700; font-size: .75rem; }
 .club-pick-list {
   margin: 0;
   padding: 0;

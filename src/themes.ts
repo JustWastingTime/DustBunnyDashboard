@@ -18,10 +18,17 @@ export const THEMES: Array<{ id: ThemeId; label: string; hint: string; swatch: s
   { id: 'night', label: 'Night', hint: 'Dark mode', swatch: '#2a2428' },
 ]
 
+import { tenantFromPath } from './guild'
+
 const STORAGE_KEY = 'club-theme'
 
 export function applySiteTheme(theme?: string | null) {
-  const id = isThemeId(theme) ? theme : isThemeId(localStorage.getItem(STORAGE_KEY)) ? localStorage.getItem(STORAGE_KEY) as ThemeId : DEFAULT_THEME
+  const tenant = typeof window === 'undefined' ? '' : tenantFromPath()
+  const key = tenant ? `${STORAGE_KEY}:${tenant}` : STORAGE_KEY
+  const stored = localStorage.getItem(key) || (tenant ? localStorage.getItem(STORAGE_KEY) : null)
+  const id = isThemeId(theme)
+    ? theme
+    : isThemeId(stored) ? stored : DEFAULT_THEME
   document.documentElement.dataset.theme = id
-  if (isThemeId(theme)) localStorage.setItem(STORAGE_KEY, theme)
+  if (isThemeId(theme)) localStorage.setItem(key, theme)
 }

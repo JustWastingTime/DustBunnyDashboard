@@ -6,9 +6,7 @@ import {
 } from 'recharts'
 import { api } from './api'
 import { assessMember } from './assess'
-import { StaffTournaments } from './StaffTournaments'
 import { MemberProfileModal } from './MemberProfile'
-import { TourneyPage } from './TourneyPage'
 import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState, Member, MemberDirectoryRow, PublicData, Status } from './types'
 import { site, applyRuntimeSite } from './site'
 import { applySiteTheme, THEMES } from './themes'
@@ -35,6 +33,16 @@ function rankGradeLabel(grade?: string | null) {
 
 function byClubOrder<T extends { sortOrder?: number; name: string }>(clubs: T[]) {
   return [...clubs].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+}
+
+function flagshipClub<T extends { name: string; promotionEnabled?: boolean; rank?: number | null; sortOrder?: number }>(clubs: T[]) {
+  const ordered = byClubOrder(clubs)
+  const marked = ordered.find((club) => club.promotionEnabled === false)
+  if (marked) return marked
+  const ranked = ordered
+    .filter((club) => club.rank != null && Number.isFinite(club.rank) && club.rank > 0)
+    .sort((a, b) => Number(a.rank) - Number(b.rank))
+  return ranked[0] || ordered[0] || null
 }
 
 function applicantClubIds(applicant: { targetClubId: string; targetClubIds?: string[] | null }) {
@@ -150,11 +158,12 @@ function BandBadge({ band, reason, compact = false }: { band?: Band | null; reas
   </span>
 }
 
-function Header({ children, publicMode = false }: { children?: ReactNode; publicMode?: boolean }) {
+function Header({ children, publicMode = false, title }: { children?: ReactNode; publicMode?: boolean; title?: string }) {
+  const heading = title || (publicMode ? site.siteName : 'Club operations')
   return <header className="site-header">
     <div>
       <p className="eyebrow">{publicMode ? site.publicEyebrow : 'Local management workspace'}</p>
-      <h1>{publicMode ? site.siteName : 'Club operations'}</h1>
+      <h1>{heading}</h1>
       {publicMode ? (
         <p className="lede">A cozy look at how our clubs are doing — ranks, fans, and who’s applying next.</p>
       ) : null}
@@ -359,7 +368,8 @@ function MemberTable({
       reason: site.formerMemberReason,
       discordId: row.discordId,
       former: true,
-      observedDays: row.observedDays,
+      networkMonths: row.networkMonths,
+      historyIncomplete: row.historyIncomplete,
       firstSeenOn: row.firstSeenOn,
       lastSeenOn: row.lastSeenOn,
     }))
@@ -501,10 +511,10 @@ function MemberTable({
                 </td>
               ) : null}
               {onOpenProfile ? (
-                <td>
-                  {tracked
-                    ? `${tracked.observedDays}d tracked`
-                    : member.former ? `${member.observedDays || 0}d` : '—'}
+                <td title={tracked?.historyIncomplete ? 'uma.moe has no earlier months, so this is a minimum.' : 'Months in any registered club. Moves between clubs keep counting.'}>
+                  {tracked?.networkMonths != null
+                    ? `${tracked.networkMonths} mo${tracked.networkMonths === 1 ? '' : 's'}${tracked.historyIncomplete ? '+' : ''}`
+                    : '—'}
                 </td>
               ) : null}
               <td>{number.format(member.monthlyGain)}</td><td>{number.format(member.dailyAverage)}</td><td>+{number.format(member.todayGain)}</td>
@@ -559,26 +569,30 @@ function OverviewBody({ data }: { data: PublicData }) {
 
 function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
   const orderedClubs = useMemo(() => byClubOrder(clubs), [clubs])
+  const multiple = orderedClubs.length > 1
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [selectedClubIds, setSelectedClubIds] = useState<string[]>(orderedClubs[0] ? [orderedClubs[0].circleId] : [])
+  const [selectedClubIds, setSelectedClubIds] = useState<string[]>(() => (
+    orderedClubs.length === 1 ? [orderedClubs[0].circleId] : []
+  ))
   const selectedClubs = orderedClubs.filter((club) => selectedClubIds.includes(club.circleId))
   const selectedLabel = joinClubNames(selectedClubIds, new Map(orderedClubs.map((club) => [club.circleId, club.name])))
 
   const toggleClub = (circleId: string) => {
-    setSelectedClubIds((current) => {
-      if (current.includes(circleId)) {
-        return current.length === 1 ? current : current.filter((id) => id !== circleId)
-      }
-      return [...current, circleId]
-    })
+    setSelectedClubIds((current) => (
+      current.includes(circleId) ? current.filter((id) => id !== circleId) : [...current, circleId]
+    ))
   }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const formEl = event.currentTarget
     const form = new FormData(formEl)
+    if (!selectedClubIds.length) {
+      setError('Choose at least one club.')
+      return
+    }
     setBusy(true)
     setError('')
     setMessage('')
@@ -592,7 +606,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
       })
       setMessage('Application received. Managers will review it privately.')
       formEl.reset()
-      setSelectedClubIds(orderedClubs[0] ? [orderedClubs[0].circleId] : [])
+      setSelectedClubIds(orderedClubs.length === 1 ? [orderedClubs[0].circleId] : [])
     } catch (reason) {
       const text = (reason as Error).message || 'Could not submit the application.'
       if (/reading ['"]reset['"]/i.test(text)) {
@@ -609,26 +623,28 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
     <header className="apply-intro">
       <p className="eyebrow">Recruitment</p>
       <h2>{site.applyTitle}</h2>
-      <p className="muted">Select one or more clubs, then send your Uma ID and Discord username. One application can cover both S clubs or both A+ clubs. Managers review applications privately.</p>
+      <p className="muted">
+        {multiple
+          ? 'Check every club you want on the form. One application covers each club you check. Managers review it privately.'
+          : `This application goes to ${orderedClubs[0]?.name || 'the club'}. Managers review it privately.`}
+      </p>
     </header>
 
     <div className="apply-layout">
-      <aside className="apply-clubs" aria-label="Choose clubs">
+      <aside className="apply-clubs" aria-label="Club details">
         {orderedClubs.map((club) => {
           const memberCount = club.members?.length ?? 0
           const selected = selectedClubIds.includes(club.circleId)
-          return <button
+          return <article
             key={club.circleId}
-            type="button"
             className={`apply-club-pick ${selected ? 'selected' : ''}`}
             style={club.cardColor ? { borderColor: club.cardColor } : undefined}
-            onClick={() => toggleClub(club.circleId)}
-            aria-pressed={selected}
           >
             <div className="apply-club-copy">
               <div className="apply-club-title-row">
                 <strong>{club.name}</strong>
                 <span className="apply-club-rank">
+                  {selected ? <span className="apply-club-chosen">Selected</span> : null}
                   {club.rank != null ? `#${club.rank}` : '—'}
                   <RankDelta delta={club.rankDelta} />
                 </span>
@@ -649,17 +665,36 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
               </dl>
             </div>
             <ClubRankBadge key={club.rankGrade || 'none'} grade={club.rankGrade} />
-          </button>
+          </article>
         })}
       </aside>
 
       <section className="panel form-stack apply-form">
         <div>
           <p className="eyebrow">Your application</p>
-          <h2>Apply to {selectedLabel}</h2>
-          <p className="muted">{selectedClubs.length > 1 ? 'One application is sent for every selected club.' : 'Discord details stay off the public overview.'}</p>
+          <h2>{selectedClubIds.length ? `Apply to ${selectedLabel}` : 'Choose clubs'}</h2>
+          <p className="muted">{selectedClubs.length > 1 ? 'One application is sent for every checked club.' : 'Discord details stay off the public overview.'}</p>
         </div>
         <form className="form-stack" onSubmit={submit}>
+          {multiple ? (
+            <fieldset className="apply-club-options">
+              <legend>Clubs</legend>
+              {orderedClubs.map((club) => {
+                const checked = selectedClubIds.includes(club.circleId)
+                return <label key={club.circleId} className={`check apply-club-option ${checked ? 'checked' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleClub(club.circleId)}
+                  />
+                  <span>
+                    <strong>{club.name}</strong>
+                    <small>{compact.format(club.dailyTarget)}/day · {club.members?.length ?? 0}/30{club.rank != null ? ` · #${club.rank}` : ''}</small>
+                  </span>
+                </label>
+              })}
+            </fieldset>
+          ) : null}
           <div className="field-row">
             <label>Uma ID<input name="umaId" inputMode="numeric" pattern="\d+" required placeholder="123456789" /></label>
             <label>Discord username<input name="discordUsername" required minLength={2} maxLength={64} placeholder="name or name#0000" /></label>
@@ -667,7 +702,7 @@ function ApplyBody({ clubs }: { clubs: Array<Club & { members?: Member[] }> }) {
           <label>Notes for managers<textarea name="notes" rows={5} maxLength={2000} placeholder="Optional — availability, current club, anything managers should know" /></label>
           <div className="button-row">
             <button className="primary" disabled={busy || !selectedClubIds.length}>
-              {busy ? 'Submitting…' : `Submit to ${selectedLabel}`}
+              {busy ? 'Submitting…' : selectedClubIds.length ? `Submit to ${selectedLabel}` : 'Choose a club'}
             </button>
           </div>
         </form>
@@ -685,6 +720,7 @@ function PublicSite({ path, navigate }: { path: string; navigate: (to: string) =
   const isApply = !pagesOnly && path.startsWith('/apply')
 
   useEffect(() => {
+    applySiteTheme()
     let cancelled = false
     loadPublicDashboard()
       .then((payload) => {
@@ -700,11 +736,16 @@ function PublicSite({ path, navigate }: { path: string; navigate: (to: string) =
     if (data?.theme) applySiteTheme(data.theme)
   }, [data?.theme])
 
+  const pageTitle = data ? (flagshipClub(data.clubs)?.name || site.siteName) : site.siteName
+  useEffect(() => {
+    if (data) document.title = pageTitle
+  }, [data, pageTitle])
+
   if (error) return <main className="center-message"><h1>{site.siteName}</h1><p>{error}</p></main>
   if (!data) return <main className="center-message"><h1>{site.siteName}</h1><p>Gathering the latest club vibes…</p></main>
 
   return <main className="shell">
-    <Header publicMode>
+    <Header publicMode title={pageTitle}>
       <div className="button-row">
         <Freshness date={data.generatedAt} />
         {!pagesOnly && !isApply && (
@@ -1707,7 +1748,7 @@ function StaffBlacklist({
 function StaffPage() {
   const [auth, setAuth] = useState<'loading' | 'guest' | 'user'>('loading')
   const [userLabel, setUserLabel] = useState('')
-  const [tab, setTab] = useState<'overview' | 'applicants' | 'planner' | 'tournaments' | 'blacklist' | 'settings'>('applicants')
+  const [tab, setTab] = useState<'overview' | 'applicants' | 'planner' | 'blacklist' | 'settings'>('applicants')
   const [dashboard, setDashboard] = useState<PublicData | null>(null)
   const [applicants, setApplicants] = useState<Applicant[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
@@ -1722,6 +1763,8 @@ function StaffPage() {
   const [error, setError] = useState('')
   const params = new URLSearchParams(window.location.search)
   const loginError = params.get('error')
+
+  useEffect(() => { applySiteTheme() }, [])
 
   const reload = async () => {
     const me = await api.me()
@@ -1744,11 +1787,11 @@ function StaffPage() {
     setMemberLinks(clubPayload.memberLinks || [])
     setDirectory(clubPayload.directory || [])
     setStaffPeople(clubPayload.staff || [])
+    if (dash.theme) applySiteTheme(dash.theme)
     if (clubPayload.theme) {
       setTheme(clubPayload.theme)
       applySiteTheme(clubPayload.theme)
     }
-    if (dash.theme) applySiteTheme(dash.theme)
     setAssignments(plan.assignments)
     setBoardStatus(plan.board.status || 'draft')
     setBlacklist(blocked.entries)
@@ -1818,7 +1861,7 @@ function StaffPage() {
     </Header>
     {error && <p className="notice error">{error}</p>}
     <nav className="tabs" aria-label="Staff sections">
-      {(['overview', 'applicants', 'planner', 'tournaments', 'blacklist', 'settings'] as const).map((item) => (
+      {(['overview', 'applicants', 'planner', 'blacklist', 'settings'] as const).map((item) => (
         <button type="button" key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
       ))}
     </nav>
@@ -1848,9 +1891,6 @@ function StaffPage() {
         boardStatus={boardStatus}
         reload={safeReload}
       />
-    )}
-    {tab === 'tournaments' && (
-      <StaffTournaments clubs={clubs} members={members} reload={safeReload} />
     )}
     {tab === 'blacklist' && (
       <StaffBlacklist entries={blacklist} reload={safeReload} />
@@ -2365,15 +2405,9 @@ function TenantLanding() {
 
 function OnlineApp() {
   const { path, navigate } = usePath()
-  useEffect(() => {
-    api.me()
-      .then((payload) => applySiteTheme(payload.theme))
-      .catch(() => applySiteTheme())
-  }, [])
   if (path === '/admin' || path.startsWith('/admin/')) return <AdminApp path={path} navigate={navigate} />
   const rest = tenantFromPath(path) ? restPath(path) : path
   if (!tenantFromPath(path) && (path === '/' || path === '/g' || path === '/g/')) return <TenantLanding />
   if (rest.startsWith('/staff')) return <StaffPage />
-  if (rest.startsWith('/tourney')) return <TourneyPage path={rest} navigate={navigate} />
   return <PublicSite path={rest} navigate={navigate} />
 }

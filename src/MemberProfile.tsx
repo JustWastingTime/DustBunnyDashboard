@@ -6,7 +6,7 @@ import type { TrainerMiniProfile } from './types'
 const monthLabel = (year: number, month: number) =>
   new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' })
 
-function formatYm(value: string | null) {
+function formatYm(value: string | null | undefined) {
   if (!value) return '—'
   const [year, month] = value.split('-').map(Number)
   if (!year || !month) return value
@@ -33,6 +33,12 @@ export function MemberProfileModal({
     return () => { cancelled = true }
   }, [umaId])
 
+  const stints = profile?.stints || []
+  const months = profile?.networkMonths
+  const tenure = months == null
+    ? '—'
+    : `${months} month${months === 1 ? '' : 's'}${profile?.historyIncomplete ? '+' : ''}`
+
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <section className="panel mini-profile" role="dialog" aria-modal="true" aria-labelledby="mini-profile-title" onClick={(event) => event.stopPropagation()}>
       <div className="section-heading">
@@ -44,7 +50,7 @@ export function MemberProfileModal({
         <button type="button" onClick={onClose}>Close</button>
       </div>
       {error && <p className="notice error">{error}</p>}
-      {!profile && !error ? <p className="muted">Loading uma.moe + club history…</p> : null}
+      {!profile && !error ? <p className="muted">Loading uma.moe club history…</p> : null}
       {profile ? (
         <>
           <p className={`plan-status ${profile.status === 'current' ? 'plan-move' : 'plan-kick'}`}>
@@ -52,56 +58,29 @@ export function MemberProfileModal({
               ? `Current · ${profile.currentClubName || `${site.networkName} network`}`
               : profile.status === 'former'
                 ? `Former · last ${profile.lastClubName || `${site.networkName} club`}`
-                : 'Not in saved club history yet'}
+                : 'No months in a registered club'}
           </p>
           <dl className="apply-club-meta mini-profile-meta">
-            <div><dt>Network tenure</dt><dd>{profile.networkMonths ? `${profile.networkMonths} month${profile.networkMonths === 1 ? '' : 's'}` : '—'}</dd></div>
-            <div><dt>Since</dt><dd>{formatYm(profile.firstNetworkMonth) !== '—' ? formatYm(profile.firstNetworkMonth) : (profile.firstSeenOn || '—')}</dd></div>
-            <div><dt>Days observed</dt><dd>{profile.observedDays || '—'}</dd></div>
+            <div><dt>Network tenure</dt><dd>{tenure}</dd></div>
+            <div><dt>Since</dt><dd>{formatYm(profile.firstNetworkMonth)}</dd></div>
             <div><dt>Discord</dt><dd className="id" style={{ margin: 0 }}>{profile.discordId || '—'}</dd></div>
           </dl>
-          <p className="muted">{site.tenureNote}</p>
-          {profile.stints.length ? (
+          <p className="muted">{profile.historyNote || site.tenureNote}</p>
+          {stints.length ? (
             <div>
               <h3 className="mini-profile-sub">Club history</h3>
               <ul className="mini-profile-stints">
-                {profile.stints.map((stint, index) => (
+                {stints.map((stint, index) => (
                   <li key={`${stint.circleId}-${index}`}>
                     <strong>{stint.circleName}</strong>
                     <span>
                       {monthLabel(stint.startYear, stint.startMonth)}
                       {' – '}
-                      {profile.status === 'current' && index === profile.stints.length - 1
+                      {profile.status === 'current' && index === stints.length - 1
                         ? 'present'
                         : monthLabel(stint.endYear, stint.endMonth)}
                       {` · ${stint.monthCount} mo`}
                     </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {profile.clubDays.length ? (
-            <div>
-              <h3 className="mini-profile-sub">Tracked days</h3>
-              <ul className="mini-profile-stints">
-                {profile.clubDays.map((row) => (
-                  <li key={row.circleId}>
-                    <strong>{row.circleName}</strong>
-                    <span>{row.days} day{row.days === 1 ? '' : 's'} · {row.firstSeenOn} – {row.lastSeenOn}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {profile.tournaments.length ? (
-            <div>
-              <h3 className="mini-profile-sub">Tournaments</h3>
-              <ul className="mini-profile-stints">
-                {profile.tournaments.map((tournament) => (
-                  <li key={tournament.id}>
-                    <strong>{tournament.name}</strong>
-                    <span>{tournament.eventDate ? new Date(tournament.eventDate).toLocaleDateString() : '—'}</span>
                   </li>
                 ))}
               </ul>
