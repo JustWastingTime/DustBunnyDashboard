@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
-import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { DndContext, DragOverlay, pointerWithin, rectIntersection, useDraggable, useDroppable, type CollisionDetection, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
@@ -1312,6 +1312,28 @@ type PlannerEntity = {
   meta: string
   fallback: string
   sortValue: number
+  band?: Band | null
+  reason?: string
+}
+
+type PlannerSort = 'weakest' | 'fans' | 'moved'
+type PlannerBandFilter = 'all' | 'promotion' | 'under' | 'severe' | 'inactive'
+
+const BELOW_BANDS = new Set<Band>(['under', 'severe', 'inactive'])
+const BAND_ORDER: Record<Band, number> = { severe: 0, inactive: 1, under: 2, meeting: 3, promotion: 4 }
+const PLANNER_VIEW_KEY = 'planner-view'
+
+const plannerCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args)
+  return hits.length ? hits : rectIntersection(args)
+}
+
+function readPlannerView(): 'board' | 'checklist' {
+  try {
+    return localStorage.getItem(PLANNER_VIEW_KEY) === 'checklist' ? 'checklist' : 'board'
+  } catch {
+    return 'board'
+  }
 }
 
 function membersByUmaId(members: Member[]): Map<string, Member[]> {
@@ -1371,6 +1393,64 @@ function copyUmaId(umaId: string) {
   void navigator.clipboard.writeText(umaId).catch(() => undefined)
 }
 
+function copyUmaIds(ids: string[]) {
+  void navigator.clipboard.writeText(ids.join('\n')).catch(() => undefined)
+}
+
+function CopyIdButton({ umaId }: { umaId: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      className="id-copy"
+      onClick={() => {
+        copyUmaId(umaId)
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1200)
+      }}
+    >
+      {copied ? 'Copied' : umaId}
+    </button>
+  )
+}
+
+function CopyAllButton({ ids }: { ids: string[] }) {
+  const [copied, setCopied] = useState(false)
+  if (!ids.length) return null
+  return (
+    <button
+      type="button"
+      className="copy-all"
+      onClick={() => {
+        copyUmaIds(ids)
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1200)
+      }}
+    >
+      {copied ? 'Copied' : 'Copy all IDs'}
+    </button>
+  )
+}
+
+function comparePlannerEntities(
+  a: PlannerEntity,
+  b: PlannerEntity,
+  sortMode: PlannerSort,
+  destination: (entity: PlannerEntity) => string,
+) {
+  if (sortMode === 'moved') {
+    const aMoved = destination(a) !== a.fallback ? 1 : 0
+    const bMoved = destination(b) !== b.fallback ? 1 : 0
+    if (aMoved !== bMoved) return bMoved - aMoved
+    return b.sortValue - a.sortValue
+  }
+  if (sortMode === 'fans') return b.sortValue - a.sortValue
+  const aRank = a.band ? BAND_ORDER[a.band] : 5
+  const bRank = b.band ? BAND_ORDER[b.band] : 5
+  if (aRank !== bRank) return aRank - bRank
+  return a.sortValue - b.sortValue
+}
+
 function ActionChecklist({
   clubs,
   entities,
@@ -1385,62 +1465,109 @@ function ActionChecklist({
   focusClubId: string | 'all'
 }) {
   const visibleClubs = focusClubId === 'all' ? clubs : clubs.filter((club) => club.circleId === focusClubId)
-  return <section className="panel action-checklist">
-    <div className="section-heading">
-      <div>
-        <p className="eyebrow">Execute in game</p>
-        <h2>Kick / invite checklist</h2>
-        <p>At-a-glance lists for club leaders. Click an Uma ID to copy it.</p>
-      </div>
-    </div>
-    <div className="checklist-grid">
-      {visibleClubs.map((club) => {
-        const invites = entities.filter((entity) => {
-          const dest = destination(entity)
-          return dest === club.circleId && entity.fallback !== club.circleId
-        })
-        const removals = entities.filter((entity) => {
-          if (entity.fallback !== club.circleId) return false
-          const dest = destination(entity)
-          return dest === 'kick' || (dest !== club.circleId && !['waitlist', 'applicants', 'unassigned'].includes(dest))
-        })
-        return <article key={club.circleId} className="checklist-club">
-          <header>
-            <h3>{club.name}</h3>
-            <span>{invites.length} invite · {removals.length} remove</span>
-          </header>
-          <div className="checklist-columns">
-            <div>
-              <h4 className="checklist-invite">Invite ({invites.length})</h4>
-              {invites.length === 0 ? <p className="muted">None</p> : (
-                <ul>{invites.map((entity) => (
-                  <li key={entity.key}>
-                    <strong>{entity.name}</strong>
-                    <button type="button" className="id-copy" onClick={() => copyUmaId(entity.umaId)}>{entity.umaId}</button>
-                    <small>from {originLabel(entity.fallback)}</small>
-                  </li>
-                ))}</ul>
-              )}
-            </div>
-            <div>
-              <h4 className="checklist-remove">Kick / transfer out ({removals.length})</h4>
-              {removals.length === 0 ? <p className="muted">None</p> : (
-                <ul>{removals.map((entity) => {
-                  const dest = destination(entity)
-                  const label = dest === 'kick' ? 'Kick / remove' : `Transfer → ${originLabel(dest)}`
-                  return <li key={entity.key}>
-                    <strong>{entity.name}</strong>
-                    <button type="button" className="id-copy" onClick={() => copyUmaId(entity.umaId)}>{entity.umaId}</button>
-                    <small>{label}</small>
-                  </li>
-                })}</ul>
-              )}
-            </div>
-          </div>
+  return <div className="checklist-grid">
+    {visibleClubs.map((club) => {
+      const invites = entities.filter((entity) => {
+        const dest = destination(entity)
+        return dest === club.circleId && entity.fallback !== club.circleId
+      })
+      const removals = entities.filter((entity) => {
+        if (entity.fallback !== club.circleId) return false
+        const dest = destination(entity)
+        return dest === 'kick' || (dest !== club.circleId && !['waitlist', 'applicants', 'unassigned'].includes(dest))
+      })
+      if (!invites.length && !removals.length) {
+        return <article key={club.circleId} className="checklist-club checklist-quiet">
+          <h3>{club.name}</h3>
+          <p>No changes</p>
         </article>
-      })}
+      }
+      return <article key={club.circleId} className="checklist-club">
+        <header>
+          <h3>{club.name}</h3>
+          <span>{invites.length} invite · {removals.length} remove</span>
+        </header>
+        <div className="checklist-columns">
+          <ChecklistTable
+            title="Invite"
+            tone="checklist-invite"
+            entities={invites}
+            detail={(entity) => `from ${originLabel(entity.fallback)}`}
+          />
+          <ChecklistTable
+            title="Kick / transfer out"
+            tone="checklist-remove"
+            entities={removals}
+            detail={(entity) => {
+              const dest = destination(entity)
+              return dest === 'kick' ? 'Kick / remove' : `Transfer → ${originLabel(dest)}`
+            }}
+          />
+        </div>
+      </article>
+    })}
+  </div>
+}
+
+function ChecklistTable({
+  title,
+  tone,
+  entities,
+  detail,
+}: {
+  title: string
+  tone: string
+  entities: PlannerEntity[]
+  detail: (entity: PlannerEntity) => string
+}) {
+  return <div>
+    <div className="checklist-col-head">
+      <h4 className={tone}>{title} ({entities.length})</h4>
+      <CopyAllButton ids={entities.map((entity) => entity.umaId)} />
     </div>
-  </section>
+    {entities.length === 0 ? <p className="muted">None</p> : (
+      <table className="checklist-table">
+        <thead>
+          <tr><th>Name</th><th>Uma ID</th><th></th></tr>
+        </thead>
+        <tbody>
+          {entities.map((entity) => (
+            <tr key={entity.key}>
+              <td>{entity.name}</td>
+              <td><CopyIdButton umaId={entity.umaId} /></td>
+              <td>{detail(entity)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+}
+
+function TrayTab({
+  id,
+  title,
+  count,
+  active,
+  onSelect,
+}: {
+  id: string
+  title: string
+  count: number
+  active: boolean
+  onSelect: (id: string) => void
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `drop:${id}` })
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      className={`tray-tab ${active ? 'active' : ''} ${isOver ? 'over' : ''}`}
+      onClick={() => onSelect(id)}
+    >
+      {title}<span>{count}</span>
+    </button>
+  )
 }
 
 function StaffPlanner({
@@ -1460,6 +1587,10 @@ function StaffPlanner({
 }) {
   const clubNames = useMemo(() => new Map(clubs.map((club) => [club.circleId, club.name])), [clubs])
   const [checklistFilter, setChecklistFilter] = useState<string | 'all'>('all')
+  const [view, setView] = useState<'board' | 'checklist'>(readPlannerView)
+  const [sortMode, setSortMode] = useState<PlannerSort>('weakest')
+  const [bandFilter, setBandFilter] = useState<PlannerBandFilter>('all')
+  const [trayTab, setTrayTab] = useState<'applicants' | 'waitlist' | 'kick'>('applicants')
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
   const assignmentsRef = useRef(assignments)
   const saveChainRef = useRef(Promise.resolve())
@@ -1504,15 +1635,32 @@ function StaffPlanner({
   )
   const liveMembers = useMemo(() => uniqueLiveMembers(members, assignments), [members, assignments])
   const entities = useMemo<PlannerEntity[]>(() => [
-    ...liveMembers.map((member) => ({
-      key: `member:${member.umaId}`,
-      kind: 'member' as const,
-      umaId: member.umaId,
-      name: member.ign,
-      meta: `${compact.format(member.dailyAverage)}/d`,
-      fallback: member.circleId || 'applicants',
-      sortValue: member.dailyAverage,
-    })),
+    ...liveMembers.map((member) => {
+      const home = clubs.find((club) => club.circleId === member.circleId)
+      const assessed = home
+        ? assessMember({
+          dailyAverage: member.dailyAverage,
+          dailyTarget: home.dailyTarget,
+          lastUpdatedAt: member.lastUpdatedAt,
+          promotionTarget: home.promotionTarget,
+          promotionTier: home.promotionTier,
+          severeRatio: home.severeRatio,
+          inactiveDays: home.inactiveDays,
+          promotionEnabled: home.promotionEnabled,
+        })
+        : { band: member.band, reason: member.reason }
+      return {
+        key: `member:${member.umaId}`,
+        kind: 'member' as const,
+        umaId: member.umaId,
+        name: member.ign,
+        meta: `${compact.format(member.dailyAverage)}/d`,
+        fallback: member.circleId || 'applicants',
+        sortValue: member.dailyAverage,
+        band: assessed.band,
+        reason: assessed.reason,
+      }
+    }),
     ...applicants
       .filter((applicant) => (
         applicant.status !== 'rejected'
@@ -1527,8 +1675,10 @@ function StaffPlanner({
         meta: `${compact.format(applicant.dailyAverage)}/d · ${applicant.status}`,
         fallback: 'applicants',
         sortValue: applicant.dailyAverage,
+        band: null,
+        reason: '',
       })),
-  ], [liveMembers, applicants, memberIds, memberIgns])
+  ], [liveMembers, applicants, memberIds, memberIgns, clubs])
 
   const destination = (entity: PlannerEntity) => {
     const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
@@ -1542,6 +1692,7 @@ function StaffPlanner({
   }
 
   const resolveDropDestination = (overId: string) => {
+    if (overId.startsWith('drop:')) return overId.slice(5)
     if (!overId.includes(':')) return overId
     const overEntity = entities.find((entity) => entity.key === overId)
     return overEntity ? destination(overEntity) : null
@@ -1572,60 +1723,102 @@ function StaffPlanner({
         position: next.filter((item) => item.destination === dest).length,
       })
     }
+    if (dest === 'kick' || dest === 'applicants' || dest === 'waitlist') setTrayTab(dest)
     await persist(next)
   }
 
   const onDragCancel = () => setActiveDragId(null)
 
   const topLanes = clubs.map((club) => ({ id: club.circleId, title: club.name }))
-  const bottomLanes = [
-    { id: 'kick', title: 'Kick / remove' },
-    { id: 'applicants', title: 'Applicants' },
-    { id: 'waitlist', title: 'Waitlist' },
-  ]
 
   const cardsFor = (laneId: string) => entities
     .filter((entity) => destination(entity) === laneId)
-    .sort((a, b) => {
-      const aMoved = destination(a) !== a.fallback ? 1 : 0
-      const bMoved = destination(b) !== b.fallback ? 1 : 0
-      if (aMoved !== bMoved) return bMoved - aMoved
-      return b.sortValue - a.sortValue
-    })
+    .sort((a, b) => comparePlannerEntities(a, b, sortMode, destination))
+
+  const renderCard = (entity: PlannerEntity) => {
+    const dest = destination(entity)
+    const moved = dest !== entity.fallback
+    const related = checklistFilter !== 'all' && (
+      (dest === checklistFilter && entity.fallback !== checklistFilter)
+      || (entity.fallback === checklistFilter && dest !== checklistFilter)
+    )
+    const dim = bandFilter !== 'all' && entity.band !== bandFilter
+    const originClass = originTone(entity.fallback, clubNames.get(entity.fallback))
+    return <DraggableCard
+      key={entity.key}
+      id={entity.key}
+      name={entity.name}
+      meta={entity.meta}
+      umaId={entity.umaId}
+      kind={entity.kind}
+      moved={moved}
+      fromLabel={moved ? originLabel(entity.fallback) : null}
+      originClass={originClass}
+      band={entity.band}
+      reason={entity.reason}
+      compact
+      dim={dim}
+      related={related}
+    />
+  }
 
   const renderLane = (lane: { id: string; title: string }) => {
     const cards = cardsFor(lane.id)
-    const movedInLane = cards.filter((entity) => destination(entity) !== entity.fallback).length
-    return <Lane key={lane.id} id={lane.id} title={lane.title} count={cards.length} movedCount={movedInLane}>
-      {cards.map((entity) => {
-        const moved = destination(entity) !== entity.fallback
-        const originClass = originTone(entity.fallback, clubNames.get(entity.fallback))
-        return <DraggableCard
-          key={entity.key}
-          id={entity.key}
-          name={entity.name}
-          meta={entity.meta}
-          umaId={entity.umaId}
-          kind={entity.kind}
-          moved={moved}
-          fromLabel={moved ? originLabel(entity.fallback) : null}
-          originClass={originClass}
-        />
-      })}
+    const movedIn = cards.filter((entity) => destination(entity) !== entity.fallback).length
+    const movedOut = entities.filter((entity) => entity.fallback === lane.id && destination(entity) !== lane.id).length
+    const belowCount = cards.filter((entity) => entity.band && BELOW_BANDS.has(entity.band)).length
+    return <Lane
+      key={lane.id}
+      id={lane.id}
+      title={lane.title}
+      count={cards.length}
+      movedCount={movedIn}
+      movesOut={movedOut}
+      belowCount={belowCount}
+      focused={checklistFilter === lane.id}
+      compact
+    >
+      {cards.map(renderCard)}
     </Lane>
   }
 
+  const trayLanes = [
+    { id: 'applicants' as const, title: 'Applicants' },
+    { id: 'waitlist' as const, title: 'Waitlist' },
+    { id: 'kick' as const, title: 'Kick' },
+  ]
+  const trayCards = cardsFor(trayTab)
+
   const movedCount = entities.filter((entity) => destination(entity) !== entity.fallback).length
   const activeEntity = activeDragId ? entities.find((entity) => entity.key === activeDragId) : null
+
+  const chooseView = (next: 'board' | 'checklist') => {
+    setView(next)
+    try { localStorage.setItem(PLANNER_VIEW_KEY, next) } catch { /* ignore private mode */ }
+  }
+
+  const bandOptions: Array<{ value: PlannerBandFilter; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'promotion', label: 'Promotion' },
+    { value: 'under', label: 'Under' },
+    { value: 'severe', label: 'Severe' },
+    { value: 'inactive', label: 'Inactive' },
+  ]
 
   return <section className="planner staff-planner">
     <div className="planner-heading">
       <div>
         <p className="eyebrow">Draft assignments · {boardStatus}</p>
         <h2>Transfer planner</h2>
-        <p>Drag between clubs, kick, applicants, or waitlist. Checklist above is what leaders execute in game.</p>
+        <p>{view === 'board'
+          ? 'Drag members between clubs. Applicants, the waitlist, and kicks sit in the tray.'
+          : 'Who to invite and who to remove. Click an Uma ID to copy it.'}</p>
       </div>
       <div className="planner-actions">
+        <div className="view-toggle" role="group" aria-label="Planner view">
+          <button type="button" className={view === 'board' ? 'active' : ''} onClick={() => chooseView('board')}>Board</button>
+          <button type="button" className={view === 'checklist' ? 'active' : ''} onClick={() => chooseView('checklist')}>Checklist</button>
+        </div>
         <span className="move-summary">{movedCount} planned move{movedCount === 1 ? '' : 's'}</span>
         <button
           className="primary"
@@ -1648,7 +1841,7 @@ function StaffPlanner({
       </div>
     </div>
 
-    <div className="band-filter-row" role="group" aria-label="Checklist club filter">
+    <div className="band-filter-row" role="group" aria-label="Club filter">
       <button type="button" className={`band-chip ${checklistFilter === 'all' ? 'active' : ''}`} onClick={() => setChecklistFilter('all')}>
         All clubs<span>{clubs.length}</span>
       </button>
@@ -1664,31 +1857,78 @@ function StaffPlanner({
       ))}
     </div>
 
-    <ActionChecklist
-      clubs={clubs}
-      entities={entities}
-      destination={destination}
-      originLabel={originLabel}
-      focusClubId={checklistFilter}
-    />
+    {view === 'board' && (
+      <div className="planner-toolbar">
+        <div className="band-filter-row" role="group" aria-label="Performance filter">
+          {bandOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`band-chip ${bandFilter === option.value ? 'active' : ''} ${option.value !== 'all' ? `chip-${option.value}` : ''}`}
+              onClick={() => setBandFilter(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <label className="sort-control">Sort
+          <select value={sortMode} onChange={(event) => setSortMode(event.target.value as PlannerSort)}>
+            <option value="weakest">Weakest first</option>
+            <option value="fans">Fans high to low</option>
+            <option value="moved">Moved first</option>
+          </select>
+        </label>
+      </div>
+    )}
 
-    <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
-      <div className="lanes staff-lanes-top">{topLanes.map(renderLane)}</div>
-      <div className="lanes staff-lanes-bottom">{bottomLanes.map(renderLane)}</div>
-      <DragOverlay dropAnimation={null}>
-        {activeEntity ? (
-          <DragCardOverlay
-            name={activeEntity.name}
-            meta={activeEntity.meta}
-            umaId={activeEntity.umaId}
-            kind={activeEntity.kind}
-            moved={destination(activeEntity) !== activeEntity.fallback}
-            fromLabel={destination(activeEntity) !== activeEntity.fallback ? originLabel(activeEntity.fallback) : null}
-            originClass={originTone(activeEntity.fallback, clubNames.get(activeEntity.fallback))}
-          />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+    {view === 'checklist' ? (
+      <ActionChecklist
+        clubs={clubs}
+        entities={entities}
+        destination={destination}
+        originLabel={originLabel}
+        focusClubId={checklistFilter}
+      />
+    ) : (
+      <DndContext collisionDetection={plannerCollision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
+        <div className="planner-board" style={{ '--club-count': clubs.length } as CSSProperties}>
+          {topLanes.map(renderLane)}
+          <aside className="planner-tray">
+            <div className="tray-tabs" role="tablist" aria-label="Holding lanes">
+              {trayLanes.map((lane) => (
+                <TrayTab
+                  key={lane.id}
+                  id={lane.id}
+                  title={lane.title}
+                  count={cardsFor(lane.id).length}
+                  active={trayTab === lane.id}
+                  onSelect={(id) => setTrayTab(id as typeof trayTab)}
+                />
+              ))}
+            </div>
+            <Lane id={trayTab} title={trayLanes.find((lane) => lane.id === trayTab)?.title || ''} count={trayCards.length} movedCount={trayCards.filter((entity) => destination(entity) !== entity.fallback).length} compact hideTitle>
+              {trayCards.length === 0 ? <p className="muted tray-empty">None</p> : trayCards.map(renderCard)}
+            </Lane>
+          </aside>
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {activeEntity ? (
+            <DragCardOverlay
+              name={activeEntity.name}
+              meta={activeEntity.meta}
+              umaId={activeEntity.umaId}
+              kind={activeEntity.kind}
+              moved={destination(activeEntity) !== activeEntity.fallback}
+              fromLabel={destination(activeEntity) !== activeEntity.fallback ? originLabel(activeEntity.fallback) : null}
+              originClass={originTone(activeEntity.fallback, clubNames.get(activeEntity.fallback))}
+              band={activeEntity.band}
+              reason={activeEntity.reason}
+              compact
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    )}
   </section>
 }
 
@@ -2146,6 +2386,9 @@ function PlannerCardFace({
   fromLabel,
   originClass,
   kind,
+  band,
+  reason,
+  compact = false,
 }: {
   name: string
   meta: string
@@ -2154,12 +2397,23 @@ function PlannerCardFace({
   fromLabel?: string | null
   originClass?: string
   kind: 'member' | 'applicant'
+  band?: Band | null
+  reason?: string
+  compact?: boolean
 }) {
   const tag = moved && fromLabel
     ? <em className={`move-tag ${originClass || ''}`}>{fromLabel.replace(new RegExp(`\\s+${site.networkName}$`, 'i'), '')}</em>
     : kind === 'applicant' && !moved
       ? <em className="move-tag origin-applicant">applicant</em>
       : null
+  if (compact) {
+    return <div className="drag-card-row">
+      {band ? <i className={`band-dot band-${band}`} title={reason || ''} /> : null}
+      <strong title={reason || umaId}>{name}</strong>
+      <span>{meta}</span>
+      {tag}
+    </div>
+  }
   return <div className="drag-card-top">
     <div className="drag-main">
       <strong title={umaId}>{name}</strong>
@@ -2178,6 +2432,11 @@ function DraggableCard({
   fromLabel,
   originClass,
   kind,
+  band,
+  reason,
+  compact = false,
+  dim = false,
+  related = false,
 }: {
   id: string
   name: string
@@ -2187,11 +2446,17 @@ function DraggableCard({
   fromLabel?: string | null
   originClass?: string
   kind: 'member' | 'applicant'
+  band?: Band | null
+  reason?: string
+  compact?: boolean
+  dim?: boolean
+  related?: boolean
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
   return <article
     ref={setNodeRef}
-    className={`drag-card ${kind} ${moved ? 'moved' : ''} ${originClass || ''} ${isDragging ? 'dragging' : ''}`}
+    className={`drag-card ${kind} ${moved ? 'moved' : ''} ${originClass || ''} ${band ? `band-${band}` : ''} ${compact ? 'compact-row' : ''} ${dim ? 'card-dim' : ''} ${related ? 'card-related' : ''} ${isDragging ? 'dragging' : ''}`}
+    title={reason || undefined}
     {...listeners}
     {...attributes}
   >
@@ -2203,6 +2468,9 @@ function DraggableCard({
       fromLabel={fromLabel}
       originClass={originClass}
       kind={kind}
+      band={band}
+      reason={reason}
+      compact={compact}
     />
   </article>
 }
@@ -2215,6 +2483,9 @@ function DragCardOverlay({
   fromLabel,
   originClass,
   kind,
+  band,
+  reason,
+  compact = false,
 }: {
   name: string
   meta: string
@@ -2223,8 +2494,11 @@ function DragCardOverlay({
   fromLabel?: string | null
   originClass?: string
   kind: 'member' | 'applicant'
+  band?: Band | null
+  reason?: string
+  compact?: boolean
 }) {
-  return <article className={`drag-card drag-overlay-card ${kind} ${moved ? 'moved' : ''} ${originClass || ''}`}>
+  return <article className={`drag-card drag-overlay-card ${kind} ${moved ? 'moved' : ''} ${originClass || ''} ${band ? `band-${band}` : ''} ${compact ? 'compact-row' : ''}`}>
     <PlannerCardFace
       name={name}
       meta={meta}
@@ -2233,21 +2507,53 @@ function DragCardOverlay({
       fromLabel={fromLabel}
       originClass={originClass}
       kind={kind}
+      band={band}
+      reason={reason}
+      compact={compact}
     />
   </article>
 }
 
-function Lane({ id, title, count, movedCount, children }: { id: string; title: string; count: number; movedCount: number; children: ReactNode }) {
+function Lane({
+  id,
+  title,
+  count,
+  movedCount,
+  movesOut,
+  belowCount = 0,
+  focused = false,
+  hideTitle = false,
+  children,
+}: {
+  id: string
+  title: string
+  count: number
+  movedCount: number
+  movesOut?: number
+  belowCount?: number
+  focused?: boolean
+  compact?: boolean
+  hideTitle?: boolean
+  children: ReactNode
+}) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const capped = !['waitlist', 'kick', 'applicants', 'unassigned'].includes(id)
-  return <section ref={setNodeRef} className={`lane ${isOver ? 'over' : ''}`}>
-    <header>
-      <div>
-        <h3>{title}</h3>
-        {movedCount > 0 ? <small className="lane-moves">{movedCount} move{movedCount === 1 ? '' : 's'}</small> : null}
-      </div>
-      <span className={capped && count > 30 ? 'capacity-error' : ''}>{count}{capped && '/30'}</span>
-    </header>
+  const moveLine = movesOut !== undefined
+    ? (movedCount > 0 || movesOut > 0 ? `${movedCount} in · ${movesOut} out` : null)
+    : (movedCount > 0 ? `${movedCount} move${movedCount === 1 ? '' : 's'}` : null)
+  return <section ref={setNodeRef} className={`lane ${isOver ? 'over' : ''} ${focused ? 'lane-focus' : ''}`}>
+    {hideTitle ? null : (
+      <header>
+        <div>
+          <h3>{title}</h3>
+          <span className="lane-stats">
+            {moveLine ? <small className="lane-moves">{moveLine}</small> : null}
+            {belowCount > 0 ? <small className="lane-below">{belowCount} below</small> : null}
+          </span>
+        </div>
+        <span className={capped && count > 30 ? 'capacity-error' : ''}>{count}{capped && '/30'}</span>
+      </header>
+    )}
     <div className="lane-cards">{children}</div>
   </section>
 }
