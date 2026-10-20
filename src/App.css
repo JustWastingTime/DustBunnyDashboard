@@ -458,14 +458,14 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 .drag-card.moved.origin-dusk { border-color: #b89bcb; border-left-color: #6b4688; background: #f4eef8; }
 .drag-card.moved.origin-applicant { border-color: #f0b8cb; border-left-color: #c45d7a; background: #fff0f5; }
 .drag-card.applicant:not(.moved) { border-style: dashed; }
-.drag-card.compact-row { min-height: 0; padding: 7px 8px; }
-.drag-card-stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.drag-card-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.drag-card-row strong { flex: 1 1 auto; min-width: 0; font-size: .78rem; }
+.drag-card.compact-row { min-height: 52px; padding: 10px 12px; }
+.drag-card-stack { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; }
+.drag-card-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.drag-card-row strong { flex: 1 1 auto; min-width: 0; font-size: .95rem; line-height: 1.35; }
 .drag-card-sub { justify-content: space-between; }
-.drag-card-sub > span { font-size: .68rem; }
-.planner-board .lane-cards { gap: 6px; padding: 2px; }
-.band-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.drag-card-sub > span { font-size: .8rem; line-height: 1.3; }
+.planner-board .lane-cards { gap: 10px; padding: 4px 2px 8px; }
+.band-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
 .band-dot.band-promotion { background: #c45d7a; }
 .band-dot.band-meeting { background: #3d6f9a; }
 .band-dot.band-under { background: #835816; }
@@ -485,9 +485,10 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 .sort-control select { padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .planner-board {
   display: grid;
-  grid-template-columns: repeat(var(--club-count, 5), minmax(0, 1fr)) 260px;
-  gap: 8px;
+  grid-template-columns: repeat(var(--club-count, 5), minmax(220px, 1fr)) 260px;
+  gap: 12px;
   align-items: stretch;
+  overflow-x: auto;
 }
 .planner-board > .lane,
 .planner-tray {
@@ -530,7 +531,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 .json-grid h3 { font-size: .82rem; }.json-grid pre { margin: 0; max-height: 55vh; overflow: auto; padding: 16px; border-radius: 5px; background: #182127; color: #dfe9e5; font-size: .72rem; line-height: 1.55; }
 
 @media (max-width: 1200px) {
-  .planner-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .planner-board { grid-template-columns: repeat(3, minmax(200px, 1fr)); }
   .planner-tray { grid-column: 1 / -1; height: 280px; min-height: 0; }
 }
 @media (max-width: 900px) {
