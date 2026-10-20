@@ -1321,6 +1321,18 @@ type PlannerBandFilter = 'all' | 'promotion' | 'under' | 'severe' | 'inactive'
 
 const BELOW_BANDS = new Set<Band>(['under', 'severe', 'inactive'])
 const BAND_ORDER: Record<Band, number> = { severe: 0, inactive: 1, under: 2, meeting: 3, promotion: 4 }
+const BAND_LABEL: Record<Band, string> = {
+  promotion: 'Promotion candidate',
+  meeting: 'Meeting the daily requirement',
+  under: 'Under the daily requirement',
+  severe: 'Severely under',
+  inactive: 'Inactive',
+}
+
+function bandTitle(band?: Band | null, reason?: string) {
+  if (!band) return reason || ''
+  return reason ? `${BAND_LABEL[band]} · ${reason}` : BAND_LABEL[band]
+}
 const PLANNER_VIEW_KEY = 'planner-view'
 
 const plannerCollision: CollisionDetection = (args) => {
@@ -1572,7 +1584,7 @@ function StaffPlanner({
   const clubNames = useMemo(() => new Map(clubs.map((club) => [club.circleId, club.name])), [clubs])
   const [checklistFilter, setChecklistFilter] = useState<string | 'all'>('all')
   const [view, setView] = useState<'board' | 'checklist'>(readPlannerView)
-  const [sortMode, setSortMode] = useState<PlannerSort>('weakest')
+  const [sortMode, setSortMode] = useState<PlannerSort>('moved')
   const [bandFilter, setBandFilter] = useState<PlannerBandFilter>('all')
   const [trayTab, setTrayTab] = useState<'applicants' | 'waitlist' | 'kick'>('applicants')
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
@@ -2392,8 +2404,8 @@ function PlannerCardFace({
   if (compact) {
     return <div className="drag-card-stack">
       <div className="drag-card-row">
-        {band ? <i className={`band-dot band-${band}`} title={reason || ''} /> : null}
-        <strong title={reason || umaId}>{name}</strong>
+        {band ? <i className={`band-dot band-${band}`} title={bandTitle(band, reason)} /> : null}
+        <strong title={bandTitle(band, reason) || umaId}>{name}</strong>
       </div>
       <div className="drag-card-row drag-card-sub">
         <span>{meta}</span>
