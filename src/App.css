@@ -230,23 +230,21 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
 .club-pick .club-card { height: 100%; }
 .staff-login .button-row { justify-content: center; margin-top: 18px; }
 .action-checklist { margin-bottom: 18px; }
-.checklist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
-.checklist-club { background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
-.checklist-club > header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 10px; }
-.checklist-club h3 { margin: 0; font-size: .95rem; }
-.checklist-club > header span { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.checklist-wrap { display: flex; flex-direction: column; gap: 10px; }
+.checklist-toolbar { display: flex; justify-content: flex-end; }
+.checklist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: start; }
+.checklist-club { background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+.checklist-club > header { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+.checklist-club h3 { margin: 0; font-size: .9rem; }
+.checklist-club h4 { margin: 8px 0 4px; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; }
 .checklist-quiet { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .checklist-quiet p { margin: 0; color: var(--muted); font-size: .78rem; }
-.checklist-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.checklist-col-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; }
-.checklist-columns h4 { margin: 0; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
 .checklist-invite { color: #c45d7a; }
 .checklist-remove { color: #8d3030; }
-.copy-all { padding: 2px 8px; border-radius: 8px; font-size: .64rem; }
-.checklist-table { width: 100%; min-width: 0; }
-.checklist-table th, .checklist-table td { padding: 4px 6px; font-size: .72rem; text-transform: none; letter-spacing: 0; border-bottom: 1px solid var(--line); }
-.checklist-table td:last-child { color: var(--muted); }
-.checklist-table .id-copy { margin: 0; }
+.checklist-names { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.checklist-names li { font-size: .8rem; line-height: 1.25; }
+.checklist-names .id-copy { margin: 0; font-size: .68rem; }
+.copy-all { padding: 4px 10px; border-radius: 8px; font-size: .72rem; }
 .staff-lanes-top {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -460,10 +458,13 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 .drag-card.moved.origin-dusk { border-color: #b89bcb; border-left-color: #6b4688; background: #f4eef8; }
 .drag-card.moved.origin-applicant { border-color: #f0b8cb; border-left-color: #c45d7a; background: #fff0f5; }
 .drag-card.applicant:not(.moved) { border-style: dashed; }
-.drag-card.compact-row { min-height: 0; padding: 3px 6px; }
-.drag-card-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.drag-card-row strong { flex: 1 1 auto; min-width: 0; }
-.drag-card-row > span { flex: 0 0 auto; }
+.drag-card.compact-row { min-height: 0; padding: 7px 8px; }
+.drag-card-stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.drag-card-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.drag-card-row strong { flex: 1 1 auto; min-width: 0; font-size: .78rem; }
+.drag-card-sub { justify-content: space-between; }
+.drag-card-sub > span { font-size: .68rem; }
+.planner-board .lane-cards { gap: 6px; padding: 2px; }
 .band-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .band-dot.band-promotion { background: #c45d7a; }
 .band-dot.band-meeting { background: #3d6f9a; }
@@ -550,7 +551,7 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   .planner-board { grid-template-columns: 1fr; }
   .planner-board > .lane { height: 360px; }
   .planner-tray { height: 280px; }
-  .checklist-columns { grid-template-columns: 1fr; }
+  .checklist-grid { grid-template-columns: 1fr 1fr; }
   .apply-club-options { grid-template-columns: 1fr; }
   .stack-list article { grid-template-columns: 1fr auto; }.filters { width: 100%; }.filters input, .filters select { width: 100%; }
 }

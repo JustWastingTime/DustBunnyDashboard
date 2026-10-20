@@ -1393,10 +1393,6 @@ function copyUmaId(umaId: string) {
   void navigator.clipboard.writeText(umaId).catch(() => undefined)
 }
 
-function copyUmaIds(ids: string[]) {
-  void navigator.clipboard.writeText(ids.join('\n')).catch(() => undefined)
-}
-
 function CopyIdButton({ umaId }: { umaId: string }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -1414,22 +1410,35 @@ function CopyIdButton({ umaId }: { umaId: string }) {
   )
 }
 
-function CopyAllButton({ ids }: { ids: string[] }) {
+function CopyTextButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false)
-  if (!ids.length) return null
   return (
     <button
       type="button"
       className="copy-all"
       onClick={() => {
-        copyUmaIds(ids)
+        void navigator.clipboard.writeText(text).catch(() => undefined)
         setCopied(true)
         window.setTimeout(() => setCopied(false), 1200)
       }}
     >
-      {copied ? 'Copied' : 'Copy all IDs'}
+      {copied ? 'Copied' : label}
     </button>
   )
+}
+
+function byName(a: PlannerEntity, b: PlannerEntity) {
+  return a.name.localeCompare(b.name)
+}
+
+function checklistMessage(clubName: string, kicks: PlannerEntity[], invites: PlannerEntity[]) {
+  const lines = [clubName, '', 'Kick']
+  if (!kicks.length) lines.push('None')
+  else kicks.forEach((entity) => lines.push(entity.name))
+  lines.push('', 'Invite')
+  if (!invites.length) lines.push('None')
+  else invites.forEach((entity) => lines.push(`${entity.name} — ${entity.umaId}`))
+  return lines.join('\n')
 }
 
 function comparePlannerEntities(
@@ -1455,92 +1464,67 @@ function ActionChecklist({
   clubs,
   entities,
   destination,
-  originLabel,
   focusClubId,
 }: {
   clubs: Club[]
   entities: PlannerEntity[]
   destination: (entity: PlannerEntity) => string
-  originLabel: (fallback: string) => string
   focusClubId: string | 'all'
 }) {
   const visibleClubs = focusClubId === 'all' ? clubs : clubs.filter((club) => club.circleId === focusClubId)
-  return <div className="checklist-grid">
-    {visibleClubs.map((club) => {
-      const invites = entities.filter((entity) => {
-        const dest = destination(entity)
-        return dest === club.circleId && entity.fallback !== club.circleId
-      })
-      const removals = entities.filter((entity) => {
-        if (entity.fallback !== club.circleId) return false
-        const dest = destination(entity)
-        return dest === 'kick' || (dest !== club.circleId && !['waitlist', 'applicants', 'unassigned'].includes(dest))
-      })
-      if (!invites.length && !removals.length) {
-        return <article key={club.circleId} className="checklist-club checklist-quiet">
-          <h3>{club.name}</h3>
-          <p>No changes</p>
-        </article>
-      }
-      return <article key={club.circleId} className="checklist-club">
-        <header>
-          <h3>{club.name}</h3>
-          <span>{invites.length} invite · {removals.length} remove</span>
-        </header>
-        <div className="checklist-columns">
-          <ChecklistTable
-            title="Invite"
-            tone="checklist-invite"
-            entities={invites}
-            detail={(entity) => `from ${originLabel(entity.fallback)}`}
-          />
-          <ChecklistTable
-            title="Kick / transfer out"
-            tone="checklist-remove"
-            entities={removals}
-            detail={(entity) => {
-              const dest = destination(entity)
-              return dest === 'kick' ? 'Kick / remove' : `Transfer → ${originLabel(dest)}`
-            }}
-          />
-        </div>
-      </article>
-    })}
-  </div>
-}
-
-function ChecklistTable({
-  title,
-  tone,
-  entities,
-  detail,
-}: {
-  title: string
-  tone: string
-  entities: PlannerEntity[]
-  detail: (entity: PlannerEntity) => string
-}) {
-  return <div>
-    <div className="checklist-col-head">
-      <h4 className={tone}>{title} ({entities.length})</h4>
-      <CopyAllButton ids={entities.map((entity) => entity.umaId)} />
+  const sections = visibleClubs.map((club) => {
+    const invites = entities.filter((entity) => {
+      const dest = destination(entity)
+      return dest === club.circleId && entity.fallback !== club.circleId
+    }).sort(byName)
+    const kicks = entities.filter((entity) => {
+      if (entity.fallback !== club.circleId) return false
+      const dest = destination(entity)
+      return dest === 'kick' || (dest !== club.circleId && !['waitlist', 'applicants', 'unassigned'].includes(dest))
+    }).sort(byName)
+    return { club, invites, kicks }
+  })
+  const paste = sections
+    .filter((section) => section.invites.length || section.kicks.length)
+    .map((section) => checklistMessage(section.club.name, section.kicks, section.invites))
+    .join('\n\n')
+  return <div className="checklist-wrap">
+    <div className="checklist-toolbar">
+      <CopyTextButton text={paste || 'No planned moves.'} label="Copy all" />
     </div>
-    {entities.length === 0 ? <p className="muted">None</p> : (
-      <table className="checklist-table">
-        <thead>
-          <tr><th>Name</th><th>Uma ID</th><th></th></tr>
-        </thead>
-        <tbody>
-          {entities.map((entity) => (
-            <tr key={entity.key}>
-              <td>{entity.name}</td>
-              <td><CopyIdButton umaId={entity.umaId} /></td>
-              <td>{detail(entity)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
+    <div className="checklist-grid">
+      {sections.map(({ club, invites, kicks }) => {
+        if (!invites.length && !kicks.length) {
+          return <article key={club.circleId} className="checklist-club checklist-quiet">
+            <h3>{club.name}</h3>
+            <p>No changes</p>
+          </article>
+        }
+        return <article key={club.circleId} className="checklist-club">
+          <header>
+            <h3>{club.name}</h3>
+            <CopyTextButton text={checklistMessage(club.name, kicks, invites)} label="Copy" />
+          </header>
+          <h4 className="checklist-remove">Kick ({kicks.length})</h4>
+          {kicks.length === 0 ? <p className="muted">None</p> : (
+            <ul className="checklist-names">
+              {kicks.map((entity) => <li key={entity.key}>{entity.name}</li>)}
+            </ul>
+          )}
+          <h4 className="checklist-invite">Invite ({invites.length})</h4>
+          {invites.length === 0 ? <p className="muted">None</p> : (
+            <ul className="checklist-names">
+              {invites.map((entity) => (
+                <li key={entity.key}>
+                  <span>{entity.name}</span>
+                  <CopyIdButton umaId={entity.umaId} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      })}
+    </div>
   </div>
 }
 
@@ -1812,7 +1796,7 @@ function StaffPlanner({
         <h2>Transfer planner</h2>
         <p>{view === 'board'
           ? 'Drag members between clubs. Applicants, the waitlist, and kicks sit in the tray.'
-          : 'Who to invite and who to remove. Click an Uma ID to copy it.'}</p>
+          : 'Kicks on top, invites underneath. Copy all pastes a message you can send to the leaders.'}</p>
       </div>
       <div className="planner-actions">
         <div className="view-toggle" role="group" aria-label="Planner view">
@@ -1886,7 +1870,6 @@ function StaffPlanner({
         clubs={clubs}
         entities={entities}
         destination={destination}
-        originLabel={originLabel}
         focusClubId={checklistFilter}
       />
     ) : (
@@ -2407,11 +2390,15 @@ function PlannerCardFace({
       ? <em className="move-tag origin-applicant">applicant</em>
       : null
   if (compact) {
-    return <div className="drag-card-row">
-      {band ? <i className={`band-dot band-${band}`} title={reason || ''} /> : null}
-      <strong title={reason || umaId}>{name}</strong>
-      <span>{meta}</span>
-      {tag}
+    return <div className="drag-card-stack">
+      <div className="drag-card-row">
+        {band ? <i className={`band-dot band-${band}`} title={reason || ''} /> : null}
+        <strong title={reason || umaId}>{name}</strong>
+      </div>
+      <div className="drag-card-row drag-card-sub">
+        <span>{meta}</span>
+        {tag}
+      </div>
     </div>
   }
   return <div className="drag-card-top">
