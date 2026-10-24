@@ -32,6 +32,21 @@
 .admin-shell a { color: var(--accent); }
 .admin-banner { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: .75rem 1rem; margin-bottom: 1rem; }
 .admin-grid { display: grid; gap: .75rem; }
+.admin-editor { max-width: 46rem; display: grid; gap: .75rem; }
+.admin-editor.with-card { max-width: 76rem; }
+.editor-desk { display: grid; grid-template-columns: minmax(0, 42rem) 280px; gap: 1.25rem; align-items: start; }
+.editor-form { display: grid; gap: .75rem; min-width: 0; }
+.portrait-card { position: sticky; top: 1rem; background: #0c1016; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.portrait-frame { min-height: 220px; display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #314056, #0c1016 68%); }
+.portrait-frame img { width: 100%; max-height: 360px; object-fit: contain; display: block; }
+.portrait-frame p, .portrait-sheet p { margin: 0; color: var(--muted); font-size: .85rem; }
+.portrait-sheet { display: grid; gap: .55rem; padding: .85rem .9rem 1rem; }
+.portrait-sheet strong { font-size: 1.05rem; }
+.admin-shell a.portrait-link { display: inline-flex; justify-content: center; align-items: center; min-height: 2.4rem; padding: .4rem .7rem; border-radius: 8px; background: var(--accent-dark); color: #062117; font-weight: 650; text-decoration: none; }
+.portrait-link:focus-visible, .sibling-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sibling-list { display: grid; gap: .35rem; max-height: 16rem; overflow: auto; }
+.sibling-list button { display: grid; gap: .1rem; text-align: left; width: 100%; background: var(--surface); }
+.sibling-list button small { color: var(--muted); font-size: .78rem; }
 .admin-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .admin-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .35rem; }
 .admin-list a, .admin-list button.linkish { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .7rem; color: inherit; text-decoration: none; display: block; }
@@ -136,6 +151,8 @@
 }
 @media (max-width: 800px) {
   .admin-shell { grid-template-columns: 1fr; }
+  .editor-desk { grid-template-columns: 1fr; }
+  .portrait-card { position: static; }
   .admin-split, .field-pair, .stat-grid, .entry-head, .entry-row, .activation-fields { grid-template-columns: 1fr; }
   .skill-row { grid-template-columns: 32px 1fr; }
   .skill-row .muted, .skill-row em { grid-column: 2; }

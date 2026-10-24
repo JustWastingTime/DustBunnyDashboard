@@ -76,7 +76,7 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
     } finally { setBusy(false) }
   }
 
-  return <section className="admin-grid">
+  return <section className="admin-editor">
     <h1>{creating ? 'New skill' : String(draft.skill_name || 'Skill')}</h1>
     {loaded.error && <p className="notice error">{loaded.error}</p>}
     <div className="admin-row">
