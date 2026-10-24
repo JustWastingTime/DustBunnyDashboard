@@ -24,6 +24,8 @@
 .admin-main { padding: 1.25rem 1.5rem 3rem; }
 .admin-main h1 { font-weight: 600; letter-spacing: -.02em; margin: 0; }
 .admin-shell button, .admin-shell input, .admin-shell select, .admin-shell textarea { font: inherit; color: var(--ink); }
+.admin-shell select { background: var(--surface); }
+.admin-shell select option { background: #fff; color: #1b2430; }
 .admin-shell button { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: .4rem .7rem; cursor: pointer; transition-property: transform, background-color, border-color, color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); }
 .admin-shell button:active { transform: scale(0.96); }
 .admin-shell button.primary { background: var(--accent-dark); border-color: transparent; color: #062117; font-weight: 600; }

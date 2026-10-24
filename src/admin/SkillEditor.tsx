@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { AdminError, adminApi } from './api'
 import { ActivationMapEditor } from './ActivationMapEditor'
 import { suggestActivationMap } from './lib/activationMap'
@@ -7,7 +7,7 @@ import { Area, Choice, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedE
 import { SKILL_CATEGORIES, SKILL_RARITIES } from './icons'
 import { SkillMapPreview } from './tools/SkillMapPreview'
 
-type Effect = { description?: string; conditions?: string[] }
+type Effect = { description?: string; conditions?: string[]; preconditions?: string[]; inherited?: string }
 
 export function SkillEditor({ entryKey, creating, owner, navigate }: {
   entryKey?: string
@@ -24,7 +24,21 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
   const [rawMode, setRawMode] = useState(false)
   const [rawText, setRawText] = useState('')
   const [codeByEffect, setCodeByEffect] = useState<Record<number, string>>({})
+  const [skillNames, setSkillNames] = useState<string[]>([])
   const original = loaded.baseline
+
+  useEffect(() => {
+    let cancelled = false
+    adminApi.publicList('skills', '', 5000)
+      .then((payload) => {
+        if (cancelled) return
+        const names = payload.entries.map((item) => item.skill_name).filter(Boolean)
+        names.sort((a, b) => a.localeCompare(b))
+        setSkillNames(names)
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [])
 
   if (loaded.loading) return <p>Loading skill…</p>
   if (!entry) return <p className="notice error">{loaded.error || 'Skill not found.'}</p>
@@ -32,6 +46,19 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
   const draft = rawMode ? safeParse(rawText, entry) : entry
   const effects = Array.isArray(draft.effect) ? draft.effect as Effect[] : []
   const set = (patch: Record<string, unknown>) => loaded.setEntry({ ...draft, ...patch })
+  const setNameLink = (key: 'upgrade' | 'downgrade', value: string) => {
+    const next = { ...draft }
+    if (value.trim()) next[key] = value
+    else delete next[key]
+    loaded.setEntry(next)
+  }
+  const writeEffect = (index: number, patch: Partial<Effect>) => {
+    const next = effects.slice()
+    const updated: Effect = { ...effects[index], ...patch }
+    if (!updated.preconditions?.length) delete updated.preconditions
+    next[index] = updated
+    set({ effect: next })
+  }
 
   const save = async () => {
     setBusy(true); setConflict(''); setWarnings([])
@@ -62,22 +89,18 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
         <Choice label="Rarity" value={String(draft.rarity || 'normal')} options={SKILL_RARITIES} disabled={!owner} onChange={(rarity) => set({ rarity })} />
         <Choice label="Category" value={String(draft.category || 'speed')} options={SKILL_CATEGORIES} disabled={!owner} onChange={(category) => set({ category })} />
       </div>
-      <Text label="Upgrade" value={String(draft.upgrade || '')} disabled={!owner} onChange={(upgrade) => set({ upgrade })} />
+      <div className="field-pair">
+        <SkillNameField label="Upgrade" value={String(draft.upgrade || '')} names={skillNames} disabled={!owner} onChange={(upgrade) => setNameLink('upgrade', upgrade)} />
+        <SkillNameField label="Downgrade" value={String(draft.downgrade || '')} names={skillNames} disabled={!owner} onChange={(downgrade) => setNameLink('downgrade', downgrade)} />
+      </div>
       <Text label="Gametora ID" value={String(draft.gametora_id || '')} disabled={!owner} onChange={(gametora_id) => set({ gametora_id })} />
       <Area label="Aliases (one per line)" value={lines(draft.aliases)} disabled={!owner} onChange={(value) => set({ aliases: splitLines(value) })} />
       <Area label="Review" value={String(draft.review || '')} disabled={!owner} onChange={(review) => set({ review })} />
       {effects.map((effect, index) => (
         <fieldset key={index} className="admin-grid">
-          <Text label={`Effect ${index + 1} description`} value={String(effect.description || '')} disabled={!owner} onChange={(description) => {
-            const next = effects.slice()
-            next[index] = { ...effect, description }
-            set({ effect: next })
-          }} />
-          <Area label="Conditions" value={lines(effect.conditions)} disabled={!owner} onChange={(value) => {
-            const next = effects.slice()
-            next[index] = { ...effect, conditions: splitLines(value) }
-            set({ effect: next })
-          }} />
+          <Text label={`Effect ${index + 1} description`} value={String(effect.description || '')} disabled={!owner} onChange={(description) => writeEffect(index, { description })} />
+          <Area label="Preconditions (one per line)" value={lines(effect.preconditions)} disabled={!owner} onChange={(value) => writeEffect(index, { preconditions: splitLines(value) })} />
+          <Area label="Conditions" value={lines(effect.conditions)} disabled={!owner} onChange={(value) => writeEffect(index, { conditions: splitLines(value) })} />
           <details className="condition-paste">
             <summary>Paste condition code</summary>
             <Area label="Condition code" value={codeByEffect[index] || ''} disabled={!owner} onChange={(value) => setCodeByEffect((current) => ({ ...current, [index]: value }))} />
@@ -114,4 +137,20 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
 
 function safeParse(text: string, fallback: Record<string, unknown>) {
   try { return JSON.parse(text) as Record<string, unknown> } catch { return fallback }
+}
+
+function SkillNameField({ label, value, names, disabled, onChange }: {
+  label: string
+  value: string
+  names: string[]
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  const listId = useId()
+  return <label className="admin-field">{label}
+    <input list={listId} value={value} disabled={disabled} autoComplete="off" onChange={(event) => onChange(event.target.value)} />
+    <datalist id={listId}>
+      {names.map((name) => <option key={name} value={name} />)}
+    </datalist>
+  </label>
 }
