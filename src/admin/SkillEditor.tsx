@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AdminError, adminApi } from './api'
+import { ActivationMapEditor } from './ActivationMapEditor'
 import { suggestActivationMap } from './lib/activationMap'
 import { convertConditions } from './lib/convertConditions'
 import { Area, Choice, DiffPreview, SaveBar, Text, lines, splitLines, useLoadedEntry } from './entryForm'
@@ -92,9 +93,7 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
         </fieldset>
       ))}
       {owner && <button type="button" onClick={() => set({ effect: [...effects, { description: '', conditions: [] }] })}>Add effect</button>}
-      <Area label="Activation map JSON" value={JSON.stringify(draft.activation_map ?? { show_chart: false }, null, 2)} disabled={!owner} onChange={(value) => {
-        try { set({ activation_map: JSON.parse(value) }) } catch { /* keep typing */ }
-      }} />
+      <ActivationMapEditor value={draft.activation_map} disabled={!owner} onChange={(activation_map) => set({ activation_map })} />
     </div>}
     <SkillMapPreview skill={draft} />
     <h2>Diff</h2>
