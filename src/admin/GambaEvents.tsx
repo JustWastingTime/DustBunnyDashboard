@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AdminError, adminApi, type GambaEntry, type GambaEvent } from './api'
+import { AdminError, adminApi, type GambaChain, type GambaEntry, type GambaEvent } from './api'
 
 const EMPTY: GambaEvent = {
   id: '',
@@ -55,6 +55,91 @@ export function GambaEventList({ owner, navigate }: { owner: boolean; navigate: 
           {!rows.length && !error && <tr><td colSpan={5}>No events loaded.</td></tr>}
         </tbody>
       </table>
+    </div>
+    <GambaMeets events={rows.map((row) => ({ id: row.id, name: row.name }))} />
+  </section>
+}
+
+function GambaMeets({ events }: { events: Array<{ id: string; name: string }> }) {
+  const blank = (): GambaChain => ({
+    id: '',
+    name: '',
+    stages: [
+      { label: 'Group', eventIds: [] },
+      { label: 'Final', eventIds: [] },
+    ],
+  })
+  const [chains, setChains] = useState<GambaChain[]>([])
+  const [draft, setDraft] = useState<GambaChain>(blank())
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const load = () => adminApi.gambaChains().then((payload) => setChains(payload.chains)).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+  useEffect(() => { void load() }, [])
+  const setStage = (index: number, patch: Partial<GambaChain['stages'][number]>) => {
+    const stages = draft.stages.slice()
+    stages[index] = { ...stages[index], ...patch }
+    setDraft({ ...draft, stages })
+  }
+  const save = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await adminApi.saveGambaChain(draft)
+      setDraft(blank())
+      await load()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <section>
+    <h2>Linked meets</h2>
+    <p className="muted">A meet ties races into stages. Players pick one horse in each stage for one ticket.</p>
+    {error && <p className="notice error">{error}</p>}
+    <ul>
+      {chains.map((chain) => (
+        <li key={chain.id}>
+          <button type="button" className="text-button" onClick={() => setDraft(chain)}>{chain.name}</button>
+          {' '}
+          <button type="button" onClick={async () => {
+            if (!window.confirm(`Delete ${chain.name}?`)) return
+            setBusy(true)
+            try {
+              await adminApi.removeGambaChain(chain.id)
+              if (draft.id === chain.id) setDraft(blank())
+              await load()
+            } catch (reason) {
+              setError(reason instanceof Error ? reason.message : String(reason))
+            } finally { setBusy(false) }
+          }}>Delete</button>
+        </li>
+      ))}
+      {!chains.length && <li>No meets yet.</li>}
+    </ul>
+    <label className="admin-field">Meet name
+      <input value={draft.name} onChange={(input) => setDraft({ ...draft, name: input.target.value })} />
+    </label>
+    {draft.stages.map((stage, index) => (
+      <div key={index} className="admin-field">
+        <label>Stage name
+          <input value={stage.label} onChange={(input) => setStage(index, { label: input.target.value })} />
+        </label>
+        <label>Races in this stage
+          <select multiple size={Math.min(8, Math.max(3, events.length))} value={stage.eventIds} onChange={(input) => {
+            const eventIds = [...input.target.selectedOptions].map((option) => option.value)
+            setStage(index, { eventIds })
+          }}>
+            {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
+          </select>
+        </label>
+        {draft.stages.length > 2 && <button type="button" onClick={() => setDraft({ ...draft, stages: draft.stages.filter((_, item) => item !== index) })}>Remove stage</button>}
+      </div>
+    ))}
+    <div className="admin-row">
+      {draft.stages.length < 6 && <button type="button" onClick={() => setDraft({ ...draft, stages: [...draft.stages, { label: '', eventIds: [] }] })}>Add stage</button>}
+      <button type="button" className="primary" disabled={busy} onClick={() => void save()}>{draft.id ? 'Update meet' : 'Save meet'}</button>
+      {draft.id && <button type="button" onClick={() => setDraft(blank())}>New meet</button>}
     </div>
   </section>
 }

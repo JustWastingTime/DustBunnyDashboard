@@ -11,6 +11,7 @@ import type { Applicant, Assignment, Band, BlacklistEntry, Club, DashboardState,
 import { site, applyRuntimeSite } from './site'
 import { applySiteTheme, THEMES } from './themes'
 import { AdminApp } from './admin/AdminApp'
+import { PaddockApp } from './gamba/PaddockApp'
 import { authLoginHref, restPath, tenantFromPath, tenantPrefix } from './guild'
 import './App.css'
 
@@ -182,7 +183,7 @@ function usePath() {
   }, [])
   const navigate = (to: string) => {
     const prefix = tenantPrefix()
-    const next = to.startsWith('/g/') || to.startsWith('/api') || to.startsWith('/admin')
+    const next = to.startsWith('/g/') || to.startsWith('/api') || to.startsWith('/admin') || to.startsWith('/gamba')
       ? to
       : `${prefix}${to.startsWith('/') ? to : `/${to}`}`
     if (next === path) return
@@ -2793,6 +2794,7 @@ function TenantLanding() {
 function OnlineApp() {
   const { path, navigate } = usePath()
   if (path === '/admin' || path.startsWith('/admin/')) return <AdminApp path={path} navigate={navigate} />
+  if (path === '/gamba' || path.startsWith('/gamba/') || path.startsWith('/gamba?')) return <PaddockApp path={path} navigate={navigate} />
   const rest = tenantFromPath(path) ? restPath(path) : path
   if (!tenantFromPath(path) && (path === '/' || path === '/g' || path === '/g/')) return <TenantLanding />
   if (rest.startsWith('/staff')) return <StaffPage />

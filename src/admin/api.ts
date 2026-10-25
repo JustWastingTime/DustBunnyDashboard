@@ -24,6 +24,11 @@ export type Summary = Record<string, string>
 export type GitEntry = { entry: Record<string, unknown>; blobSha: string; commitSha: string }
 export type SaveResult = { commitSha: string; blobSha: string; key?: string; warnings?: string[] }
 
+export type GambaChain = {
+  id: string
+  name: string
+  stages: Array<{ id?: string; label: string; eventIds: string[] }>
+}
 export type GambaEntry = { number: number; name: string; ageSex: string; jockey: string; odds: number }
 export type GambaEvent = {
   id: string
@@ -82,5 +87,10 @@ export const adminApi = {
     adminFetch<{ id: string; file: string; commitSha: string; blobSha: string }>('/api/admin/gamba-events/entry', { method: 'PUT', body: JSON.stringify(body) }),
   removeGambaEvent: (key: string, baseBlobSha: string | null, message: string) =>
     adminFetch<{ ok: true }>(`/api/admin/gamba-events/entry?key=${encodeURIComponent(key)}&baseBlobSha=${encodeURIComponent(baseBlobSha || '')}&message=${encodeURIComponent(message)}`, { method: 'DELETE' }),
+  gambaChains: () => adminFetch<{ chains: GambaChain[] }>('/api/admin/gamba-chains'),
+  saveGambaChain: (chain: GambaChain) =>
+    adminFetch<{ chain: GambaChain }>('/api/admin/gamba-chains', { method: 'PUT', body: JSON.stringify({ chain }) }),
+  removeGambaChain: (id: string) =>
+    adminFetch<{ ok: true }>(`/api/admin/gamba-chains/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   audit: () => adminFetch<{ entries: Array<{ at: string; username: string | null; file: string; summary: string; commitSha: string }> }>('/api/admin/audit'),
 }
