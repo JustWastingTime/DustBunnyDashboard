@@ -93,6 +93,7 @@ export type Me = Trainer & {
   username: string
   globalName: string | null
   avatar: string | null
+  owner: boolean
 }
 export type BoardRow = {
   rank: number

@@ -14,6 +14,7 @@ import {
   type Race,
   type Trainer,
 } from './api'
+import { NewRace } from './NewRace'
 import './gamba.css'
 
 type Pick = {
@@ -29,6 +30,21 @@ const loginHref = `/api/auth/login?returnTo=${encodeURIComponent('/gamba')}`
 
 function Carrot({ size = 22 }: { size?: number }) {
   return <img className="carrot" src="/carrot.png" alt="" width={size} height={size} style={{ width: size, height: size }} />
+}
+
+function Crown({ rank }: { rank: number }) {
+  const color = rank === 1 ? '#1e3354' : rank === 2 ? '#7f9bb4' : '#b42355'
+  const size = rank === 1 ? 56 : 40
+  return <svg className="crown" width={size} height={size} viewBox="0 0 48 40" aria-hidden="true">
+    <path fill={color} d="M4 32 L9 14 L16 24 L24 6 L32 24 L39 14 L44 32 Z" />
+    <rect x="6" y="32" width="36" height="5" rx="1" fill={color} />
+  </svg>
+}
+
+function shownName(name: string) {
+  const value = name.trim()
+  if (!value || value.toLowerCase() === 'trainer') return 'Anonymous Trainer'
+  return value
 }
 
 function when(iso: string | null) {
@@ -136,6 +152,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   let body: ReactNode = <CardPage me={me} picks={picks} setPicks={setPicks} onPlace={placePicks} navigate={navigate} />
   if (clean === '/gamba/board') body = <BoardPage navigate={navigate} />
   else if (clean.startsWith('/gamba/trainer/')) body = <TrainerPage discordId={decodeURIComponent(clean.slice('/gamba/trainer/'.length))} navigate={navigate} />
+  else if (clean === '/gamba/new') body = <NewRace owner={Boolean(me.owner)} navigate={navigate} />
   else if (clean.startsWith('/gamba/meet/')) body = <MeetPage chainId={decodeURIComponent(clean.slice('/gamba/meet/'.length))} me={me} reload={reload} />
   else if (clean.startsWith('/gamba/race/')) {
     body = <RacePage
@@ -154,10 +171,11 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
       <nav className="links" aria-label="Paddock">
         <a href="/gamba" aria-current={clean === '/gamba' ? 'page' : undefined} onClick={go('/gamba')}>Card</a>
         <a href="/gamba/board" aria-current={clean === '/gamba/board' ? 'page' : undefined} onClick={go('/gamba/board')}>Board</a>
+        {me.owner && <a href="/gamba/new" aria-current={clean === '/gamba/new' ? 'page' : undefined} onClick={go('/gamba/new')}>New race</a>}
       </nav>
       <p className="who">
         <span className="purse"><Carrot /> Your carrots <strong className="num">{coins.format(me.carrots)}</strong></span>
-        <a href={`/gamba/trainer/${me.discordId}`} onClick={go(`/gamba/trainer/${me.discordId}`)}>{me.name}</a>
+        <a href={`/gamba/trainer/${me.discordId}`} onClick={go(`/gamba/trainer/${me.discordId}`)}>{shownName(me.name)}</a>
         <button type="button" className="quiet" onClick={() => { void gambaApi.logout().then(() => window.location.assign('/gamba')) }}>Log out</button>
       </p>
     </header>
@@ -321,7 +339,7 @@ function ResultList({ rows, empty }: { rows: Race['results']; empty: string }) {
     {rows.map((row) => (
       <li key={`${row.name}-${row.entryNumber}`}>
         <span>
-          <strong>{row.name}</strong>
+          <strong>{shownName(row.name)}</strong>
           <span className="meta">#{row.entryNumber} {row.entryName}</span>
         </span>
         <span className={row.won ? 'gain num' : 'loss num'}>
@@ -500,12 +518,12 @@ function OpenSlips({ me, navigate }: { me: Me; navigate: (to: string) => void })
   if (!singles.length && !me.openParlays.length) return null
   return <section>
     <h2>Your tickets</h2>
-    <div className="slips">
+    <div className="mosaic">
       {singles.map((ticket) => (
-        <a className="slip press" key={ticket.eventId} href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
+        <a className="tile press" key={`${ticket.eventId}-${ticket.entryNumber}`} href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
           <header>{ticket.eventName}</header>
           <p>#{ticket.entryNumber} {ticket.entryName}</p>
-          <p className="num"><Carrot size={16} /> {coins.format(ticket.amount)} carrots, pays {oddsLabel(ticket.oddsAtBet)}</p>
+          <p className="num"><Carrot size={16} /> {coins.format(ticket.amount)}</p>
           <p>Still running</p>
         </a>
       ))}
@@ -516,11 +534,12 @@ function OpenSlips({ me, navigate }: { me: Me; navigate: (to: string) => void })
 
 function ParlaySlip({ parlay }: { parlay: Parlay }) {
   const title = parlay.chainName || `${parlay.legs.length}-pick ticket`
-  return <article className="slip">
+  const extra = parlay.legs.length - 2
+  return <article className="tile">
     <header>{title}</header>
-    {parlay.legs.map((leg) => <p key={leg.eventId}>#{leg.entryNumber} {leg.entryName}{leg.status === 'won' ? ' hit' : ''}</p>)}
-    <p className="num"><Carrot size={16} /> {coins.format(parlay.stake)} carrots, pays {oddsLabel(parlay.combinedOdds)} together</p>
-    <p>Still running</p>
+    {parlay.legs.slice(0, 2).map((leg) => <p key={leg.eventId}>#{leg.entryNumber} {leg.entryName}{leg.status === 'won' ? ' hit' : ''}</p>)}
+    {extra > 0 && <p>+{extra} more</p>}
+    <p className="num"><Carrot size={16} /> {coins.format(parlay.stake)}</p>
   </article>
 }
 
@@ -544,9 +563,9 @@ function BoardPage({ navigate }: { navigate: (to: string) => void }) {
       {order.length > 0 && <div className="podium">
         {order.map((row) => (
           <a key={row.discordId} className={row.rank === 1 ? 'rosette first press' : 'rosette press'} href={`/gamba/trainer/${row.discordId}`} onClick={go(`/gamba/trainer/${row.discordId}`)}>
-            <Carrot size={row.rank === 1 ? 72 : 48} />
+            <Crown rank={row.rank} />
             <span className="place-num">{row.rank}</span>
-            <strong>{row.name}</strong>
+            <strong>{shownName(row.name)}</strong>
             <span className="record">{row.wins} hit · {row.losses} missed</span>
             <span className="purse num"><Carrot size={18} /> {coins.format(row.carrots)}</span>
           </a>
@@ -556,7 +575,7 @@ function BoardPage({ navigate }: { navigate: (to: string) => void }) {
         {rows.slice(3).map((row) => (
           <li key={row.discordId}>
             <a className="press" href={`/gamba/trainer/${row.discordId}`} onClick={go(`/gamba/trainer/${row.discordId}`)}>
-              <strong><span className="place-num">{row.rank}</span> {row.name}</strong>
+              <strong><span className="place-num">{row.rank}</span> {shownName(row.name)}</strong>
               <span className="num"><Carrot size={16} /> {coins.format(row.carrots)}</span>
             </a>
           </li>
@@ -584,7 +603,7 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
       {problem && <p className="problem">{problem}</p>}
       {trainer && <>
         <section className="hero">
-          <h1>{trainer.name}</h1>
+          <h1>{shownName(trainer.name)}</h1>
           <p className="purse giant"><Carrot size={64} /> <strong className="num">{coins.format(trainer.carrots)}</strong></p>
           <p className="record">
             <span className="chip hit">{trainer.wins} hit</span>
@@ -594,28 +613,41 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
         </section>
         {(trainer.openTickets.length > 0 || trainer.openParlays.length > 0) && <>
           <h2>Still running</h2>
-          <div className="slips">
+          <div className="mosaic">
             {groupSingles(trainer.openTickets).map((ticket) => (
-              <a className="slip press" key={ticket.eventId} href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
+              <a className="tile press" key={`${ticket.eventId}-${ticket.entryNumber}`} href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
                 <header>{ticket.eventName}</header>
                 <p>#{ticket.entryNumber} {ticket.entryName}</p>
-                <p className="num"><Carrot size={16} /> {coins.format(ticket.amount)} carrots</p>
+                <p className="num"><Carrot size={16} /> {coins.format(ticket.amount)}</p>
               </a>
             ))}
             {trainer.openParlays.map((parlay) => <ParlaySlip key={parlay.parlayId} parlay={parlay} />)}
           </div>
         </>}
-        <h2>Settled tickets</h2>
-        {!trainer.history.length && <p>No settled bets yet.</p>}
-        <div className="slips">
-          {trainer.history.map((row, index) => <HistorySlip key={`${row.eventName}-${row.amount}-${index}`} row={row} navigate={navigate} />)}
-        </div>
+        <SettledMosaic rows={trainer.history} navigate={navigate} />
       </>}
     </div>
   </div>
 }
 
-function HistorySlip({ row, navigate }: { row: HistoryRow; navigate: (to: string) => void }) {
+function SettledMosaic({ rows, navigate }: { rows: HistoryRow[]; navigate: (to: string) => void }) {
+  const cards = groupHistory(rows)
+  const [more, setMore] = useState(false)
+  const shown = more ? cards : cards.slice(0, 8)
+  const hidden = cards.length - shown.length
+  if (!rows.length) return <><h2>Settled tickets</h2><p>No settled bets yet.</p></>
+  return <>
+    <h2>Settled tickets</h2>
+    <p className="when">{cards.length === rows.length ? `${cards.length} tickets` : `${cards.length} tickets from ${rows.length} bets`}</p>
+    <div className="mosaic">
+      {shown.map((row) => <HistorySlip key={`${row.eventId}-${row.entryNumber}-${row.result}-${row.eventName}`} row={row} navigate={navigate} />)}
+    </div>
+    {hidden > 0 && <button type="button" className="quiet" onClick={() => setMore(true)}>Show {hidden} more</button>}
+    {more && cards.length > 8 && <button type="button" className="quiet" onClick={() => setMore(false)}>Show fewer</button>}
+  </>
+}
+
+function HistorySlip({ row, navigate }: { row: HistoryRow & { count?: number }; navigate: (to: string) => void }) {
   const hit = row.result === 'win'
   const detail = row.kind === 'parlay' || row.entryNumber == null
     ? row.entryName
@@ -627,10 +659,11 @@ function HistorySlip({ row, navigate }: { row: HistoryRow; navigate: (to: string
   const body = <>
     <header>{row.eventName}</header>
     <p>{detail}{odds}</p>
-    <p className="result"><Carrot size={18} /> {hit ? `Hit +${coins.format(row.payout)}` : `Missed −${coins.format(row.amount)}`}</p>
+    {(row.count || 0) > 1 && <p>{row.count} tickets</p>}
+    <p className="result"><Carrot size={16} /> {hit ? `Hit +${coins.format(row.payout)}` : `Missed −${coins.format(row.amount)}`}</p>
   </>
-  if (!href) return <article className={hit ? 'slip hit' : 'slip miss'}>{body}</article>
-  return <a className={hit ? 'slip hit press' : 'slip miss press'} href={href} onClick={(event) => { event.preventDefault(); navigate(href) }}>{body}</a>
+  if (!href) return <article className={hit ? 'tile hit' : 'tile miss'}>{body}</article>
+  return <a className={hit ? 'tile hit press' : 'tile miss press'} href={href} onClick={(event) => { event.preventDefault(); navigate(href) }}>{body}</a>
 }
 
 function togglePick(current: Pick[], pick: Pick) {
@@ -654,9 +687,26 @@ function blockedEvents(me: Me) {
 function groupSingles(tickets: OpenTicket[]) {
   const groups = new Map<string, OpenTicket>()
   for (const ticket of tickets) {
-    const current = groups.get(ticket.eventId)
-    if (!current) groups.set(ticket.eventId, { ...ticket })
+    const key = `${ticket.eventId}:${ticket.entryNumber}`
+    const current = groups.get(key)
+    if (!current) groups.set(key, { ...ticket })
     else current.amount += ticket.amount
+  }
+  return [...groups.values()]
+}
+
+function groupHistory(rows: HistoryRow[]) {
+  const groups = new Map<string, HistoryRow & { count: number }>()
+  for (const row of rows) {
+    const key = [row.kind, row.eventId || row.eventName, row.entryNumber ?? row.entryName, row.result].join('|')
+    const current = groups.get(key)
+    if (!current) groups.set(key, { ...row, count: 1 })
+    else {
+      current.amount += row.amount
+      current.payout += row.payout
+      current.count += 1
+      if (current.oddsAtBet !== row.oddsAtBet) current.oddsAtBet = null
+    }
   }
   return [...groups.values()]
 }

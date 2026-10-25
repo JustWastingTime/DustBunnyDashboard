@@ -235,6 +235,49 @@
   to { transform: rotate(-8deg) scale(1); opacity: 1; }
 }
 
+.tile.hit { box-shadow: inset 6px 0 0 var(--clover), 0 6px 16px oklch(0.35 0.05 230 / 0.06); }
+.tile.miss { box-shadow: inset 6px 0 0 var(--ribbon), 0 6px 16px oklch(0.35 0.05 230 / 0.06); }
+.tile .num, .tile .result { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); font-weight: 800; font-size: 0.92rem; }
+.tile.hit .result { color: var(--clover); }
+.tile.miss .result { color: var(--ribbon); }
+.crown { display: block; }
+
+.race-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+.race-form label, .horse-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 700;
+}
+.paddock .race-form input {
+  border: 2px solid var(--line);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  padding: 8px 10px;
+  width: 100%;
+}
+.when-pair, .horse-row, .form-actions {
+  display: grid;
+  gap: 10px;
+}
+.when-pair { grid-template-columns: 1fr 1fr; }
+.horse-row {
+  grid-template-columns: 64px minmax(0, 1.4fr) minmax(0, 1fr) 72px auto;
+  align-items: end;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--line);
+}
+.form-actions { grid-template-columns: auto auto auto; justify-content: start; align-items: center; }
+.paddock .race-form button.place { width: auto; padding: 10px 16px; }
+.posted { list-style: none; margin: 0; padding: 0; }
+.posted li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid #d5e4f0; }
+
 .slips { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 18px; }
 .slip {
   background: var(--paper);
@@ -389,7 +432,12 @@
   .rosette.first { order: -1; }
 }
 
-.catalog { display: flex; flex-direction: column; gap: 10px; margin: 0 0 22px; }
+.catalog, .mosaic {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px;
+  margin: 0 0 22px;
+}
 .catalog-section > h2,
 .results h2 {
   display: flex;
@@ -406,23 +454,33 @@
 }
 .results h2.cashed::before { background: var(--clover); }
 .results h2.missed::before { background: var(--ribbon); }
-.poster {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 4px 12px;
-  align-items: center;
-  padding: 14px;
-  border-radius: 22px;
+.poster, .tile {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 8px;
   background: var(--paper);
   color: var(--ink);
   text-decoration: none;
-  box-shadow: inset 6px 0 0 #9bb4c9, 0 8px 20px oklch(0.35 0.05 230 / 0.06);
+  overflow: hidden;
+  box-shadow: inset 6px 0 0 #9bb4c9, 0 6px 16px oklch(0.35 0.05 230 / 0.06);
 }
-.poster strong { display: block; font-size: 1.2rem; }
-.poster.open strong { font-size: 1.35rem; }
-.poster .when, .poster .meta { display: block; color: var(--muted); font-size: 0.92rem; }
+.poster strong, .tile header {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.poster .when, .poster .meta, .tile p { display: block; margin: 0; color: var(--muted); font-size: 0.78rem; }
 .poster:hover { background: #fff; }
-.poster.open { box-shadow: inset 6px 0 0 var(--clover), 0 12px 28px oklch(0.35 0.05 230 / 0.1); }
+.poster.open { box-shadow: inset 6px 0 0 var(--clover), 0 6px 16px oklch(0.35 0.05 230 / 0.08); }
 .poster.closed { box-shadow: inset 6px 0 0 var(--ribbon), 0 8px 20px oklch(0.35 0.05 230 / 0.06); }
 .poster.scheduled { box-shadow: inset 6px 0 0 #7f9bb4, 0 8px 20px oklch(0.35 0.05 230 / 0.06); }
 .poster.settled { box-shadow: inset 6px 0 0 #c9b6f2, 0 8px 20px oklch(0.35 0.05 230 / 0.06); }
@@ -498,6 +556,9 @@ a.slip { display: block; text-decoration: none; color: inherit; }
 
 @media (max-width: 860px) {
   .results { grid-template-columns: 1fr; }
+  .when-pair, .form-actions { grid-template-columns: 1fr; }
+  .horse-row { grid-template-columns: 64px minmax(0, 1fr) 72px; }
+  .horse-row .jockey { grid-column: 1 / -1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
