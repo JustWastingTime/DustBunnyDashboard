@@ -17,6 +17,15 @@ async function gambaFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 export type Runner = { number: number; name: string; ageSex: string; jockey: string; odds: number }
 export type Phase = 'open' | 'closed' | 'scheduled' | 'settled'
+export type PurseResult = {
+  name: string
+  won: boolean
+  netGain: number
+  payout: number
+  wagered: number
+  entryNumber: number | null
+  entryName: string
+}
 export type Race = {
   id: string
   name: string
@@ -25,7 +34,9 @@ export type Race = {
   endsAt: string | null
   winner: number | null
   winnerName: string | null
+  winnerOdds: number | null
   entries: Runner[]
+  results: PurseResult[]
 }
 export type OpenTicket = {
   ticketId?: string
@@ -56,6 +67,7 @@ export type Parlay = {
 }
 export type HistoryRow = {
   kind: string
+  eventId: string | null
   eventName: string
   entryNumber: number | null
   entryName: string
@@ -101,6 +113,7 @@ export type ChainDetail = {
 export const gambaApi = {
   me: () => gambaFetch<Me>('/api/gamba/me'),
   events: () => gambaFetch<{ events: Race[] }>('/api/gamba/events'),
+  event: (id: string) => gambaFetch<{ event: Race }>(`/api/gamba/events/${encodeURIComponent(id)}`),
   leaderboard: () => gambaFetch<{ rows: BoardRow[] }>('/api/gamba/leaderboard'),
   trainer: (discordId: string) => gambaFetch<Trainer>(`/api/gamba/trainers/${encodeURIComponent(discordId)}`),
   chains: () => gambaFetch<{ chains: ChainSummary[] }>('/api/gamba/chains'),
