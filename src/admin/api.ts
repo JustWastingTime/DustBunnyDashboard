@@ -87,6 +87,11 @@ export const adminApi = {
     adminFetch<{ id: string; file: string; commitSha: string; blobSha: string }>('/api/admin/gamba-events/entry', { method: 'PUT', body: JSON.stringify(body) }),
   removeGambaEvent: (key: string, baseBlobSha: string | null, message: string) =>
     adminFetch<{ ok: true }>(`/api/admin/gamba-events/entry?key=${encodeURIComponent(key)}&baseBlobSha=${encodeURIComponent(baseBlobSha || '')}&message=${encodeURIComponent(message)}`, { method: 'DELETE' }),
+  gambaGuilds: () => adminFetch<{ guilds: Array<{ id: string; label: string }> }>('/api/admin/gamba-guilds'),
+  saveGambaGuilds: (guilds: Array<{ id: string; label: string }>) =>
+    adminFetch<{ guilds: Array<{ id: string; label: string }> }>('/api/admin/gamba-guilds', { method: 'PUT', body: JSON.stringify({ guilds }) }),
+  removeGambaGuild: (id: string) =>
+    adminFetch<{ ok: true }>(`/api/admin/gamba-guilds/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   gambaChains: () => adminFetch<{ chains: GambaChain[] }>('/api/admin/gamba-chains'),
   saveGambaChain: (chain: GambaChain) =>
     adminFetch<{ chain: GambaChain }>('/api/admin/gamba-chains', { method: 'PUT', body: JSON.stringify({ chain }) }),
