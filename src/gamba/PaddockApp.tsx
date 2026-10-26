@@ -34,10 +34,16 @@ function Carrot({ size = 22 }: { size?: number }) {
 
 function Crown({ rank }: { rank: number }) {
   const color = rank === 1 ? '#1e3354' : rank === 2 ? '#7f9bb4' : '#b42355'
-  const size = rank === 1 ? 56 : 40
-  return <svg className="crown" width={size} height={size} viewBox="0 0 48 40" aria-hidden="true">
-    <path fill={color} d="M4 32 L9 14 L16 24 L24 6 L32 24 L39 14 L44 32 Z" />
-    <rect x="6" y="32" width="36" height="5" rx="1" fill={color} />
+  const size = rank === 1 ? 68 : 52
+  return <svg className="crown" width={size} height={size} viewBox="0 0 64 56" aria-hidden="true">
+    <path fill={color} d="M6 40 L16 18 L26 32 L32 10 L38 32 L48 18 L58 40 Z" />
+    <circle cx="16" cy="16" r="3.2" fill={color} />
+    <circle cx="32" cy="8" r="3.6" fill={color} />
+    <circle cx="48" cy="16" r="3.2" fill={color} />
+    <path fill={color} d="M6 38 h52 v8 a4 4 0 0 1 -4 4 H10 a4 4 0 0 1 -4 -4 z" />
+    <circle cx="20" cy="44" r="2.3" fill="#f7fbfe" />
+    <circle cx="32" cy="44" r="2.3" fill="#f7fbfe" />
+    <circle cx="44" cy="44" r="2.3" fill="#f7fbfe" />
   </svg>
 }
 
