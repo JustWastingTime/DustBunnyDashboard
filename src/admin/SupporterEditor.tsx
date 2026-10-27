@@ -1,11 +1,11 @@
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { AdminError, adminApi } from './api'
 import { parseEvents } from './lib/parseEvents'
 import { Area, Choice, DiffPreview, SaveBar, Text, useLoadedEntry } from './entryForm'
 import { CARD_EVENT_STATUS, SUPPORT_ICONS, SUPPORT_RARITIES, SUPPORT_TYPES } from './icons'
 import { RecordPortrait } from './RecordPortrait'
 
-const LEVELS = ['Base (Lv 1)', 'Lv 15', 'Lv 16', 'Lv 18', 'Lv 30 (MLB)']
+const LEVELS = ['LB0', 'LB1', 'LB2', 'LB3', 'MLB']
 const DOTS = ['#5ee0a0', '#7eb6ff', '#e7c56a', '#c9a6ff']
 
 export function SupporterEditor({ entryKey, creating, owner, navigate }: {
@@ -23,6 +23,8 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
   const [rawMode, setRawMode] = useState(false)
   const [rawText, setRawText] = useState('')
   const [paste, setPaste] = useState('')
+  const [eventsText, setEventsText] = useState<string | null>(null)
+  useEffect(() => { setEventsText(null) }, [entryKey])
   const original = loaded.baseline
   if (loaded.loading) return <p>Loading support card…</p>
   if (!entry) return <p className="notice error">{loaded.error || 'Support card not found.'}</p>
@@ -154,17 +156,43 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
         </section>
         <section className="admin-section">
           <h2>Associated skills</h2>
-          <div className="field-pair">
+          <div className="field-pair skill-pair">
             <TagList label="Support skills" values={asList(draft.support_skills)} disabled={!owner} onChange={(support_skills) => set({ support_skills })} />
             <TagList label="Event skills" values={asList(draft.event_skills)} disabled={!owner} onChange={(event_skills) => set({ event_skills })} />
           </div>
         </section>
         <section className="admin-section">
-          <h2>Events</h2>
-          <Choice label="Event status" value={String(draft._event || 'todo')} options={CARD_EVENT_STATUS} disabled={!owner} onChange={(_event) => set({ _event })} />
-          <Area label="Events JSON" value={JSON.stringify(events, null, 2)} disabled={!owner} onChange={(value) => { try { set({ events: JSON.parse(value) }) } catch { /* typing */ } }} />
-          <Area label="Paste events" value={paste} disabled={!owner} onChange={setPaste} />
-          {owner && <button type="button" onClick={() => set({ events: [...events, ...parseEvents(paste)] })}>Append parsed events</button>}
+          <div className="events-head">
+            <h2>Events</h2>
+            <label className={`event-status status-${String(draft._event || 'todo')}`}>
+              Event status
+              <span className="status-control">
+                <i className="status-dot" />
+                <select value={String(draft._event || 'todo')} disabled={!owner} onChange={(event) => set({ _event: event.target.value })}>
+                  {CARD_EVENT_STATUS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </span>
+            </label>
+          </div>
+          <div className="events-split">
+            <label className="admin-field">JSON
+              <textarea className="events-json" value={eventsText ?? JSON.stringify(events, null, 2)} disabled={!owner} spellCheck={false} onChange={(event) => {
+                const value = event.target.value
+                setEventsText(value)
+                try { set({ events: JSON.parse(value) }) } catch { /* typing */ }
+              }} />
+            </label>
+            <label className="admin-field">Paste events
+              <textarea value={paste} disabled={!owner} onChange={(event) => setPaste(event.target.value)} />
+            </label>
+          </div>
+          {owner && <div className="events-actions">
+            <button type="button" onClick={() => {
+              const next = [...events, ...parseEvents(paste)]
+              set({ events: next })
+              setEventsText(JSON.stringify(next, null, 2))
+            }}>Append parsed events</button>
+          </div>}
         </section>
       </div>}
       <div className="editor-rail">
