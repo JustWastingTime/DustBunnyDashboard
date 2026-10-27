@@ -205,10 +205,18 @@
 .paddock .pad-foot a:hover { color: var(--mint); }
 
 .paddock .board-stack,
-.paddock .lane { display: flex; flex-direction: column; gap: 14px; }
+.paddock .race-lane { display: flex; flex-direction: column; gap: 14px; }
 .paddock .board-stack { gap: 28px; }
-.paddock .lane-head,
-.paddock .lane-title,
+.paddock .race-lane {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+}
+.paddock .race-lane-head,
+.paddock .race-lane-title,
 .paddock .open-meta,
 .paddock .meta-left,
 .paddock .soon-meta,
@@ -219,8 +227,8 @@
   align-items: center;
   gap: 8px;
 }
-.paddock .lane-head { justify-content: space-between; gap: 12px; }
-.paddock .lane-title { gap: 10px; }
+.paddock .race-lane-head { justify-content: space-between; gap: 12px; }
+.paddock .race-lane-title { gap: 10px; }
 .paddock .count,
 .paddock .pill {
   border-radius: 999px;
@@ -645,6 +653,193 @@
 .paddock .posted { list-style: none; margin: 0; padding: 0; }
 .paddock .posted li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgb(255 255 255 / 0.06); }
 
+.paddock .slipbook { display: flex; flex-direction: column; gap: 22px; }
+.paddock .vault {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 16px;
+  background: #131b2e;
+  border: 1px solid rgb(255 255 255 / 0.06);
+}
+.paddock .vault-id { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.paddock .vault-mark {
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: #222a3d;
+  color: #4edea3;
+  font-size: 2rem;
+  font-weight: 800;
+}
+.paddock .vault h1 { margin: 0 0 8px; font-size: clamp(1.6rem, 3vw, 2rem); }
+.paddock .vault-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.paddock .vault-pills span {
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: #222a3d;
+  color: #dae2fd;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.paddock .vault-hit { color: #4edea3 !important; background: rgb(16 185 129 / 0.18) !important; }
+.paddock .vault-miss { color: #ffb4ab !important; background: rgb(147 0 10 / 0.35) !important; }
+.paddock .vault-balance {
+  display: flex;
+  gap: 18px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgb(34 42 61 / 0.9);
+  border: 1px solid rgb(134 148 138 / 0.35);
+}
+.paddock .vault-balance > div { display: flex; flex-direction: column; gap: 4px; }
+.paddock .vault-balance > div + div { padding-left: 18px; border-left: 1px solid rgb(134 148 138 / 0.35); }
+.paddock .vault-balance span {
+  color: #bbcabf;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.paddock .vault-balance strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.6rem;
+  color: #ffb690;
+}
+.paddock .vault-balance .up,
+.paddock .slip-pay .up { color: #4edea3; }
+.paddock .vault-balance .down,
+.paddock .slip-pay .down { color: #ffb4ab; }
+.paddock .slip-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px; border-radius: 12px; background: #131b2e; }
+.paddock .slip-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: #bbcabf;
+  font-size: 0.85rem;
+}
+.paddock .slip-tab span { padding: 1px 6px; border-radius: 999px; background: #2d3449; font-size: 0.65rem; }
+.paddock .slip-tab.on { background: #222a3d; color: #4edea3; font-weight: 800; }
+.paddock .slip-block { display: flex; flex-direction: column; gap: 12px; }
+.paddock .live-slip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 18px;
+  border-radius: 16px;
+  background: #222a3d;
+  color: inherit;
+  box-shadow: inset 0 3px 0 #ec6a06;
+}
+.paddock .live-slip.parlay { box-shadow: inset 0 3px 0 #4edea3; }
+.paddock .gate-num {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: #121526;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.paddock .gate-num span { font-size: 0.55rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.paddock .gate-num.chain { background: #4edea3; }
+.paddock .live-copy,
+.paddock .live-math,
+.paddock .live-math > span,
+.paddock .slip-pay,
+.paddock .slip-pay > span { display: flex; }
+.paddock .live-copy { flex-direction: column; gap: 2px; min-width: 0; }
+.paddock .live-copy strong,
+.paddock .slip-card strong { color: #dae2fd; font-size: 1.25rem; }
+.paddock .live-copy > span,
+.paddock .slip-kicker { color: #bbcabf; font-size: 0.75rem; }
+.paddock .live-math {
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgb(6 14 32 / 0.8);
+  border: 1px solid rgb(134 148 138 / 0.3);
+}
+.paddock .live-math > span,
+.paddock .slip-pay > span { flex-direction: column; gap: 2px; }
+.paddock .live-math strong { font-family: "Space Grotesk", sans-serif; color: #dae2fd; }
+.paddock .live-math > span:last-child { text-align: right; }
+.paddock .live-math > span:last-child strong { color: #ffb690; font-size: 1.35rem; }
+.paddock .slip-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.paddock .slip-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px 18px 18px 22px;
+  border-radius: 16px;
+  background: #131b2e;
+  color: inherit;
+  overflow: hidden;
+  box-shadow: inset 6px 0 0 #ffb4ab;
+}
+.paddock .slip-card.hit { box-shadow: inset 6px 0 0 #4edea3; }
+.paddock .slip-stamp {
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  rotate: 8deg;
+}
+.paddock .slip-stamp.hit { color: #4edea3; background: rgb(16 185 129 / 0.18); }
+.paddock .slip-stamp.miss { color: #ffb4ab; background: rgb(147 0 10 / 0.35); }
+.paddock .slip-stamp.mega { color: #341100; background: #ffb690; }
+.paddock .slip-card ul { margin: 0; padding: 0 0 0 16px; color: #dae2fd; font-size: 0.85rem; }
+.paddock .slip-runner { display: flex; align-items: center; gap: 8px; color: #dae2fd; font-weight: 700; }
+.paddock .gate-mini {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #121526;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.paddock .slip-cut { border-top: 1px dashed rgb(134 148 138 / 0.45); margin: 6px 0; }
+.paddock .slip-pay { justify-content: space-between; gap: 12px; }
+.paddock .slip-pay strong { font-family: "Space Grotesk", sans-serif; font-size: 1.05rem; }
+.paddock .slip-more {
+  align-self: center;
+  margin-top: 4px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: #131b2e;
+  color: #dae2fd;
+  font-weight: 800;
+}
+.paddock .slip-more:hover { background: #222a3d; }
+
 .paddock .gate {
   width: min(36rem, calc(100% - 32px));
   margin: 18vh auto 0;
@@ -665,7 +860,8 @@
 
 @media (max-width: 1100px) {
   .paddock .open-grid { grid-template-columns: 1fr; }
-  .paddock .settled-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .paddock .settled-grid,
+  .paddock .slip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .paddock .top { height: auto; }
   .paddock .top-bar { height: auto; flex-wrap: wrap; padding: 12px 0; }
   .paddock .links { order: 3; width: 100%; overflow: auto; }
@@ -675,8 +871,14 @@
   .paddock .paddock-main { width: min(1560px, calc(100% - 20px)); }
   .paddock .paddock-main.with-slip { grid-template-columns: 1fr; padding-bottom: 88px; }
   .paddock .trainer-id { display: none; }
-  .paddock .soon-card { flex-direction: column; align-items: flex-start; }
+  .paddock .soon-card,
+  .paddock .vault,
+  .paddock .live-slip { flex-direction: column; align-items: flex-start; }
+  .paddock .live-slip { display: flex; }
+  .paddock .live-math,
+  .paddock .vault-balance { width: 100%; }
   .paddock .settled-grid,
+  .paddock .slip-grid,
   .paddock .results,
   .paddock .when-pair,
   .paddock .form-actions,

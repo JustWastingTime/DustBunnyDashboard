@@ -326,9 +326,9 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
   return <div className={picks.length ? 'paddock-main with-slip' : 'paddock-main'}>
     <div className="board-stack">
       {problem && <p className="problem">{problem}</p>}
-      <section className="lane">
-        <div className="lane-head">
-          <div className="lane-title">
+      <section className="race-lane">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
             <span aria-hidden="true">✨</span>
             <h2>Open for Wagering</h2>
             <span className="count mint">{open.length} {open.length === 1 ? 'track' : 'tracks'}</span>
@@ -369,9 +369,9 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           })}
         </div>
       </section>
-      {soon.length > 0 && <section className="lane">
-        <div className="lane-head">
-          <div className="lane-title">
+      {soon.length > 0 && <section className="race-lane">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
             <span aria-hidden="true">⏰</span>
             <h2>Starting Soon</h2>
             <span className="count amber">{soon.length} scheduled</span>
@@ -394,9 +394,9 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           </article>
         ))}
       </section>}
-      {expired.length > 0 && <section className="lane">
-        <div className="lane-head">
-          <div className="lane-title">
+      {expired.length > 0 && <section className="race-lane">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
             <span aria-hidden="true">🎀</span>
             <h2>Expired</h2>
             <span className="count">{expired.length}</span>
@@ -418,9 +418,9 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           </article>
         ))}
       </section>}
-      <section className="lane" id="meets">
-        <div className="lane-head">
-          <div className="lane-title">
+      <section className="race-lane" id="meets">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
             <span aria-hidden="true">⛓️</span>
             <h2>Chained Parlay</h2>
             {chains.length > 0 && <span className="count mint">{chains.length} {chains.length === 1 ? 'meet' : 'meets'}</span>}
@@ -437,9 +437,9 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           ))}
         </div>
       </section>
-      {settled.length > 0 && <section className="lane">
-        <div className="lane-head">
-          <div className="lane-title">
+      {settled.length > 0 && <section className="race-lane">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
             <span aria-hidden="true">🏆</span>
             <h2>Settled Races</h2>
             <span className="count">{settled.length} archived</span>
@@ -815,8 +815,12 @@ function BoardPage({ navigate }: { navigate: (to: string) => void }) {
 function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to: string) => void }) {
   const [trainer, setTrainer] = useState<Trainer | null>(null)
   const [problem, setProblem] = useState('')
+  const [filter, setFilter] = useState<'all' | 'running' | 'parlay' | 'settled'>('all')
+  const [more, setMore] = useState(false)
   useEffect(() => {
     setTrainer(null)
+    setFilter('all')
+    setMore(false)
     gambaApi.trainer(discordId).then(setTrainer).catch((reason) => setProblem(reason instanceof Error ? reason.message : 'That trainer has no carrots yet.'))
   }, [discordId])
   const go = (href: string) => (event: { preventDefault: () => void }) => {
@@ -824,73 +828,151 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
     navigate(href)
   }
   if (!trainer && !problem) return <p className="paddock-main">Loading this trainer.</p>
+  const singles = trainer ? groupSingles(trainer.openTickets) : []
+  const parlays = trainer?.openParlays || []
+  const settled = trainer ? groupHistory(trainer.history) : []
+  const settledParlays = settled.filter((row) => row.kind === 'parlay')
+  const showRunning = filter === 'all' || filter === 'running' || (filter === 'parlay' && parlays.length > 0)
+  const shownSettled = filter === 'parlay' ? settledParlays : settled
+  const showSettled = filter === 'all' || filter === 'settled' || filter === 'parlay'
+  const visibleSettled = more ? shownSettled : shownSettled.slice(0, 6)
+  const hidden = shownSettled.length - visibleSettled.length
+  const rate = trainer ? winRate(trainer.wins, trainer.losses) : null
+  const net = trainer ? trainer.history.reduce((sum, row) => sum + row.payout - row.amount, 0) : 0
+  const peak = trainer ? maxOdds(trainer) : null
+  const name = trainer ? shownName(trainer.name) : ''
   return <div className="paddock-main">
-    <div>
-      <p><a href="/gamba/board" onClick={go('/gamba/board')}>Back to the board</a></p>
+    <div className="slipbook">
       {problem && <p className="problem">{problem}</p>}
       {trainer && <>
-        <section className="hero">
-          <h1>{shownName(trainer.name)}</h1>
-          <p className="purse giant"><Carrot size={64} /> <strong className="num">{coins.format(trainer.carrots)}</strong></p>
-          <p className="record">
-            <span className="chip hit">{trainer.wins} hit</span>
-            <span className="chip miss">{trainer.losses} missed</span>
-            {trainer.record && <span className="chip">{trainer.record}</span>}
-          </p>
-        </section>
-        {(trainer.openTickets.length > 0 || trainer.openParlays.length > 0) && <>
-          <h2>Still running</h2>
-          <div className="mosaic">
-            {groupSingles(trainer.openTickets).map((ticket) => (
-              <a className="tile press" key={`${ticket.eventId}-${ticket.entryNumber}`} href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
-                <header>{ticket.eventName}</header>
-                <p>#{ticket.entryNumber} {ticket.entryName}</p>
-                <p className="num"><Carrot size={16} /> {coins.format(ticket.amount)}</p>
-              </a>
-            ))}
-            {trainer.openParlays.map((parlay) => <ParlaySlip key={parlay.parlayId} parlay={parlay} />)}
+        <section className="vault">
+          <div className="vault-id">
+            <span className="vault-mark" aria-hidden="true">{name.slice(0, 1)}</span>
+            <div>
+              <h1>{name}</h1>
+              <div className="vault-pills">
+                <span className="vault-hit">{trainer.wins} hit</span>
+                <span className="vault-miss">{trainer.losses} missed</span>
+                {rate != null && <span>{rate}% win rate</span>}
+                {peak != null && <span>Max {markOdds(peak)}</span>}
+              </div>
+            </div>
           </div>
-        </>}
-        <SettledMosaic rows={trainer.history} navigate={navigate} />
+          <div className="vault-balance">
+            <div>
+              <span>Carrot balance</span>
+              <strong>{coins.format(trainer.carrots)} 🥕</strong>
+            </div>
+            <div>
+              <span>Net return</span>
+              <strong className={net > 0 ? 'up' : net < 0 ? 'down' : ''}>{net > 0 ? '+' : ''}{coins.format(net)} 🥕</strong>
+            </div>
+          </div>
+        </section>
+        <div className="slip-tabs" role="tablist" aria-label="Tickets">
+          {([
+            ['all', 'All slips', singles.length + parlays.length + settled.length],
+            ['running', 'In play', singles.length + parlays.length],
+            ['parlay', 'Chained parlays', parlays.length + settledParlays.length],
+            ['settled', 'Settled slips', settled.length],
+          ] as const).map(([id, label, count]) => (
+            <button key={id} type="button" role="tab" aria-selected={filter === id} className={filter === id ? 'slip-tab on' : 'slip-tab'} onClick={() => { setFilter(id); setMore(false) }}>
+              {label} <span>{count}</span>
+            </button>
+          ))}
+        </div>
+        {showRunning && (filter !== 'parlay' ? singles.length + parlays.length : parlays.length) > 0 && <section className="slip-block">
+          <h2>Active ticket</h2>
+          {filter !== 'parlay' && singles.map((ticket) => (
+            <a key={`${ticket.eventId}-${ticket.entryNumber}`} className="live-slip" href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
+              <span className="gate-num" style={{ background: silkColor(ticket.entryNumber) }}>
+                <span>Gate</span>{ticket.entryNumber}
+              </span>
+              <span className="live-copy">
+                <span>Single win</span>
+                <strong>{ticket.eventName}</strong>
+                <span>#{ticket.entryNumber} {ticket.entryName}</span>
+              </span>
+              <span className="live-math">
+                <span><span>Staked</span><strong>{coins.format(ticket.amount)} 🥕</strong></span>
+                <span><span>Multiplier</span><strong>{markOdds(ticket.oddsAtBet)}</strong></span>
+                <span><span>Potential payout</span><strong>{coins.format(Math.floor(ticket.amount * ticket.oddsAtBet))} 🥕</strong></span>
+              </span>
+            </a>
+          ))}
+          {(filter === 'all' || filter === 'running' || filter === 'parlay') && parlays.map((parlay) => (
+            <article className="live-slip parlay" key={parlay.parlayId}>
+              <span className="gate-num chain"><span>Legs</span>{parlay.legs.length}</span>
+              <span className="live-copy">
+                <span>{parlay.chainName || 'Chained parlay'}</span>
+                <strong>{parlay.chainName || `${parlay.legs.length}-pick ticket`}</strong>
+                <span>{parlay.legs.map((leg) => `#${leg.entryNumber} ${leg.entryName}`).join(' · ')}</span>
+              </span>
+              <span className="live-math">
+                <span><span>Staked</span><strong>{coins.format(parlay.stake)} 🥕</strong></span>
+                <span><span>Multiplier</span><strong>{markOdds(parlay.combinedOdds)}</strong></span>
+                <span><span>Potential payout</span><strong>{coins.format(parlay.payoutIfHit)} 🥕</strong></span>
+              </span>
+            </article>
+          ))}
+        </section>}
+        {showRunning && filter !== 'parlay' && !singles.length && !parlays.length && <p className="empty">No tickets are still running.</p>}
+        {filter === 'parlay' && !parlays.length && !settledParlays.length && <p className="empty">No chained parlay yet. Add a horse on two open races, then place one ticket.</p>}
+        {showSettled && (filter !== 'parlay' || shownSettled.length > 0) && <section className="slip-block">
+          <h2>Settled betting slips</h2>
+          {!shownSettled.length && <p className="empty">No settled slips yet.</p>}
+          <div className="slip-grid">
+            {visibleSettled.map((row) => <SettledSlip key={`${row.kind}-${row.eventId}-${row.entryNumber}-${row.result}`} row={row} navigate={navigate} />)}
+          </div>
+          {hidden > 0 && <button type="button" className="slip-more" onClick={() => setMore(true)}>Load {hidden} archived slips</button>}
+          {more && shownSettled.length > 6 && <button type="button" className="slip-more" onClick={() => setMore(false)}>Show fewer</button>}
+        </section>}
       </>}
     </div>
   </div>
 }
 
-function SettledMosaic({ rows, navigate }: { rows: HistoryRow[]; navigate: (to: string) => void }) {
-  const cards = groupHistory(rows)
-  const [more, setMore] = useState(false)
-  const shown = more ? cards : cards.slice(0, 8)
-  const hidden = cards.length - shown.length
-  if (!rows.length) return <><h2>Settled tickets</h2><p>No settled bets yet.</p></>
-  return <>
-    <h2>Settled tickets</h2>
-    <p className="when">{cards.length === rows.length ? `${cards.length} tickets` : `${cards.length} tickets from ${rows.length} bets`}</p>
-    <div className="mosaic">
-      {shown.map((row) => <HistorySlip key={`${row.eventId}-${row.entryNumber}-${row.result}-${row.eventName}`} row={row} navigate={navigate} />)}
-    </div>
-    {hidden > 0 && <button type="button" className="quiet" onClick={() => setMore(true)}>Show {hidden} more</button>}
-    {more && cards.length > 8 && <button type="button" className="quiet" onClick={() => setMore(false)}>Show fewer</button>}
-  </>
-}
-
-function HistorySlip({ row, navigate }: { row: HistoryRow & { count?: number }; navigate: (to: string) => void }) {
+function SettledSlip({ row, navigate }: { row: HistoryRow & { count?: number }; navigate: (to: string) => void }) {
   const hit = row.result === 'win'
-  const detail = row.kind === 'parlay' || row.entryNumber == null
-    ? row.entryName
-    : `#${row.entryNumber} ${row.entryName}`
-  const odds = row.oddsAtBet != null ? ` ${oddsLabel(row.oddsAtBet)}` : ''
-  const href = row.kind !== 'parlay' && row.eventId && !row.eventId.startsWith('parlay:')
+  const parlay = row.kind === 'parlay'
+  const mega = hit && parlay && (row.oddsAtBet || 0) >= 10
+  const href = !parlay && row.eventId && !row.eventId.startsWith('parlay:')
     ? `/gamba/race/${encodeURIComponent(row.eventId)}`
     : ''
   const body = <>
-    <header>{row.eventName}</header>
-    <p>{detail}{odds}</p>
-    {(row.count || 0) > 1 && <p>{row.count} tickets</p>}
-    <p className="result"><Carrot size={16} /> {hit ? `Hit +${coins.format(row.payout)}` : `Missed −${coins.format(row.amount)}`}</p>
+    <span className={mega ? 'slip-stamp mega' : hit ? 'slip-stamp hit' : 'slip-stamp miss'}>{mega ? 'Mega hit' : hit ? 'Hit' : 'Missed'}</span>
+    <span className="slip-kicker">{parlay ? `${row.legs?.length || 0}-leg chained parlay` : 'Single win'}{(row.count || 0) > 1 ? ` · ${row.count} tickets` : ''}</span>
+    <strong>{row.eventName}</strong>
+    {parlay && row.legs?.length
+      ? <ul>{row.legs.map((leg) => <li key={leg.eventId}>#{leg.entryNumber} {leg.entryName}{leg.status === 'won' ? ' hit' : ''}</li>)}</ul>
+      : <span className="slip-runner">
+        {row.entryNumber != null && <span className="gate-mini" style={{ background: silkColor(row.entryNumber) }}>{row.entryNumber}</span>}
+        <span>{row.entryNumber != null ? `#${row.entryNumber} ${row.entryName}` : row.entryName}</span>
+        {row.oddsAtBet != null && <span className="odds-pill mint">{markOdds(row.oddsAtBet)}</span>}
+      </span>}
+    <span className="slip-cut" />
+    <span className="slip-pay">
+      <span><span>Staked{row.oddsAtBet != null && parlay ? ` · ${markOdds(row.oddsAtBet)}` : ''}</span><strong>{coins.format(row.amount)} 🥕</strong></span>
+      <span><span>{hit ? 'Payout credited' : 'Loss'}</span><strong className={hit ? 'up' : 'down'}>{hit ? `+${coins.format(row.payout)}` : `−${coins.format(row.amount)}`} 🥕</strong></span>
+    </span>
   </>
-  if (!href) return <article className={hit ? 'tile hit' : 'tile miss'}>{body}</article>
-  return <a className={hit ? 'tile hit press' : 'tile miss press'} href={href} onClick={(event) => { event.preventDefault(); navigate(href) }}>{body}</a>
+  if (!href) return <article className={hit ? 'slip-card hit' : 'slip-card miss'}>{body}</article>
+  return <a className={hit ? 'slip-card hit' : 'slip-card miss'} href={href} onClick={(event) => { event.preventDefault(); navigate(href) }}>{body}</a>
+}
+
+function winRate(wins: number, losses: number) {
+  const total = wins + losses
+  if (!total) return null
+  return Math.round((wins / total) * 100)
+}
+
+function maxOdds(trainer: Trainer) {
+  const values = [
+    ...trainer.history.map((row) => row.oddsAtBet),
+    ...trainer.openTickets.map((ticket) => ticket.oddsAtBet),
+    ...trainer.openParlays.map((parlay) => parlay.combinedOdds),
+  ].filter((value): value is number => value != null && Number.isFinite(value))
+  return values.length ? Math.max(...values) : null
 }
 
 function togglePick(current: Pick[], pick: Pick) {
