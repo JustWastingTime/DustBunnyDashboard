@@ -34,12 +34,8 @@ export const SUPPORT_ICONS: Record<string, string> = {
   power: 'https://gametora.com/images/umamusume/icons/utx_ico_obtain_02.png',
   guts: 'https://gametora.com/images/umamusume/icons/utx_ico_obtain_03.png',
   wit: 'https://gametora.com/images/umamusume/icons/utx_ico_obtain_04.png',
-}
-
-export const RARITY_BADGE: Record<string, string> = {
-  ssr: 'https://gametora.com/images/umamusume/icons/utx_txt_rarity_03.png',
-  sr: 'https://gametora.com/images/umamusume/icons/utx_txt_rarity_02.png',
-  r: 'https://gametora.com/images/umamusume/icons/utx_txt_rarity_01.png',
+  pal: 'https://gametora.com/images/umamusume/icons/utx_ico_obtain_05.png',
+  group: 'https://gametora.com/images/umamusume/icons/utx_ico_obtain_06.png',
 }
 
 function family(category: string) {

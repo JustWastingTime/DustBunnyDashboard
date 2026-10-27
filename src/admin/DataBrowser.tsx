@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminApi, type Summary } from './api'
-import { RARITY_BADGE, SKILL_TYPE_FILTERS, SUPPORT_ICONS, SUPPORT_TYPES, skillIcon, skillMatchesType } from './icons'
+import { SKILL_TYPE_FILTERS, SUPPORT_ICONS, SUPPORT_TYPES, skillIcon, skillMatchesType } from './icons'
 
 const PAGE = 50
 
@@ -177,7 +177,6 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
                   ? <img className="type-badge" src={SUPPORT_ICONS[row.category]} alt={row.category} />
                   : <span className="type-badge text">{row.category}</span>
               )}
-              {dataset === 'supporters' && RARITY_BADGE[row.rarity] && <img className="rarity-badge" src={RARITY_BADGE[row.rarity]} alt={row.rarity} />}
             </span>
             <strong>{dataset === 'characters' ? row.character_name : row.character_name}</strong>
             <small>{dataset === 'characters' ? `${row.costume || row.type} ${row.rarity}` : row.card_name}</small>

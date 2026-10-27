@@ -89,9 +89,8 @@
 .portrait { position: relative; width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: linear-gradient(180deg, #3a4658, #242c38); display: grid; place-items: center; }
 .portrait-art { width: 100%; height: 100%; object-fit: contain; }
 .portrait-empty { color: var(--muted); font-size: .8rem; }
-.type-badge { position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; border-radius: 4px; background: #fff; object-fit: contain; }
-.type-badge.text { display: grid; place-items: center; font-size: .55rem; color: #1b2430; }
-.rarity-badge { position: absolute; top: 4px; left: 4px; width: 18px; height: auto; background: transparent; object-fit: contain; }
+.type-badge { position: absolute; top: 2px; right: 2px; width: 36px; height: 36px; background: transparent; object-fit: contain; }
+.type-badge.text { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: #fff; font-size: .65rem; color: #1b2430; }
 .card-tile strong { font-size: .92rem; }
 .card-tile small { color: var(--muted); }
 .preview-panel { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid var(--line); }
