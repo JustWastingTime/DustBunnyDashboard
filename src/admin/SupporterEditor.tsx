@@ -53,7 +53,7 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
         <Choice label="Event status" value={String(draft._event || 'todo')} options={CARD_EVENT_STATUS} disabled={!owner} onChange={(_event) => set({ _event })} />
         <Text label="Card name" value={String(draft.card_name || '')} disabled={!owner} onChange={(card_name) => set({ card_name })} />
         <Text label="Character" value={String(draft.character_name || '')} disabled={!owner} onChange={(character_name) => set({ character_name })} />
-        <Text label="Unique skill" value={String(draft.unique || '')} disabled={!owner} onChange={(unique) => set({ unique })} />
+        <Area label="Unique" value={String(draft.unique || '')} disabled={!owner} onChange={(unique) => set({ unique })} />
         <div className="field-pair">
           <Choice label="Rarity" value={String(draft.rarity || 'r')} options={SUPPORT_RARITIES} disabled={!owner} onChange={(rarity) => set({ rarity })} />
           <Choice label="Type" value={String(draft.category || 'speed')} options={SUPPORT_TYPES.map((type) => ({ value: type.id, label: type.label }))} disabled={!owner} onChange={(category) => set({ category })} />

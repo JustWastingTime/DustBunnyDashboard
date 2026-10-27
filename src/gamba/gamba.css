@@ -465,19 +465,19 @@
   .rosette.first { order: -1; }
 }
 
-.catalog, .mosaic {
+.paddock .catalog, .paddock .mosaic {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
   gap: 10px;
   margin: 0 0 22px;
 }
-.catalog-section > h2,
+.paddock .catalog-section > h2,
 .results h2 {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.catalog-section > h2::before,
+.paddock .catalog-section > h2::before,
 .results h2::before {
   content: "";
   width: 10px;
@@ -605,14 +605,14 @@ a.poster-link {
 .hero .giant { margin-top: 8px; }
 .hero .giant strong { font-size: clamp(2.4rem, 6vw, 3.4rem); line-height: 1; }
 .record { display: flex; flex-wrap: wrap; gap: 8px; font-weight: 800; }
-.chip {
+.paddock .chip {
   border-radius: 8px;
   padding: 4px 10px;
   background: #e7eef5;
   color: var(--ink);
 }
-.chip.hit { background: #e5f6ee; color: var(--clover); }
-.chip.miss { background: #fde8ef; color: var(--ribbon); }
+.paddock .chip.hit { background: #e5f6ee; color: var(--clover); }
+.paddock .chip.miss { background: #fde8ef; color: var(--ribbon); }
 .press {
   transition-property: scale, background-color, box-shadow;
   transition-duration: 150ms;

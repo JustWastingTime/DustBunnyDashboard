@@ -10,6 +10,7 @@
   --accent-soft: #1a3330;
   --danger: #ffb4b4;
   --warning: #e7c56a;
+  color-scheme: dark;
   display: grid;
   grid-template-columns: 220px 1fr;
   min-height: 100vh;
@@ -25,7 +26,8 @@
 .admin-main h1 { font-weight: 600; letter-spacing: -.02em; margin: 0; }
 .admin-shell button, .admin-shell input, .admin-shell select, .admin-shell textarea { font: inherit; color: var(--ink); }
 .admin-shell select { background: var(--surface); }
-.admin-shell select option { background: #fff; color: #1b2430; }
+.admin-shell select option, .admin-shell select optgroup { background-color: #fff; color: #1b2430; }
+.admin-shell input[type="radio"], .admin-shell input[type="checkbox"] { width: 1rem; height: 1rem; padding: 0; margin: 0; background: transparent; border: 0; accent-color: var(--accent-dark); }
 .admin-shell button { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: .4rem .7rem; cursor: pointer; transition-property: transform, background-color, border-color, color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); }
 .admin-shell button:active { transform: scale(0.96); }
 .admin-shell button.primary { background: var(--accent-dark); border-color: transparent; color: #062117; font-weight: 600; }
@@ -66,8 +68,8 @@
 .filter-line, .result-bar, .icon-row { display: flex; gap: .45rem; flex-wrap: wrap; align-items: center; }
 .check-line { display: inline-flex; align-items: center; gap: .45rem; width: max-content; justify-self: start; }
 .check-line input { width: 1rem; height: 1rem; margin: 0; flex: 0 0 auto; accent-color: var(--accent-dark); }
-.chip { display: inline-flex; gap: .3rem; align-items: center; color: var(--muted); }
-.chip.on { color: var(--ink); }
+.admin-shell .chip { display: inline-flex; gap: .35rem; align-items: center; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: .2rem .6rem; }
+.admin-shell .chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-dark); }
 .icon-toggle { width: 56px; height: 56px; padding: 6px; border-radius: 10px; background: #2a313c; border: 1px solid #3a4454; }
 .icon-toggle img { width: 100%; height: 100%; object-fit: contain; }
 .icon-toggle.on { outline: 2px solid var(--accent); background: #24352f; }

@@ -79,7 +79,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
   const open = (key: string) => navigate(`/admin/${dataset}/edit?key=${encodeURIComponent(key)}`)
   const toggleType = (id: string) => setTypes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
 
-  return <section className="catalog">
+  return <section className="admin-catalog">
     <div className="admin-row catalog-head">
       <h1>{title}</h1>
       {owner && <button type="button" className="primary" onClick={() => navigate(`/admin/${dataset}/new`)}>Add</button>}
