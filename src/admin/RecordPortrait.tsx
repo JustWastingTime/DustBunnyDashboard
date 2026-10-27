@@ -57,21 +57,25 @@ export function RecordPortrait({
   const gametora = /^https?:\/\//.test(url) ? url : ''
   const others = siblings.filter((item) => item.key !== currentKey)
 
-  return <aside className="portrait-card">
-    <div className="portrait-frame">
-      {image
-        ? <img src={image} alt={heading || name || 'Card art'} />
-        : <p>No portrait yet</p>}
-    </div>
-    <div className="portrait-sheet">
-      <strong>{heading || name || 'Untitled'}</strong>
-      {detail && <p>{detail}</p>}
-      {gametora
-        ? <a className="portrait-link" href={gametora} target="_blank" rel="noreferrer">Open on Gametora</a>
-        : <p>Add a URL to open this on Gametora.</p>}
+  return <>
+    <aside className="portrait-card">
+      <div className="portrait-frame">
+        {image
+          ? <img src={image} alt={heading || name || 'Card art'} />
+          : <p>No portrait yet</p>}
+      </div>
+      <div className="portrait-sheet">
+        <strong>{heading || name || 'Untitled'}</strong>
+        {detail && <p>{detail}</p>}
+        {gametora
+          ? <a className="portrait-link" href={gametora} target="_blank" rel="noreferrer">Open on Gametora</a>
+          : <p>Add a URL to open this on Gametora.</p>}
+      </div>
+    </aside>
+    <aside className="sibling-card">
+      <p>{dataset === 'characters' ? 'Other outfits' : 'Other cards'}</p>
+      {others.length === 0 && <p>None for this character.</p>}
       <div className="sibling-list">
-        <p>{dataset === 'characters' ? 'Other outfits' : 'Other cards'}</p>
-        {others.length === 0 && <p>None for this character.</p>}
         {others.map((item) => (
           <button key={item.key} type="button" className={item.image ? 'has-art' : ''} onClick={() => navigate(`/admin/${dataset}/edit?key=${encodeURIComponent(item.key)}`)}>
             {item.image && <img src={item.image} alt="" />}
@@ -82,6 +86,6 @@ export function RecordPortrait({
           </button>
         ))}
       </div>
-    </div>
-  </aside>
+    </aside>
+  </>
 }

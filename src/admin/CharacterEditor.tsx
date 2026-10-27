@@ -44,7 +44,7 @@ export function CharacterEditor({ entryKey, creating, owner, navigate }: {
     {loaded.error && <p className="notice error">{loaded.error}</p>}
     <button type="button" onClick={() => { setRawMode(!rawMode); setRawText(JSON.stringify(draft, null, 2)) }}>{rawMode ? 'Form' : 'Raw JSON'}</button>
     <div className="editor-desk">
-      {rawMode ? <Area label="JSON" value={rawText} disabled={!owner} onChange={setRawText} /> : <div className="editor-form">
+      {rawMode ? <Area label="JSON" value={rawText} disabled={!owner} onChange={setRawText} /> : <div className="editor-form admin-section">
         <Text label="ID" value={String(draft.id || '')} disabled={!owner} onChange={(id) => set({ id })} />
         <Text label="Name" value={String(draft.character_name || '')} disabled={!owner} onChange={(character_name) => set({ character_name })} />
         <div className="field-pair">
@@ -61,20 +61,21 @@ export function CharacterEditor({ entryKey, creating, owner, navigate }: {
         <Area label="Review" value={String(draft.review || '')} disabled={!owner} onChange={(review) => set({ review })} />
         <Area label="Secrets JSON" value={JSON.stringify(draft.secrets ?? [], null, 2)} disabled={!owner} onChange={(value) => { try { set({ secrets: JSON.parse(value) }) } catch { /* typing */ } }} />
       </div>}
-      <RecordPortrait
-        dataset="characters"
-        currentKey={String(draft.id || entryKey || '')}
-        name={String(draft.character_name || '')}
-        image={String(draft.thumbnail || '')}
-        heading={String(draft.character_name || 'Uma')}
-        detail={[draft.type, draft.costume].filter(Boolean).join(' ')}
-        url={String(draft.url || '')}
-        navigate={navigate}
-      />
-    </div>
-    <h2>Diff</h2>
-    <DiffPreview before={original} after={draft} />
-    <SaveBar owner={owner && Boolean(loaded.blobSha)} message={message} setMessage={setMessage} busy={busy} onSave={save} warnings={warnings} conflict={conflict} reload={loaded.reload} onDelete={!creating && owner ? async () => {
+      <div className="editor-rail">
+        <RecordPortrait
+          dataset="characters"
+          currentKey={String(draft.id || entryKey || '')}
+          name={String(draft.character_name || '')}
+          image={String(draft.thumbnail || '')}
+          heading={String(draft.character_name || 'Uma')}
+          detail={[draft.type, draft.costume].filter(Boolean).join(' ')}
+          url={String(draft.url || '')}
+          navigate={navigate}
+        />
+        <section className="admin-section">
+          <h2>Changes</h2>
+          <DiffPreview before={original} after={draft} />
+          <SaveBar owner={owner && Boolean(loaded.blobSha)} message={message} setMessage={setMessage} busy={busy} onSave={save} warnings={warnings} conflict={conflict} reload={loaded.reload} onDelete={!creating && owner ? async () => {
       if (!window.confirm('Delete this uma from GitHub?')) return
       setBusy(true)
       try {
@@ -85,6 +86,9 @@ export function CharacterEditor({ entryKey, creating, owner, navigate }: {
         else loaded.setError(reason instanceof Error ? reason.message : String(reason))
       } finally { setBusy(false) }
     } : undefined} />
+        </section>
+      </div>
+    </div>
   </section>
 }
 

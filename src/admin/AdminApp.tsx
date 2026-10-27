@@ -13,18 +13,26 @@ import { RawAssetEditor } from './RawAssetEditor'
 import { VisualizerTool } from './tools/VisualizerTool'
 import './admin.css'
 
-const LINKS = [
-  ['/admin', 'Home'],
-  ['/admin/skills', 'Skills'],
-  ['/admin/supporters', 'Supporters'],
-  ['/admin/characters', 'Umas'],
-  ['/admin/gamba', 'Gamba events'],
-  ['/admin/tools/visualizer', 'Skill visualizer'],
-  ['/admin/premium', 'Premium servers'],
-  ['/admin/clubs', 'Clubs'],
-  ['/admin/assets', 'Other assets'],
-  ['/admin/audit', 'Audit log'],
+const LIBRARY = [
+  ['/admin', 'Home', 'M4 11 12 4l8 7v9a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z'],
+  ['/admin/skills', 'Skills', 'M12 3l7 4v10l-7 4-7-4V7z M12 12l7-4M12 12v9M12 12L5 8'],
+  ['/admin/supporters', 'Supporters', 'M4 7h16v12H4z M8 7V5h8v2'],
+  ['/admin/characters', 'Umas', 'M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4z M5 20a7 7 0 0 1 14 0'],
+  ['/admin/gamba', 'Gamba events', 'M4 8h16v10H4z M8 8V6h8v2 M9 13h6'],
+  ['/admin/tools/visualizer', 'Skill visualizer', 'M4 19V5h4l2 4h10v10z'],
 ] as const
+
+const ADMIN = [
+  ['/admin/premium', 'Premium servers', 'M12 3l2.2 4.6L19 8.2l-3.5 3.4.8 4.9L12 14.8 7.7 16.5l.8-4.9L5 8.2l4.8-.6z'],
+  ['/admin/clubs', 'Clubs', 'M4 20V9l8-5 8 5v11H4z M10 20v-6h4v6'],
+  ['/admin/assets', 'Other assets', 'M5 5h6v6H5z M13 5h6v6h-6z M5 13h6v6H5z M13 13h6v6h-6z'],
+  ['/admin/audit', 'Audit log', 'M7 4h10v16H7z M10 8h4M10 12h4M10 16h4'],
+] as const
+
+function navActive(href: string, name: string) {
+  if (href === '/admin') return name === '/admin'
+  return name === href || name.startsWith(`${href}/`)
+}
 
 function pageOf(path: string) {
   const url = new URL(path, 'http://local')
@@ -72,8 +80,16 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
   return <div className="admin-shell">
     <nav className="admin-nav">
       <strong>Tazuna admin</strong>
-      {LINKS.map(([href, label]) => (
-        <a key={href} href={href} className={name === href ? 'active' : ''} onClick={(event) => { event.preventDefault(); go(href) }}>{label}</a>
+      {LIBRARY.map(([href, label, icon]) => (
+        <a key={href} href={href} className={navActive(href, name) ? 'active' : ''} onClick={(event) => { event.preventDefault(); go(href) }}>
+          <NavIcon d={icon} />{label}
+        </a>
+      ))}
+      <p className="nav-label">Administration</p>
+      {ADMIN.map(([href, label, icon]) => (
+        <a key={href} href={href} className={navActive(href, name) ? 'active' : ''} onClick={(event) => { event.preventDefault(); go(href) }}>
+          <NavIcon d={icon} />{label}
+        </a>
       ))}
     </nav>
     <main className="admin-main">
@@ -89,8 +105,12 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
   </div>
 }
 
+function NavIcon({ d }: { d: string }) {
+  return <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={d} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" /></svg>
+}
+
 function Home() {
-  return <section>
+  return <section className="admin-section">
     <h1>Data dashboard</h1>
     <p>Browse skills, support cards, and umas. Owners can edit them; each save is a commit on the bot repo and updates the copy running on the server.</p>
   </section>

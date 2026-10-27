@@ -119,9 +119,10 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
       <ActivationMapEditor value={draft.activation_map} disabled={!owner} onChange={(activation_map) => set({ activation_map })} />
     </div>}
     <SkillMapPreview skill={draft} />
-    <h2>Diff</h2>
-    <DiffPreview before={original} after={draft} />
-    <SaveBar owner={owner && Boolean(loaded.blobSha)} message={message} setMessage={setMessage} busy={busy} onSave={save} warnings={warnings} conflict={conflict} reload={loaded.reload} onDelete={!creating && owner ? async () => {
+    <section className="admin-section">
+      <h2>Changes</h2>
+      <DiffPreview before={original} after={draft} />
+      <SaveBar owner={owner && Boolean(loaded.blobSha)} message={message} setMessage={setMessage} busy={busy} onSave={save} warnings={warnings} conflict={conflict} reload={loaded.reload} onDelete={!creating && owner ? async () => {
       if (!window.confirm('Delete this skill from GitHub?')) return
       setBusy(true)
       try {
@@ -132,6 +133,7 @@ export function SkillEditor({ entryKey, creating, owner, navigate }: {
         else loaded.setError(reason instanceof Error ? reason.message : String(reason))
       } finally { setBusy(false) }
     } : undefined} />
+    </section>
   </section>
 }
 

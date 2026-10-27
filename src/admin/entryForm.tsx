@@ -66,7 +66,7 @@ export function SaveBar({ owner, message, setMessage, busy, onSave, onDelete, wa
       <input value={message} onChange={(event) => setMessage(event.target.value)} />
     </label>
     <div className="admin-row">
-      <button type="button" disabled={busy} onClick={onSave}>{busy ? 'Saving…' : 'Save to GitHub'}</button>
+      <button type="button" className="primary" disabled={busy} onClick={onSave}>{busy ? 'Saving…' : 'Save to GitHub'}</button>
       {onDelete && <button type="button" disabled={busy} onClick={onDelete}>Delete</button>}
     </div>
     {warnings.map((warning) => <p key={warning} className="admin-warn">{warning}</p>)}
