@@ -191,7 +191,7 @@ function GambaTournaments() {
   }
   return <section>
     <h2>Tournaments</h2>
-    <p className="muted">Rounds stay on the website. Saving posts one Discord message for the tournament, not a card for each race. Attach only races created as tournament races.</p>
+    <p className="muted">Save the rounds first, then add races from the tournament page. A round can be empty until its races exist.</p>
     {error && <p className="notice error">{error}</p>}
     <ul>
       {tournaments.map((tournament) => (

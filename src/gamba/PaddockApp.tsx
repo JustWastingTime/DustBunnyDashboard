@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   coins,
   gambaApi,
@@ -16,6 +16,7 @@ import {
   type TournamentSummary,
   type Trainer,
 } from './api'
+import { adminApi, type GambaTournament } from '../admin/api'
 import { NewRace } from './NewRace'
 import './gamba.css'
 
@@ -161,9 +162,10 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   if (clean === '/gamba/board') body = <BoardPage navigate={navigate} />
   else if (clean.startsWith('/gamba/trainer/')) body = <TrainerPage discordId={decodeURIComponent(clean.slice('/gamba/trainer/'.length))} navigate={navigate} />
   else if (clean === '/gamba/new') {
-    const raceToEdit = new URLSearchParams(path.includes('?') ? path.slice(path.indexOf('?') + 1) : '').get('race')
-    body = <NewRace owner={Boolean(me.owner)} eventId={raceToEdit} navigate={navigate} />
+    const params = new URLSearchParams(path.includes('?') ? path.slice(path.indexOf('?') + 1) : '')
+    body = <NewRace key={`${params.get('race') || ''}-${params.get('tournament') || ''}-${params.get('round') || ''}`} owner={Boolean(me.owner)} eventId={params.get('race')} tournamentId={params.get('tournament')} roundId={params.get('round')} navigate={navigate} />
   }
+  else if (clean === '/gamba/tournaments') body = <TournamentsPage owner={Boolean(me.owner)} navigate={navigate} />
   else if (clean.startsWith('/gamba/meet/')) body = <MeetPage chainId={decodeURIComponent(clean.slice('/gamba/meet/'.length))} me={me} reload={reload} />
   else if (clean.startsWith('/gamba/tournament/')) body = <TournamentPage tournamentId={decodeURIComponent(clean.slice('/gamba/tournament/'.length))} me={me} reload={reload} navigate={navigate} />
   else if (clean.startsWith('/gamba/race/')) {
@@ -177,15 +179,20 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     />
   }
 
-  const openMeets = (event: { preventDefault: () => void }) => {
-    event.preventDefault()
-    if (clean !== '/gamba') {
-      sessionStorage.setItem('paddock-scroll', 'meets')
-      navigate('/gamba')
+  const racesOn = clean === '/gamba' || clean.startsWith('/gamba/race/') || clean.startsWith('/gamba/meet/')
+  const tournamentsOn = clean === '/gamba/tournaments' || clean.startsWith('/gamba/tournament/')
+  const boardOn = clean === '/gamba/board'
+  const navRef = useRef<HTMLElement>(null)
+  const [slider, setSlider] = useState({ x: 0, width: 0, on: false })
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    const current = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!nav || !current) {
+      setSlider((item) => ({ ...item, on: false }))
       return
     }
-    document.getElementById('meets')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+    setSlider({ x: current.offsetLeft, width: current.offsetWidth, on: true })
+  }, [clean])
 
   return <div className="paddock">
     <header className="top">
@@ -195,12 +202,13 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
             <span className="logo-mark" aria-hidden="true">🥕</span>
             <span>Tazuna Paddock</span>
           </a>
-          <nav className="links" aria-label="Paddock">
-            <a href="/gamba" aria-current={clean === '/gamba' ? 'page' : undefined} onClick={go('/gamba')}><span aria-hidden="true">🍀</span> Board</a>
-            <a href="/gamba#meets" onClick={openMeets}><span aria-hidden="true">⛓️</span> Chained Parlay</a>
-            <a href="/gamba/board" aria-current={clean === '/gamba/board' ? 'page' : undefined} onClick={go('/gamba/board')}><span aria-hidden="true">🏆</span> Leaderboard</a>
-            {me.owner && <a href="/gamba/new" aria-current={clean === '/gamba/new' ? 'page' : undefined} onClick={go('/gamba/new')}><span aria-hidden="true">🎪</span> Host Race</a>}
+          <nav className="links" aria-label="Paddock" ref={navRef}>
+            <span className={slider.on ? 'nav-slider on' : 'nav-slider'} style={{ transform: `translateX(${slider.x}px)`, width: slider.width }} />
+            <a href="/gamba" aria-current={racesOn ? 'page' : undefined} onClick={go('/gamba')}><span aria-hidden="true">🍀</span> Races</a>
+            <a href="/gamba/tournaments" aria-current={tournamentsOn ? 'page' : undefined} onClick={go('/gamba/tournaments')}><span aria-hidden="true">🏁</span> Tournaments</a>
+            <a href="/gamba/board" aria-current={boardOn ? 'page' : undefined} onClick={go('/gamba/board')}><span aria-hidden="true">🏆</span> Leaderboard</a>
           </nav>
+          {me.owner && <a className="host-race" href="/gamba/new" aria-current={clean === '/gamba/new' ? 'page' : undefined} onClick={go('/gamba/new')}>Host race</a>}
         </div>
         <div className="top-end">
           <p className="purse">
@@ -275,7 +283,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
 }) {
   const [events, setEvents] = useState<Race[]>([])
   const [chains, setChains] = useState<ChainSummary[]>([])
-  const [tournaments, setTournaments] = useState<TournamentSummary[]>([])
   const [problem, setProblem] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [toast, setToast] = useState('')
@@ -287,13 +294,7 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
       .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The board could not load.'))
       .finally(() => setLoaded(true))
     gambaApi.chains().then((payload) => setChains(payload.chains)).catch(() => setChains([]))
-    gambaApi.tournaments().then((payload) => setTournaments(payload.tournaments)).catch(() => setTournaments([]))
   }, [])
-  useEffect(() => {
-    if (!loaded || sessionStorage.getItem('paddock-scroll') !== 'meets') return
-    sessionStorage.removeItem('paddock-scroll')
-    document.getElementById('meets')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [loaded])
   useEffect(() => {
     if (!toast) return
     const id = window.setTimeout(() => setToast(''), 2600)
@@ -423,25 +424,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           </article>
         ))}
       </section>}
-      <section className="race-lane" id="tournaments">
-        <div className="race-lane-head">
-          <div className="race-lane-title">
-            <span aria-hidden="true">🏁</span>
-            <h2>Tournaments</h2>
-            {tournaments.length > 0 && <span className="count mint">{tournaments.length}</span>}
-          </div>
-        </div>
-        {!tournaments.length && <p className="empty">No tournament is posted.</p>}
-        <div className="open-grid">
-          {tournaments.map((tournament) => (
-            <a className="meet-card" key={tournament.id} href={`/gamba/tournament/${tournament.id}`} onClick={go(`/gamba/tournament/${tournament.id}`)}>
-              <span className="pill open">Tournament</span>
-              <h3>{tournament.name}</h3>
-              <p>{tournament.rounds.map((round) => round.label).join(' · ')}</p>
-            </a>
-          ))}
-        </div>
-      </section>
       <section className="race-lane" id="meets">
         <div className="race-lane-head">
           <div className="race-lane-title">
@@ -600,6 +582,95 @@ function ResultList({ rows, empty }: { rows: Race['results']; empty: string }) {
       </li>
     ))}
   </ul>
+}
+
+function TournamentsPage({ owner, navigate }: { owner: boolean; navigate: (to: string) => void }) {
+  const [rows, setRows] = useState<TournamentSummary[]>([])
+  const [name, setName] = useState('')
+  const [rounds, setRounds] = useState(['Groups', 'Final'])
+  const [problem, setProblem] = useState('')
+  const [busy, setBusy] = useState(false)
+  const load = () => {
+    gambaApi.tournaments().then((payload) => setRows(payload.tournaments)).catch((reason) => setProblem(reason instanceof Error ? reason.message : 'Tournaments could not load.'))
+  }
+  useEffect(() => { load() }, [])
+  const go = (href: string) => (event: { preventDefault: () => void }) => {
+    event.preventDefault()
+    navigate(href)
+  }
+  const save = async () => {
+    const labels = rounds.map((label) => label.trim()).filter(Boolean)
+    if (!name.trim() || labels.length < 1) {
+      setProblem('Name the tournament and at least one round.')
+      return
+    }
+    setBusy(true)
+    setProblem('')
+    try {
+      const draft: GambaTournament = {
+        id: '',
+        name: name.trim(),
+        rounds: labels.map((label) => ({ label, eventIds: [], pickemPayouts: [0] })),
+      }
+      await adminApi.saveGambaTournament(draft)
+      setName('')
+      setRounds(['Groups', 'Final'])
+      load()
+    } catch (reason) {
+      setProblem(reason instanceof Error ? reason.message : 'The tournament was not saved.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <div className="paddock-main">
+    <div className="board-stack">
+      {problem && <p className="problem">{problem}</p>}
+      <section className="race-lane">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
+            <span aria-hidden="true">🏁</span>
+            <h2>Tournaments</h2>
+          </div>
+        </div>
+        {!rows.length && <p className="empty">No tournament is posted.</p>}
+        <div className="open-grid">
+          {rows.map((tournament) => (
+            <article className="meet-card" key={tournament.id}>
+              <a href={`/gamba/tournament/${tournament.id}`} onClick={go(`/gamba/tournament/${tournament.id}`)}>
+                <span className="pill open">Tournament</span>
+                <h3>{tournament.name}</h3>
+              </a>
+              <ul className="round-list">
+                {tournament.rounds.map((round) => (
+                  <li key={round.id}>
+                    <span>{round.label}</span>
+                    {owner && <a href={`/gamba/new?tournament=${encodeURIComponent(tournament.id)}&round=${encodeURIComponent(round.id)}`} onClick={go(`/gamba/new?tournament=${encodeURIComponent(tournament.id)}&round=${encodeURIComponent(round.id)}`)}>Add race</a>}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </section>
+      {owner && <section className="race-form">
+        <h2>New tournament</h2>
+        <p className="when">Save the rounds first. Then add a race to each round. Those races stay off the Races page.</p>
+        <label>Name
+          <input value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        {rounds.map((label, index) => (
+          <label key={index}>Round {index + 1}
+            <input value={label} onChange={(event) => setRounds((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} />
+          </label>
+        ))}
+        <div className="form-actions">
+          {rounds.length < 8 && <button type="button" className="quiet" onClick={() => setRounds((current) => [...current, ''])}>Add round</button>}
+          {rounds.length > 1 && <button type="button" className="quiet" onClick={() => setRounds((current) => current.slice(0, -1))}>Remove round</button>}
+          <button type="button" className="place" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save tournament'}</button>
+        </div>
+      </section>}
+    </div>
+  </div>
 }
 
 function TournamentPage({ tournamentId, me, reload, navigate }: {

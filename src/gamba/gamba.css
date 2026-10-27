@@ -115,13 +115,28 @@
   font-size: 1.25rem;
 }
 .paddock .links {
+  position: relative;
   gap: 6px;
   padding: 4px;
   border-radius: 16px;
   background: rgb(13 16 29 / 0.8);
   border: 1px solid rgb(255 255 255 / 0.05);
 }
+.paddock .nav-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 12px;
+  background: rgb(110 231 183 / 0.15);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 280ms cubic-bezier(0.22, 0.8, 0.24, 1), width 280ms cubic-bezier(0.22, 0.8, 0.24, 1), opacity 160ms ease;
+}
+.paddock .nav-slider.on { opacity: 1; }
 .paddock .links a {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -131,12 +146,19 @@
   font-weight: 600;
   font-size: 0.92rem;
 }
-.paddock .links a:hover { color: #fff; background: rgb(255 255 255 / 0.05); }
+.paddock .links a:hover { color: #fff; }
 .paddock .links a[aria-current="page"] {
-  background: rgb(110 231 183 / 0.15);
   color: var(--mint);
   font-weight: 800;
 }
+.paddock .host-race {
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: #222a3d;
+  color: #ffb690;
+  font-weight: 800;
+}
+.paddock .host-race[aria-current="page"] { box-shadow: inset 0 0 0 1px rgb(255 182 144 / 0.55); }
 .paddock .top-end .purse {
   gap: 6px;
   margin: 0;
@@ -734,17 +756,29 @@
 .paddock .slip-tab.on { background: #222a3d; color: #4edea3; font-weight: 800; }
 .paddock .slip-block { display: flex; flex-direction: column; gap: 12px; }
 .paddock .live-slip {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 16px;
   align-items: center;
-  padding: 18px;
+  padding: 18px 18px 18px 22px;
   border-radius: 16px;
   background: #222a3d;
   color: inherit;
-  box-shadow: inset 0 3px 0 #ec6a06;
+  overflow: hidden;
 }
-.paddock .live-slip.parlay { box-shadow: inset 0 3px 0 #4edea3; }
+.paddock .live-slip::before,
+.paddock .slip-card::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 0;
+  width: 6px;
+  border-radius: 0;
+}
+.paddock .live-slip::before { background: #ec6a06; }
+.paddock .live-slip.parlay::before { background: #4edea3; }
 .paddock .gate-num {
   width: 56px;
   height: 56px;
@@ -791,19 +825,12 @@
   gap: 8px;
   min-width: 0;
   padding: 18px 18px 18px 22px;
-  border-radius: 0 16px 16px 0;
+  border-radius: 16px;
   background: #131b2e;
   color: inherit;
+  overflow: hidden;
 }
-.paddock .slip-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 6px;
-  background: #ffb4ab;
-}
+.paddock .slip-card::before { background: #ffb4ab; }
 .paddock .slip-card.hit::before { background: #4edea3; }
 .paddock .slip-stamp {
   position: absolute;
@@ -867,6 +894,9 @@
 .paddock .round-chip.open { border-color: rgb(78 222 163 / 0.45); }
 .paddock .round-chip.open strong { color: #4edea3; }
 .paddock .round-chip.settled strong { color: #bbcabf; }
+.paddock .round-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.paddock .round-list li { display: flex; justify-content: space-between; gap: 12px; color: #bbcabf; }
+.paddock .round-list a { color: #4edea3; font-weight: 800; }
 .paddock .check-line { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 
 .paddock .gate {

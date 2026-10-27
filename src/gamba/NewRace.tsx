@@ -25,14 +25,22 @@ function fromLocalInput(value: string) {
   return date.toISOString()
 }
 
-export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; eventId?: string | null; navigate: (to: string) => void }) {
+export function NewRace({ owner, eventId = null, tournamentId = null, roundId = null, navigate }: {
+  owner: boolean
+  eventId?: string | null
+  tournamentId?: string | null
+  roundId?: string | null
+  navigate: (to: string) => void
+}) {
   const [name, setName] = useState('')
   const [opens, setOpens] = useState('')
   const [closes, setCloses] = useState('')
   const [horses, setHorses] = useState<Horse[]>([blankHorse(1), blankHorse(2)])
   const [scope, setScope] = useState<'all' | 'guilds'>('all')
-  const [tournament, setTournament] = useState(false)
-  const [tournamentLocked, setTournamentLocked] = useState(false)
+  const [tournament, setTournament] = useState(Boolean(tournamentId))
+  const [tournaments, setTournaments] = useState<Array<{ id: string; name: string; rounds: Array<{ id?: string; label: string }> }>>([])
+  const [attachTournament, setAttachTournament] = useState(tournamentId || '')
+  const [attachRound, setAttachRound] = useState(roundId || '')
   const [guilds, setGuilds] = useState<Guild[]>([])
   const [savedIds, setSavedIds] = useState<string[]>([])
   const [picked, setPicked] = useState<string[]>([])
@@ -53,6 +61,9 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
   useEffect(() => {
     if (!owner) return
     loadPosted()
+    adminApi.gambaTournaments()
+      .then((payload) => setTournaments(payload.tournaments))
+      .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The tournaments could not load.'))
     adminApi.gambaGuilds()
       .then((payload) => {
         setGuilds((current) => [
@@ -76,7 +87,6 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
     setHorses([blankHorse(1), blankHorse(2)])
     setScope('all')
     setTournament(false)
-    setTournamentLocked(false)
     setPicked([])
     setProblem('')
   }
@@ -93,7 +103,6 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
       setCloses(toLocalInput(event.endsAt))
       const tournamentRace = event.listing === 'tournament' || event.availability === 'web'
       setTournament(tournamentRace)
-      setTournamentLocked(true)
       setScope(event.availability === 'guilds' ? 'guilds' : 'all')
       setPicked(event.guildIds || [])
       setGuilds((current) => {
@@ -128,7 +137,6 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
         setHorses([blankHorse(1), blankHorse(2)])
         setScope('all')
         setTournament(false)
-        setTournamentLocked(false)
         setPicked([])
       }
       return
@@ -168,6 +176,10 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
     }
     if (entries.some((horse) => !Number.isFinite(horse.odds) || horse.odds <= 0)) {
       setProblem('Each horse needs odds above 0.')
+      return
+    }
+    if (attachTournament && !attachRound) {
+      setProblem('Choose the round this race belongs to.')
       return
     }
     if (!tournament && scope === 'guilds' && !picked.length) {
@@ -218,7 +230,21 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
         baseBlobSha: editing?.blobSha,
         message: `paddock: ${editing ? 'update' : 'add'} race ${id}`,
       })
-      navigate(`/gamba/race/${encodeURIComponent(saved.id)}`)
+      if (!editing && attachTournament && attachRound) {
+        const listed = await adminApi.gambaTournaments()
+        const target = listed.tournaments.find((item) => item.id === attachTournament)
+        if (!target) throw new Error('That tournament is gone.')
+        const rounds = target.rounds.map((round) => (
+          round.id === attachRound && !round.eventIds.includes(saved.id)
+            ? { ...round, eventIds: [...round.eventIds, saved.id] }
+            : round
+        ))
+        if (!rounds.some((round) => round.id === attachRound)) throw new Error('That round is gone.')
+        await adminApi.saveGambaTournament({ ...target, rounds })
+        navigate(`/gamba/tournament/${encodeURIComponent(attachTournament)}`)
+        return
+      }
+      navigate(tournament ? `/gamba/tournaments` : `/gamba/race/${encodeURIComponent(saved.id)}`)
     } catch (reason) {
       setProblem(reason instanceof AdminError || reason instanceof Error ? reason.message : 'The race was not posted.')
     } finally {
@@ -296,11 +322,26 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
           <input type="datetime-local" value={closes} onChange={(event) => setCloses(event.target.value)} />
         </label>
       </div>
-      <label className="check-line">
-        <input type="checkbox" checked={tournament} disabled={tournamentLocked} onChange={(event) => setTournament(event.target.checked)} />
-        Tournament race
-      </label>
-      <p className="when">Tournament races are bet on the website. A board race cannot be moved into a tournament later.</p>
+      {!eventId && <label>Tournament
+        <select value={attachTournament} onChange={(event) => {
+          const next = event.target.value
+          setAttachTournament(next)
+          setAttachRound('')
+          setTournament(Boolean(next))
+        }}>
+          <option value="">Board race</option>
+          {tournaments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </label>}
+      {attachTournament && <label>Round
+        <select value={attachRound} onChange={(event) => setAttachRound(event.target.value)}>
+          <option value="">Choose a round</option>
+          {(tournaments.find((item) => item.id === attachTournament)?.rounds || []).map((round) => (
+            <option key={round.id || round.label} value={round.id || ''}>{round.label}</option>
+          ))}
+        </select>
+      </label>}
+      <p className="when">{tournament ? 'This race stays on that tournament. Discord does not get a horse card for it.' : 'Players see this race on the Races page once you post it.'}</p>
       {!tournament && <>
       <h2>Guilds</h2>
       <p className="when">A name stays on this bot, so the next race can pick the same guild.</p>
