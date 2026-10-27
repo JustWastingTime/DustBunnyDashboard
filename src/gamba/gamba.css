@@ -487,6 +487,34 @@
 }
 .results h2.cashed::before { background: var(--clover); }
 .results h2.missed::before { background: var(--ribbon); }
+.poster { position: relative; }
+a.poster-link {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.edit-race {
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.poster .edit-race {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+}
+.race-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .poster, .tile {
   aspect-ratio: 1;
   display: flex;

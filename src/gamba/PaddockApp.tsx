@@ -158,7 +158,10 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   let body: ReactNode = <CardPage me={me} picks={picks} setPicks={setPicks} onPlace={placePicks} navigate={navigate} />
   if (clean === '/gamba/board') body = <BoardPage navigate={navigate} />
   else if (clean.startsWith('/gamba/trainer/')) body = <TrainerPage discordId={decodeURIComponent(clean.slice('/gamba/trainer/'.length))} navigate={navigate} />
-  else if (clean === '/gamba/new') body = <NewRace owner={Boolean(me.owner)} navigate={navigate} />
+  else if (clean === '/gamba/new') {
+    const raceToEdit = new URLSearchParams(path.includes('?') ? path.slice(path.indexOf('?') + 1) : '').get('race')
+    body = <NewRace owner={Boolean(me.owner)} eventId={raceToEdit} navigate={navigate} />
+  }
   else if (clean.startsWith('/gamba/meet/')) body = <MeetPage chainId={decodeURIComponent(clean.slice('/gamba/meet/'.length))} me={me} reload={reload} />
   else if (clean.startsWith('/gamba/race/')) {
     body = <RacePage
@@ -230,14 +233,19 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           <h2>{group.title}</h2>
           <div className="catalog">
             {rows.map((race) => (
-              <a key={race.id} className={`poster press ${race.phase}`} href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>
-                <span className={`status ${race.phase}`}>{statusLabel(race.phase)}</span>
-                <span>
-                  <strong>{race.name}</strong>
-                  <span className="when">{raceNote(race)}</span>
-                </span>
-                <span className="meta">{race.entries.length === 1 ? '1 horse' : `${race.entries.length} horses`}</span>
-              </a>
+              <article key={race.id} className={`poster press ${race.phase}`}>
+                <a className="poster-link" href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>
+                  <span className={`status ${race.phase}`}>{statusLabel(race.phase)}</span>
+                  <span>
+                    <strong>{race.name}</strong>
+                    <span className="when">{raceNote(race)}</span>
+                  </span>
+                  <span className="meta">{race.entries.length === 1 ? '1 horse' : `${race.entries.length} horses`}</span>
+                </a>
+                {me.owner && race.phase !== 'settled' && (
+                  <a className="edit-race" href={`/gamba/new?race=${encodeURIComponent(race.id)}`} onClick={go(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>Edit</a>
+                )}
+              </article>
             ))}
           </div>
         </section>
@@ -298,7 +306,12 @@ function RacePage({ eventId, me, picks, setPicks, onPlace, navigate }: {
       {problem && <p className="problem">{problem}</p>}
       {race && <>
         <div className="race-head">
-          <span className={`status ${race.phase}`}>{statusLabel(race.phase)}</span>
+          <div className="race-tools">
+            <span className={`status ${race.phase}`}>{statusLabel(race.phase)}</span>
+            {me.owner && race.phase !== 'settled' && (
+              <a className="edit-race" href={`/gamba/new?race=${encodeURIComponent(race.id)}`} onClick={go(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>Edit race</a>
+            )}
+          </div>
           <h1>{race.name}</h1>
           <p className="when">{raceNote(race)}</p>
         </div>

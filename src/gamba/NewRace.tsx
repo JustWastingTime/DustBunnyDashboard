@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AdminError, adminApi, type GambaEvent } from '../admin/api'
 
 type Horse = { number: string; name: string; age: string; jockey: string; odds: string }
@@ -25,7 +25,7 @@ function fromLocalInput(value: string) {
   return date.toISOString()
 }
 
-export function NewRace({ owner, navigate }: { owner: boolean; navigate: (to: string) => void }) {
+export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; eventId?: string | null; navigate: (to: string) => void }) {
   const [name, setName] = useState('')
   const [opens, setOpens] = useState('')
   const [closes, setCloses] = useState('')
@@ -40,6 +40,7 @@ export function NewRace({ owner, navigate }: { owner: boolean; navigate: (to: st
   const [editing, setEditing] = useState<{ id: string; file: string; blobSha: string | null; status: string } | null>(null)
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
+  const openedId = useRef<string | null>(null)
 
   const loadPosted = () => {
     adminApi.gambaEvents()
@@ -60,10 +61,6 @@ export function NewRace({ owner, navigate }: { owner: boolean; navigate: (to: st
       })
       .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The guild list could not load.'))
   }, [owner])
-
-  if (!owner) {
-    return <div className="paddock-main solo"><p>Only the owner can post a race.</p></div>
-  }
 
   const setHorse = (index: number, patch: Partial<Horse>) => {
     setHorses((current) => current.map((horse, item) => (item === index ? { ...horse, ...patch } : horse)))
@@ -112,11 +109,39 @@ export function NewRace({ owner, navigate }: { owner: boolean; navigate: (to: st
     }
   }
 
+  useEffect(() => {
+    if (!owner) return
+    if (!eventId) {
+      if (openedId.current) {
+        openedId.current = null
+        setEditing(null)
+        setName('')
+        setOpens('')
+        setCloses('')
+        setHorses([blankHorse(1), blankHorse(2)])
+        setScope('all')
+        setPicked([])
+      }
+      return
+    }
+    if (openedId.current === eventId) return
+    openedId.current = eventId
+    void loadEvent(eventId)
+  }, [owner, eventId])
+
+  if (!owner) {
+    return <div className="paddock-main solo"><p>Only the owner can post a race.</p></div>
+  }
+
   const save = async () => {
     const trimmed = name.trim()
     const id = editing?.id || raceId(trimmed)
     if (!trimmed || !id) {
       setProblem('Give the race a name.')
+      return
+    }
+    if (editing?.status === 'settled') {
+      setProblem('This race is already settled.')
       return
     }
     const entries = horses
@@ -326,14 +351,16 @@ export function NewRace({ owner, navigate }: { owner: boolean; navigate: (to: st
       <div className="form-actions">
         <button type="button" className="quiet" onClick={() => setHorses((current) => [...current, blankHorse(current.length + 1)])}>Add a horse</button>
         <button type="button" className="place" disabled={busy} onClick={() => void save()}>{busy ? 'Posting…' : editing ? 'Save race' : 'Post race'}</button>
-        {editing && <button type="button" className="quiet" onClick={reset}>New race</button>}
+        {editing && <button type="button" className="quiet" onClick={() => { openedId.current = null; reset(); navigate('/gamba/new') }}>New race</button>}
       </div>
       <h2>Posted races</h2>
       {!posted.length && <p className="when">No races posted yet.</p>}
       <ul className="posted">
         {posted.map((race) => (
           <li key={race.id}>
-            <button type="button" className="quiet" onClick={() => void loadEvent(race.id)}>{race.name}</button>
+            {race.status === 'settled'
+              ? <span>{race.name}</span>
+              : <button type="button" className="quiet" onClick={() => navigate(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>{race.name}</button>}
             <span className="when">{({ open: 'Open', closed: 'Expired', scheduled: 'Soon', settled: 'Settled' } as Record<string, string>)[race.status] || race.status}</span>
           </li>
         ))}
