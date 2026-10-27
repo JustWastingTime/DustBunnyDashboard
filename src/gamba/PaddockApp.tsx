@@ -90,6 +90,20 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   const [gate, setGate] = useState<'loading' | 'in' | 'out'>('loading')
   const [problem, setProblem] = useState('')
   const [picks, setPicks] = useState<Pick[]>([])
+  const navRef = useRef<HTMLElement>(null)
+  const [slider, setSlider] = useState({ x: 0, width: 0, on: false })
+  const racesOn = clean === '/gamba' || clean.startsWith('/gamba/race/') || clean.startsWith('/gamba/meet/')
+  const tournamentsOn = clean === '/gamba/tournaments' || clean.startsWith('/gamba/tournament/')
+  const boardOn = clean === '/gamba/board'
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    const current = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!nav || !current) {
+      setSlider((item) => ({ ...item, on: false }))
+      return
+    }
+    setSlider({ x: current.offsetLeft, width: current.offsetWidth, on: true })
+  }, [clean, gate])
 
   useEffect(() => {
     document.title = 'Tazuna Paddock'
@@ -178,21 +192,6 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
       navigate={navigate}
     />
   }
-
-  const racesOn = clean === '/gamba' || clean.startsWith('/gamba/race/') || clean.startsWith('/gamba/meet/')
-  const tournamentsOn = clean === '/gamba/tournaments' || clean.startsWith('/gamba/tournament/')
-  const boardOn = clean === '/gamba/board'
-  const navRef = useRef<HTMLElement>(null)
-  const [slider, setSlider] = useState({ x: 0, width: 0, on: false })
-  useLayoutEffect(() => {
-    const nav = navRef.current
-    const current = nav?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (!nav || !current) {
-      setSlider((item) => ({ ...item, on: false }))
-      return
-    }
-    setSlider({ x: current.offsetLeft, width: current.offsetWidth, on: true })
-  }, [clean])
 
   return <div className="paddock">
     <header className="top">
