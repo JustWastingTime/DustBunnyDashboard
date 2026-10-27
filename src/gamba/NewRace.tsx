@@ -130,7 +130,7 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
   }, [owner, eventId])
 
   if (!owner) {
-    return <div className="paddock-main solo"><p>Only the owner can post a race.</p></div>
+    return <div className="paddock-main"><p>Only the owner can post a race.</p></div>
   }
 
   const save = async () => {
@@ -270,7 +270,7 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
     }
   }
 
-  return <div className="paddock-main solo">
+  return <div className="paddock-main">
     <div className="race-form">
       <h1>{editing ? 'Edit race' : 'Post a race'}</h1>
       <p className="when">Players see this race on the card once you post it.</p>

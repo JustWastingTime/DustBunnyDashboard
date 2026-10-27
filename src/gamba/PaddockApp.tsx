@@ -29,11 +29,11 @@ type Pick = {
 const loginHref = `/api/auth/login?returnTo=${encodeURIComponent('/gamba')}`
 
 function Carrot({ size = 22 }: { size?: number }) {
-  return <img className="carrot" src="/carrot.png" alt="" width={size} height={size} style={{ width: size, height: size }} />
+  return <span className="carrot" style={{ fontSize: size }} aria-hidden="true">🥕</span>
 }
 
 function Crown({ rank }: { rank: number }) {
-  const color = rank === 1 ? '#1e3354' : rank === 2 ? '#7f9bb4' : '#b42355'
+  const color = rank === 1 ? '#fef08a' : rank === 2 ? '#cbd5e1' : '#f472b6'
   const size = rank === 1 ? 68 : 52
   return <svg className="crown" width={size} height={size} viewBox="0 0 64 56" aria-hidden="true">
     <path fill={color} d="M6 40 L16 18 L26 32 L32 10 L38 32 L48 18 L58 40 Z" />
@@ -92,7 +92,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     document.title = 'Tazuna Paddock'
     const root = document.documentElement
     const previous = root.style.background
-    root.style.background = '#d7eef8'
+    root.style.background = '#121526'
     return () => { root.style.background = previous }
   }, [])
 
@@ -174,22 +174,93 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     />
   }
 
+  const openMeets = (event: { preventDefault: () => void }) => {
+    event.preventDefault()
+    if (clean !== '/gamba') {
+      sessionStorage.setItem('paddock-scroll', 'meets')
+      navigate('/gamba')
+      return
+    }
+    document.getElementById('meets')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return <div className="paddock">
     <header className="top">
-      <a className="brand" href="/gamba" onClick={go('/gamba')}><Carrot size={28} /> Tazuna Paddock</a>
-      <nav className="links" aria-label="Paddock">
-        <a href="/gamba" aria-current={clean === '/gamba' ? 'page' : undefined} onClick={go('/gamba')}>Card</a>
-        <a href="/gamba/board" aria-current={clean === '/gamba/board' ? 'page' : undefined} onClick={go('/gamba/board')}>Board</a>
-        {me.owner && <a href="/gamba/new" aria-current={clean === '/gamba/new' ? 'page' : undefined} onClick={go('/gamba/new')}>New race</a>}
-      </nav>
-      <p className="who">
-        <span className="purse"><Carrot /> Your carrots <strong className="num">{coins.format(me.carrots)}</strong></span>
-        <a href={`/gamba/trainer/${me.discordId}`} onClick={go(`/gamba/trainer/${me.discordId}`)}>{shownName(me.name)}</a>
-        <button type="button" className="quiet" onClick={() => { void gambaApi.logout().then(() => window.location.assign('/gamba')) }}>Log out</button>
-      </p>
+      <div className="top-bar">
+        <div className="top-lead">
+          <a className="brand" href="/gamba" onClick={go('/gamba')}>
+            <span className="logo-mark" aria-hidden="true">🥕</span>
+            <span>Tazuna Paddock</span>
+          </a>
+          <nav className="links" aria-label="Paddock">
+            <a href="/gamba" aria-current={clean === '/gamba' ? 'page' : undefined} onClick={go('/gamba')}><span aria-hidden="true">🍀</span> Board</a>
+            <a href="/gamba#meets" onClick={openMeets}><span aria-hidden="true">⛓️</span> Chained Parlay</a>
+            <a href="/gamba/board" aria-current={clean === '/gamba/board' ? 'page' : undefined} onClick={go('/gamba/board')}><span aria-hidden="true">🏆</span> Leaderboard</a>
+            {me.owner && <a href="/gamba/new" aria-current={clean === '/gamba/new' ? 'page' : undefined} onClick={go('/gamba/new')}><span aria-hidden="true">🎪</span> Host Race</a>}
+          </nav>
+        </div>
+        <div className="top-end">
+          <p className="purse">
+            <span className="carrot-bounce" aria-hidden="true">🥕</span>
+            <strong className="odds-num">{coins.format(me.carrots)}</strong>
+            <span>Carrots</span>
+          </p>
+          <div className="trainer-pill">
+            <a className="trainer-id" href={`/gamba/trainer/${me.discordId}`} onClick={go(`/gamba/trainer/${me.discordId}`)}>
+              <span className="trainer-name">{shownName(me.name)}</span>
+              <span className="trainer-sub">{me.wins} hit · {me.losses} missed</span>
+            </a>
+            <span className="avatar" aria-hidden="true">🐴</span>
+            <button type="button" className="gear" aria-label="Log out" onClick={() => { void gambaApi.logout().then(() => window.location.assign('/gamba')) }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.64.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.23.09.5 0 .64-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </header>
-    {body}
+    <main className="paddock-body">{body}</main>
+    <footer className="pad-foot">
+      <div>
+        <span className="foot-brand">🥕 Tazuna Paddock</span>
+        <span>Same carrots as Discord.</span>
+      </div>
+      <nav aria-label="Paddock footer">
+        <a href="/gamba" onClick={go('/gamba')}>Board</a>
+        <a href="/gamba/board" onClick={go('/gamba/board')}>Leaderboard</a>
+      </nav>
+    </footer>
   </div>
+}
+
+function favorite(race: Race) {
+  if (!race.entries.length) return null
+  return [...race.entries].sort((a, b) => a.odds - b.odds || a.number - b.number)[0]
+}
+
+function markOdds(value: number | null | undefined) {
+  const n = Math.round(Number(value) * 100) / 100
+  if (!Number.isFinite(n)) return ''
+  return `x${n}`
+}
+
+function clockTime(iso: string | null) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+function openDay(iso: string | null) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function horseCount(count: number, word: 'runners' | 'horses') {
+  return `${count} ${count === 1 ? word.replace(/s$/, '') : word}`
 }
 
 function CardPage({ me, picks, setPicks, onPlace, navigate }: {
@@ -203,64 +274,194 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
   const [chains, setChains] = useState<ChainSummary[]>([])
   const [problem, setProblem] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [toast, setToast] = useState('')
+  const [showSettled, setShowSettled] = useState(false)
+  const blocked = blockedEvents(me)
   useEffect(() => {
     gambaApi.events()
       .then((payload) => setEvents(payload.events))
-      .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The card could not load.'))
+      .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The board could not load.'))
       .finally(() => setLoaded(true))
     gambaApi.chains().then((payload) => setChains(payload.chains)).catch(() => setChains([]))
   }, [])
+  useEffect(() => {
+    if (!loaded || sessionStorage.getItem('paddock-scroll') !== 'meets') return
+    sessionStorage.removeItem('paddock-scroll')
+    document.getElementById('meets')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loaded])
+  useEffect(() => {
+    if (!toast) return
+    const id = window.setTimeout(() => setToast(''), 2600)
+    return () => window.clearTimeout(id)
+  }, [toast])
   const go = (href: string) => (event: { preventDefault: () => void }) => {
     event.preventDefault()
     navigate(href)
   }
-  const groups: Array<{ title: string; phase: Race['phase'] }> = [
-    { title: 'Open', phase: 'open' },
-    { title: 'Expired', phase: 'closed' },
-    { title: 'Soon', phase: 'scheduled' },
-    { title: 'Settled', phase: 'settled' },
-  ]
-  return <div className={picks.length ? 'paddock-main' : 'paddock-main solo'}>
-    <div>
+  const offerFavorite = (race: Race, mode: 'quick' | 'parlay') => {
+    const fav = favorite(race)
+    if (!fav || blocked.get(race.id)) return
+    const pick: Pick = {
+      eventId: race.id,
+      eventName: race.name,
+      entryNumber: fav.number,
+      entryName: fav.name,
+      odds: fav.odds,
+    }
+    if (mode === 'quick') {
+      setPicks([pick])
+      setToast(`Quick bet on #${fav.number} ${fav.name}`)
+      return
+    }
+    const next = togglePick(picks, pick)
+    setPicks(next)
+    const added = next.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber)
+    setToast(added ? `Added ${race.name} (${markOdds(fav.odds)}) to parlay` : `Removed ${race.name} from the ticket`)
+  }
+  const open = events.filter((race) => race.phase === 'open')
+  const soon = events.filter((race) => race.phase === 'scheduled')
+  const expired = events.filter((race) => race.phase === 'closed')
+  const settled = events.filter((race) => race.phase === 'settled')
+  const settledShown = showSettled ? settled : settled.slice(0, 4)
+  return <div className={picks.length ? 'paddock-main with-slip' : 'paddock-main'}>
+    <div className="board-stack">
       {problem && <p className="problem">{problem}</p>}
-      {loaded && !events.some((race) => race.phase === 'open') && !problem && (
-        <p>No races are open. Check back when Tazuna posts a card.</p>
-      )}
-      {groups.map((group) => {
-        const rows = events.filter((race) => race.phase === group.phase)
-        if (!rows.length) return null
-        return <section className="catalog-section" key={group.phase}>
-          <h2>{group.title}</h2>
-          <div className="catalog">
-            {rows.map((race) => (
-              <article key={race.id} className={`poster press ${race.phase}`}>
-                <a className="poster-link" href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>
-                  <span className={`status ${race.phase}`}>{statusLabel(race.phase)}</span>
-                  <span>
-                    <strong>{race.name}</strong>
-                    <span className="when">{raceNote(race)}</span>
-                  </span>
-                  <span className="meta">{race.entries.length === 1 ? '1 horse' : `${race.entries.length} horses`}</span>
-                </a>
-                {me.owner && race.phase !== 'settled' && (
-                  <a className="edit-race" href={`/gamba/new?race=${encodeURIComponent(race.id)}`} onClick={go(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>Edit</a>
-                )}
-              </article>
-            ))}
+      <section className="lane">
+        <div className="lane-head">
+          <div className="lane-title">
+            <span aria-hidden="true">✨</span>
+            <h2>Open for Wagering</h2>
+            <span className="count mint">{open.length} {open.length === 1 ? 'track' : 'tracks'}</span>
           </div>
-        </section>
-      })}
-      {chains.length > 0 && <section className="catalog-section">
-        <h2>Meets</h2>
-        <div className="catalog">
+          {open.length > 0 && <p className="live"><span className="live-dot" /> Live paddock</p>}
+        </div>
+        {loaded && !open.length && !problem && <p className="empty">No races are open. Check back when a card is posted.</p>}
+        <div className="open-grid">
+          {open.map((race) => {
+            const fav = favorite(race)
+            const reason = blocked.get(race.id) || ''
+            return <article className="open-card" key={race.id}>
+              <div className="open-body">
+                <div className="open-meta">
+                  <span className="meta-left">
+                    <span className="pill open">Open</span>
+                    <span>🐴 {horseCount(race.entries.length, 'runners')}</span>
+                  </span>
+                  <span className="closes">{race.endsAt ? `Closes ${clockTime(race.endsAt)}` : 'Still open'}</span>
+                </div>
+                <h3><a href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>{race.name}</a></h3>
+                {fav && <div className="favored">
+                  <span className="star">Top favored</span>
+                  <span>#{fav.number} {fav.name}</span>
+                  <span className="odds-pill mint">{markOdds(fav.odds)}</span>
+                </div>}
+                {reason && <p className="when">{reason}</p>}
+              </div>
+              <div className="open-actions">
+                <button type="button" className="quick" disabled={!fav || Boolean(reason)} onClick={() => offerFavorite(race, 'quick')}>
+                  <span aria-hidden="true">🥕</span> Quick Bet
+                </button>
+                <button type="button" className="add-parlay" disabled={!fav || Boolean(reason)} onClick={() => offerFavorite(race, 'parlay')}>
+                  <span aria-hidden="true">+</span> Add to Parlay
+                </button>
+              </div>
+            </article>
+          })}
+        </div>
+      </section>
+      {soon.length > 0 && <section className="lane">
+        <div className="lane-head">
+          <div className="lane-title">
+            <span aria-hidden="true">⏰</span>
+            <h2>Starting Soon</h2>
+            <span className="count amber">{soon.length} scheduled</span>
+          </div>
+          <p className="live">Gate draws in progress</p>
+        </div>
+        {soon.map((race) => (
+          <article className="soon-card" key={race.id}>
+            <div>
+              <div className="soon-meta">
+                <span className="pill soon">Soon</span>
+                <span>🐴 {horseCount(race.entries.length, 'horses')}</span>
+                {race.startsAt && <span className="soon-when">Opens {openDay(race.startsAt)}</span>}
+              </div>
+              <h3><a href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>{race.name}</a></h3>
+            </div>
+            {me.owner
+              ? <a className="edit-view" href={`/gamba/new?race=${encodeURIComponent(race.id)}`} onClick={go(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>Edit / View</a>
+              : <a className="edit-view" href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>View</a>}
+          </article>
+        ))}
+      </section>}
+      {expired.length > 0 && <section className="lane">
+        <div className="lane-head">
+          <div className="lane-title">
+            <span aria-hidden="true">🎀</span>
+            <h2>Expired</h2>
+            <span className="count">{expired.length}</span>
+          </div>
+        </div>
+        {expired.map((race) => (
+          <article className="soon-card" key={race.id}>
+            <div>
+              <div className="soon-meta">
+                <span className="pill closed">Expired</span>
+                <span>🐴 {horseCount(race.entries.length, 'horses')}</span>
+                {race.endsAt && <span className="soon-when">Closed {openDay(race.endsAt)}</span>}
+              </div>
+              <h3><a href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>{race.name}</a></h3>
+            </div>
+            {me.owner
+              ? <a className="edit-view" href={`/gamba/new?race=${encodeURIComponent(race.id)}`} onClick={go(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>Edit / View</a>
+              : <a className="edit-view" href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>View</a>}
+          </article>
+        ))}
+      </section>}
+      <section className="lane" id="meets">
+        <div className="lane-head">
+          <div className="lane-title">
+            <span aria-hidden="true">⛓️</span>
+            <h2>Chained Parlay</h2>
+            {chains.length > 0 && <span className="count mint">{chains.length} {chains.length === 1 ? 'meet' : 'meets'}</span>}
+          </div>
+        </div>
+        {!chains.length && <p className="empty">No meet is posted. Add a horse on two open races, then place one ticket.</p>}
+        <div className="open-grid">
           {chains.map((chain) => (
-            <a key={chain.id} className="poster press meet" href={`/gamba/meet/${chain.id}`} onClick={go(`/gamba/meet/${chain.id}`)}>
-              <span className="status open">Meet</span>
-              <span>
-                <strong>{chain.name}</strong>
-                <span className="when">One horse from each stage</span>
-              </span>
-              <span className="meta">{chain.stages.length} stages</span>
+            <a className="meet-card" key={chain.id} href={`/gamba/meet/${chain.id}`} onClick={go(`/gamba/meet/${chain.id}`)}>
+              <span className="pill open">Meet</span>
+              <h3>{chain.name}</h3>
+              <p>One horse from each of {chain.stages.length} stages. Every pick has to hit.</p>
+            </a>
+          ))}
+        </div>
+      </section>
+      {settled.length > 0 && <section className="lane">
+        <div className="lane-head">
+          <div className="lane-title">
+            <span aria-hidden="true">🏆</span>
+            <h2>Settled Races</h2>
+            <span className="count">{settled.length} archived</span>
+          </div>
+          {settled.length > 4 && <button type="button" className="view-all" onClick={() => setShowSettled((current) => !current)}>
+            {showSettled ? 'Show fewer' : 'View all replays'}
+          </button>}
+        </div>
+        <div className="settled-grid">
+          {settledShown.map((race) => (
+            <a className="settled-card" key={race.id} href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>
+              <div>
+                <div className="settled-meta">
+                  <span className="pill settled">Settled</span>
+                  <span>🐴 {horseCount(race.entries.length, 'horses')}</span>
+                </div>
+                <h3>{race.name}</h3>
+              </div>
+              <div className="winner-line">
+                <span>Winner</span>
+                <span>{race.winnerName ? `#${race.winner} ${race.winnerName} ${markOdds(race.winnerOdds)}` : 'No winner posted'}</span>
+              </div>
             </a>
           ))}
         </div>
@@ -275,6 +476,13 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
       onRemove={(eventId) => setPicks(picks.filter((pick) => pick.eventId !== eventId))}
       onPlace={onPlace}
     />}
+    <div className={toast ? 'toast show' : 'toast'} role="status">
+      <span aria-hidden="true">✨</span>
+      <span>
+        <strong>{toast || 'Added to parlay'}</strong>
+        <span>Stake it on the ticket.</span>
+      </span>
+    </div>
   </div>
 }
 
@@ -299,8 +507,8 @@ function RacePage({ eventId, me, picks, setPicks, onPlace, navigate }: {
   const blocked = blockedEvents(me).get(eventId) || ''
   const open = race?.phase === 'open'
   const showTicket = Boolean(open || picks.length)
-  if (!race && !problem) return <p className="paddock-main solo">Loading this race.</p>
-  return <div className={showTicket ? 'paddock-main' : 'paddock-main solo'}>
+  if (!race && !problem) return <p className="paddock-main">Loading this race.</p>
+  return <div className={showTicket ? 'paddock-main with-slip' : 'paddock-main'}>
     <div>
       <p><a href="/gamba" onClick={go('/gamba')}>All races</a></p>
       {problem && <p className="problem">{problem}</p>}
@@ -379,8 +587,8 @@ function MeetPage({ chainId, me, reload }: { chainId: string; me: Me; reload: ()
   }, [chainId])
   const blocked = blockedEvents(me)
   const ready = Boolean(chain && chain.stages.every((stage) => picks.some((pick) => pick.stageId === stage.id)))
-  if (!chain && !problem) return <p className="paddock-main solo">Loading the meet.</p>
-  return <div className="paddock-main">
+  if (!chain && !problem) return <p className="paddock-main">Loading the meet.</p>
+  return <div className="paddock-main with-slip">
     <div>
       {problem && <p className="problem">{problem}</p>}
       {chain && <>
@@ -574,9 +782,9 @@ function BoardPage({ navigate }: { navigate: (to: string) => void }) {
   }
   const top = rows.slice(0, 3)
   const order = [top[1], top[0], top[2]].filter(Boolean)
-  return <div className="paddock-main solo">
+  return <div className="paddock-main">
     <div>
-      <h1>Most carrots</h1>
+      <h1>Leaderboard</h1>
       {problem && <p className="problem">{problem}</p>}
       {!rows.length && !problem && <p>Nobody has carrots yet.</p>}
       {order.length > 0 && <div className="podium">
@@ -615,8 +823,8 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
     event.preventDefault()
     navigate(href)
   }
-  if (!trainer && !problem) return <p className="paddock-main solo">Loading this trainer.</p>
-  return <div className="paddock-main solo">
+  if (!trainer && !problem) return <p className="paddock-main">Loading this trainer.</p>
+  return <div className="paddock-main">
     <div>
       <p><a href="/gamba/board" onClick={go('/gamba/board')}>Back to the board</a></p>
       {problem && <p className="problem">{problem}</p>}
