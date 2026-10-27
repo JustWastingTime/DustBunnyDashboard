@@ -23,7 +23,6 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
   const [q, setQ] = useState('')
   const [rarity, setRarity] = useState('')
   const [types, setTypes] = useState<string[]>([])
-  const [outfit, setOutfit] = useState('')
   const [upcoming, setUpcoming] = useState(true)
   const [sort, setSort] = useState(defaultSort(dataset))
   const [shown, setShown] = useState(PAGE)
@@ -34,12 +33,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
   }, [dataset])
 
-  useEffect(() => { setShown(PAGE); setQ(''); setRarity(''); setTypes([]); setOutfit(''); setSort(defaultSort(dataset)) }, [dataset])
-
-  const outfits = useMemo(() => {
-    if (dataset !== 'characters') return []
-    return [...new Set(rows.map((row) => row.type).filter(Boolean))].sort()
-  }, [dataset, rows])
+  useEffect(() => { setShown(PAGE); setQ(''); setRarity(''); setTypes([]); setSort(defaultSort(dataset)) }, [dataset])
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
@@ -61,7 +55,6 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       }
       if (dataset === 'characters') {
         if (rarity && row.rarity !== rarity) return false
-        if (outfit && row.type !== outfit) return false
       }
       return true
     })
@@ -73,7 +66,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       return labelOf(a, dataset).localeCompare(labelOf(b, dataset))
     })
     return list
-  }, [rows, q, rarity, types, outfit, upcoming, sort, dataset])
+  }, [rows, q, rarity, types, upcoming, sort, dataset])
 
   const visible = filtered.slice(0, shown)
   const open = (key: string) => navigate(`/admin/${dataset}/edit?key=${encodeURIComponent(key)}`)
@@ -86,7 +79,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
     </div>
     {error && <p className="notice error">{error}</p>}
     <div className="filter-card">
-      <button type="button" className="text-button" onClick={() => { setQ(''); setRarity(''); setTypes([]); setOutfit(''); setUpcoming(true) }}>Reset filters</button>
+      <button type="button" className="text-button" onClick={() => { setQ(''); setRarity(''); setTypes([]); setUpcoming(true) }}>Reset filters</button>
       <input value={q} placeholder={dataset === 'skills' ? 'Search by skill name' : 'Search'} onChange={(event) => { setQ(event.target.value); setShown(PAGE) }} />
       {dataset === 'skills' && <div className="filter-line">
         <span>Rarity:</span>
@@ -114,12 +107,6 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
             {id || 'All'}
           </label>
         ))}
-        <label className="admin-field inline">Outfit
-          <select value={outfit} onChange={(event) => setOutfit(event.target.value)}>
-            <option value="">All</option>
-            {outfits.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-        </label>
       </div>}
       {dataset === 'skills' && <label className="check-line">
         <input type="checkbox" checked={upcoming} onChange={(event) => setUpcoming(event.target.checked)} />

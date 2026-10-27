@@ -142,5 +142,4 @@ export const SUPPORT_TYPES = [
   { id: 'wit', label: 'Wit' },
   { id: 'pal', label: 'Pal' },
   { id: 'group', label: 'Group' },
-  { id: 'support', label: 'Support' },
 ]
