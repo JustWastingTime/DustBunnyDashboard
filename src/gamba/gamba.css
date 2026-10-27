@@ -791,13 +791,20 @@
   gap: 8px;
   min-width: 0;
   padding: 18px 18px 18px 22px;
-  border-radius: 16px;
+  border-radius: 0 16px 16px 0;
   background: #131b2e;
   color: inherit;
-  overflow: hidden;
-  box-shadow: inset 6px 0 0 #ffb4ab;
 }
-.paddock .slip-card.hit { box-shadow: inset 6px 0 0 #4edea3; }
+.paddock .slip-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  background: #ffb4ab;
+}
+.paddock .slip-card.hit::before { background: #4edea3; }
 .paddock .slip-stamp {
   position: absolute;
   top: 14px;
@@ -811,7 +818,11 @@
   text-transform: uppercase;
   rotate: 8deg;
 }
-.paddock .slip-stamp.hit { color: #4edea3; background: rgb(16 185 129 / 0.18); }
+.paddock .slip-stamp.hit {
+  color: #4edea3;
+  background: rgb(16 185 129 / 0.18);
+  box-shadow: 0 0 16px rgb(78 222 163 / 0.45);
+}
 .paddock .slip-stamp.miss { color: #ffb4ab; background: rgb(147 0 10 / 0.35); }
 .paddock .slip-stamp.mega { color: #341100; background: #ffb690; }
 .paddock .slip-card ul { margin: 0; padding: 0 0 0 16px; color: #dae2fd; font-size: 0.85rem; }
@@ -828,6 +839,7 @@
 }
 .paddock .slip-cut { border-top: 1px dashed rgb(134 148 138 / 0.45); margin: 6px 0; }
 .paddock .slip-pay { justify-content: space-between; gap: 12px; }
+.paddock .slip-pay > span:last-child { align-items: flex-end; text-align: right; }
 .paddock .slip-pay strong { font-family: "Space Grotesk", sans-serif; font-size: 1.05rem; }
 .paddock .slip-more {
   align-self: center;
@@ -839,6 +851,23 @@
   font-weight: 800;
 }
 .paddock .slip-more:hover { background: #222a3d; }
+.paddock .round-strip { display: flex; flex-wrap: wrap; gap: 10px; }
+.paddock .round-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #131b2e;
+  border: 1px solid rgb(255 255 255 / 0.06);
+}
+.paddock .round-chip span { color: #bbcabf; font-size: 0.8rem; }
+.paddock .round-chip strong { color: #dae2fd; font-size: 0.85rem; }
+.paddock .round-chip.open { border-color: rgb(78 222 163 / 0.45); }
+.paddock .round-chip.open strong { color: #4edea3; }
+.paddock .round-chip.settled strong { color: #bbcabf; }
+.paddock .check-line { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 
 .paddock .gate {
   width: min(36rem, calc(100% - 32px));

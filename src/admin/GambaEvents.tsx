@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AdminError, adminApi, type GambaChain, type GambaEntry, type GambaEvent } from './api'
+import { AdminError, adminApi, type GambaChain, type GambaEntry, type GambaEvent, type GambaTournament } from './api'
 
 const EMPTY: GambaEvent = {
   id: '',
@@ -57,6 +57,7 @@ export function GambaEventList({ owner, navigate }: { owner: boolean; navigate: 
       </table>
     </div>
     <GambaMeets events={rows.map((row) => ({ id: row.id, name: row.name }))} />
+    <GambaTournaments />
   </section>
 }
 
@@ -140,6 +141,112 @@ function GambaMeets({ events }: { events: Array<{ id: string; name: string }> })
       {draft.stages.length < 6 && <button type="button" onClick={() => setDraft({ ...draft, stages: [...draft.stages, { label: '', eventIds: [] }] })}>Add stage</button>}
       <button type="button" className="primary" disabled={busy} onClick={() => void save()}>{draft.id ? 'Update meet' : 'Save meet'}</button>
       {draft.id && <button type="button" onClick={() => setDraft(blank())}>New meet</button>}
+    </div>
+  </section>
+}
+
+function resizePayouts(current: number[], raceCount: number) {
+  const next = current.slice(0, raceCount + 1)
+  while (next.length < raceCount + 1) next.push(0)
+  if (next.every((value) => !value)) next[raceCount] = 5
+  return next.map((value) => Math.min(20, Math.max(0, Number(value) || 0)))
+}
+
+function GambaTournaments() {
+  const blank = (): GambaTournament => ({
+    id: '',
+    name: '',
+    rounds: [{ label: 'Groups', eventIds: [], pickemPayouts: [0, 5] }],
+  })
+  const [tournaments, setTournaments] = useState<GambaTournament[]>([])
+  const [races, setRaces] = useState<Array<{ id: string; name: string; listing?: string }>>([])
+  const [draft, setDraft] = useState<GambaTournament>(blank())
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const load = () => {
+    adminApi.gambaTournaments().then((payload) => setTournaments(payload.tournaments)).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+    adminApi.gambaEvents().then((payload) => setRaces(payload.events)).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+  }
+  useEffect(() => { void load() }, [])
+  const eligible = races.filter((race) => race.listing === 'tournament')
+  const setRound = (index: number, patch: Partial<GambaTournament['rounds'][number]>) => {
+    const rounds = draft.rounds.slice()
+    const next = { ...rounds[index], ...patch }
+    if (patch.eventIds) next.pickemPayouts = resizePayouts(next.pickemPayouts || [], patch.eventIds.length)
+    rounds[index] = next
+    setDraft({ ...draft, rounds })
+  }
+  const save = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await adminApi.saveGambaTournament(draft)
+      setDraft(blank())
+      await load()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <section>
+    <h2>Tournaments</h2>
+    <p className="muted">Rounds stay on the website. Saving posts one Discord message for the tournament, not a card for each race. Attach only races created as tournament races.</p>
+    {error && <p className="notice error">{error}</p>}
+    <ul>
+      {tournaments.map((tournament) => (
+        <li key={tournament.id}>
+          <button type="button" className="text-button" onClick={() => setDraft(tournament)}>{tournament.name}</button>
+          {' '}
+          <button type="button" onClick={async () => {
+            if (!window.confirm(`Delete ${tournament.name}?`)) return
+            setBusy(true)
+            try {
+              await adminApi.removeGambaTournament(tournament.id)
+              if (draft.id === tournament.id) setDraft(blank())
+              await load()
+            } catch (reason) {
+              setError(reason instanceof Error ? reason.message : String(reason))
+            } finally { setBusy(false) }
+          }}>Delete</button>
+        </li>
+      ))}
+      {!tournaments.length && <li>No tournaments yet.</li>}
+    </ul>
+    <label className="admin-field">Tournament name
+      <input value={draft.name} onChange={(input) => setDraft({ ...draft, name: input.target.value })} />
+    </label>
+    {draft.rounds.map((round, index) => (
+      <div key={index} className="admin-field">
+        <label>Round name
+          <input value={round.label} onChange={(input) => setRound(index, { label: input.target.value })} />
+        </label>
+        <label>Races in this round
+          <select multiple size={Math.min(8, Math.max(3, eligible.length))} value={round.eventIds} onChange={(input) => {
+            const eventIds = [...input.target.selectedOptions].map((option) => option.value)
+            setRound(index, { eventIds })
+          }}>
+            {eligible.map((race) => <option key={race.id} value={race.id}>{race.name}</option>)}
+          </select>
+        </label>
+        <div>
+          {(round.pickemPayouts || []).map((payout, correct) => (
+            <label key={correct}> {correct} correct
+              <input inputMode="decimal" value={payout} onChange={(input) => {
+                const pickemPayouts = (round.pickemPayouts || []).slice()
+                pickemPayouts[correct] = Number(input.target.value)
+                setRound(index, { pickemPayouts })
+              }} />
+            </label>
+          ))}
+        </div>
+        {draft.rounds.length > 1 && <button type="button" onClick={() => setDraft({ ...draft, rounds: draft.rounds.filter((_, item) => item !== index) })}>Remove round</button>}
+      </div>
+    ))}
+    <div className="admin-row">
+      {draft.rounds.length < 8 && <button type="button" onClick={() => setDraft({ ...draft, rounds: [...draft.rounds, { label: '', eventIds: [], pickemPayouts: [5] }] })}>Add round</button>}
+      <button type="button" className="primary" disabled={busy} onClick={() => void save()}>{draft.id ? 'Update tournament' : 'Save tournament'}</button>
+      {draft.id && <button type="button" onClick={() => setDraft(blank())}>New tournament</button>}
     </div>
   </section>
 }

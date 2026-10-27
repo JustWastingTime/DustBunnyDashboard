@@ -77,6 +77,17 @@ export type HistoryRow = {
   oddsAtBet: number | null
   legs: ParlayLeg[] | null
 }
+export type OpenPickem = {
+  pickemId: string
+  tournamentId: string | null
+  tournamentName: string | null
+  roundId: string | null
+  roundLabel: string
+  stake: number
+  payouts: number[]
+  payoutIfPerfect: number
+  legs: ParlayLeg[]
+}
 export type Trainer = {
   discordId: string
   name: string
@@ -86,6 +97,7 @@ export type Trainer = {
   record: string | null
   openTickets: OpenTicket[]
   openParlays: Parlay[]
+  openPickems: OpenPickem[]
   history: HistoryRow[]
 }
 export type Me = Trainer & {
@@ -110,6 +122,16 @@ export type ChainDetail = {
   name: string
   stages: Array<{ id: string; label: string; eventIds: string[]; events: Race[] }>
 }
+export type TournamentRound = {
+  id: string
+  label: string
+  eventIds: string[]
+  pickemPayouts: number[]
+  state: 'empty' | 'settled' | 'open' | 'waiting'
+  events?: Race[]
+}
+export type TournamentSummary = { id: string; name: string; rounds: TournamentRound[] }
+export type TournamentDetail = { id: string; name: string; rounds: Array<TournamentRound & { events: Race[] }> }
 
 export const gambaApi = {
   me: () => gambaFetch<Me>('/api/gamba/me'),
@@ -119,6 +141,12 @@ export const gambaApi = {
   trainer: (discordId: string) => gambaFetch<Trainer>(`/api/gamba/trainers/${encodeURIComponent(discordId)}`),
   chains: () => gambaFetch<{ chains: ChainSummary[] }>('/api/gamba/chains'),
   chain: (id: string) => gambaFetch<{ chain: ChainDetail }>(`/api/gamba/chains/${encodeURIComponent(id)}`),
+  tournaments: () => gambaFetch<{ tournaments: TournamentSummary[] }>('/api/gamba/tournaments'),
+  tournament: (id: string) => gambaFetch<{ tournament: TournamentDetail }>(`/api/gamba/tournaments/${encodeURIComponent(id)}`),
+  tournamentChain: (id: string, body: { stake: number; legs: Array<{ eventId: string; entryNumber: number }> }) =>
+    gambaFetch<{ carrots: number }>(`/api/gamba/tournaments/${encodeURIComponent(id)}/chain`, { method: 'POST', body: JSON.stringify(body) }),
+  tournamentPickem: (id: string, body: { roundId: string; stake: number; legs: Array<{ eventId: string; entryNumber: number }> }) =>
+    gambaFetch<{ carrots: number }>(`/api/gamba/tournaments/${encodeURIComponent(id)}/pickem`, { method: 'POST', body: JSON.stringify(body) }),
   bet: (body: { eventId: string; entryNumber: number; amount: number }) =>
     gambaFetch<{ carrots: number }>('/api/gamba/bets', { method: 'POST', body: JSON.stringify(body) }),
   parlay: (body: { stake: number; chainId?: string | null; legs: Array<{ eventId: string; entryNumber: number }> }) =>

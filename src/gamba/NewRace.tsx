@@ -31,6 +31,8 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
   const [closes, setCloses] = useState('')
   const [horses, setHorses] = useState<Horse[]>([blankHorse(1), blankHorse(2)])
   const [scope, setScope] = useState<'all' | 'guilds'>('all')
+  const [tournament, setTournament] = useState(false)
+  const [tournamentLocked, setTournamentLocked] = useState(false)
   const [guilds, setGuilds] = useState<Guild[]>([])
   const [savedIds, setSavedIds] = useState<string[]>([])
   const [picked, setPicked] = useState<string[]>([])
@@ -73,6 +75,8 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
     setCloses('')
     setHorses([blankHorse(1), blankHorse(2)])
     setScope('all')
+    setTournament(false)
+    setTournamentLocked(false)
     setPicked([])
     setProblem('')
   }
@@ -87,6 +91,9 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
       setName(event.name)
       setOpens(toLocalInput(event.startsAt))
       setCloses(toLocalInput(event.endsAt))
+      const tournamentRace = event.listing === 'tournament' || event.availability === 'web'
+      setTournament(tournamentRace)
+      setTournamentLocked(true)
       setScope(event.availability === 'guilds' ? 'guilds' : 'all')
       setPicked(event.guildIds || [])
       setGuilds((current) => {
@@ -120,6 +127,8 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
         setCloses('')
         setHorses([blankHorse(1), blankHorse(2)])
         setScope('all')
+        setTournament(false)
+        setTournamentLocked(false)
         setPicked([])
       }
       return
@@ -161,7 +170,7 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
       setProblem('Each horse needs odds above 0.')
       return
     }
-    if (scope === 'guilds' && !picked.length) {
+    if (!tournament && scope === 'guilds' && !picked.length) {
       setProblem('Pick at least one guild, or choose all guilds.')
       return
     }
@@ -178,8 +187,9 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
       status,
       startsAt,
       endsAt,
-      availability: scope,
-      guildIds: scope === 'guilds' ? picked : [],
+      availability: tournament ? 'web' : scope,
+      listing: tournament ? 'tournament' : 'board',
+      guildIds: tournament || scope !== 'guilds' ? [] : picked,
       threadId: null,
       entries,
     }
@@ -273,7 +283,7 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
   return <div className="paddock-main">
     <div className="race-form">
       <h1>{editing ? 'Edit race' : 'Post a race'}</h1>
-      <p className="when">Players see this race on the card once you post it.</p>
+      <p className="when">{tournament ? 'This race stays on the tournament page. Discord does not get a horse card for it.' : 'Players see this race on the card once you post it.'}</p>
       {problem && <p className="problem">{problem}</p>}
       <label>Name
         <input value={name} onChange={(event) => setName(event.target.value)} />
@@ -286,6 +296,12 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
           <input type="datetime-local" value={closes} onChange={(event) => setCloses(event.target.value)} />
         </label>
       </div>
+      <label className="check-line">
+        <input type="checkbox" checked={tournament} disabled={tournamentLocked} onChange={(event) => setTournament(event.target.checked)} />
+        Tournament race
+      </label>
+      <p className="when">Tournament races are bet on the website. A board race cannot be moved into a tournament later.</p>
+      {!tournament && <>
       <h2>Guilds</h2>
       <p className="when">A name stays on this bot, so the next race can pick the same guild.</p>
       <div className="scope">
@@ -327,6 +343,7 @@ export function NewRace({ owner, eventId = null, navigate }: { owner: boolean; e
           <button type="button" className="quiet" disabled={busy} onClick={() => void rememberGuild()}>Remember</button>
         </div>
       </div>
+      </>}
       <h2>Horses</h2>
       {horses.map((horse, index) => (
         <div className="horse-row" key={index}>

@@ -12,6 +12,8 @@ import {
   type OpenTicket,
   type Parlay,
   type Race,
+  type TournamentDetail,
+  type TournamentSummary,
   type Trainer,
 } from './api'
 import { NewRace } from './NewRace'
@@ -163,6 +165,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     body = <NewRace owner={Boolean(me.owner)} eventId={raceToEdit} navigate={navigate} />
   }
   else if (clean.startsWith('/gamba/meet/')) body = <MeetPage chainId={decodeURIComponent(clean.slice('/gamba/meet/'.length))} me={me} reload={reload} />
+  else if (clean.startsWith('/gamba/tournament/')) body = <TournamentPage tournamentId={decodeURIComponent(clean.slice('/gamba/tournament/'.length))} me={me} reload={reload} navigate={navigate} />
   else if (clean.startsWith('/gamba/race/')) {
     body = <RacePage
       eventId={decodeURIComponent(clean.slice('/gamba/race/'.length))}
@@ -272,6 +275,7 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
 }) {
   const [events, setEvents] = useState<Race[]>([])
   const [chains, setChains] = useState<ChainSummary[]>([])
+  const [tournaments, setTournaments] = useState<TournamentSummary[]>([])
   const [problem, setProblem] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [toast, setToast] = useState('')
@@ -283,6 +287,7 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
       .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The board could not load.'))
       .finally(() => setLoaded(true))
     gambaApi.chains().then((payload) => setChains(payload.chains)).catch(() => setChains([]))
+    gambaApi.tournaments().then((payload) => setTournaments(payload.tournaments)).catch(() => setTournaments([]))
   }, [])
   useEffect(() => {
     if (!loaded || sessionStorage.getItem('paddock-scroll') !== 'meets') return
@@ -418,6 +423,25 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           </article>
         ))}
       </section>}
+      <section className="race-lane" id="tournaments">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
+            <span aria-hidden="true">🏁</span>
+            <h2>Tournaments</h2>
+            {tournaments.length > 0 && <span className="count mint">{tournaments.length}</span>}
+          </div>
+        </div>
+        {!tournaments.length && <p className="empty">No tournament is posted.</p>}
+        <div className="open-grid">
+          {tournaments.map((tournament) => (
+            <a className="meet-card" key={tournament.id} href={`/gamba/tournament/${tournament.id}`} onClick={go(`/gamba/tournament/${tournament.id}`)}>
+              <span className="pill open">Tournament</span>
+              <h3>{tournament.name}</h3>
+              <p>{tournament.rounds.map((round) => round.label).join(' · ')}</p>
+            </a>
+          ))}
+        </div>
+      </section>
       <section className="race-lane" id="meets">
         <div className="race-lane-head">
           <div className="race-lane-title">
@@ -578,6 +602,133 @@ function ResultList({ rows, empty }: { rows: Race['results']; empty: string }) {
   </ul>
 }
 
+function TournamentPage({ tournamentId, me, reload, navigate }: {
+  tournamentId: string
+  me: Me
+  reload: () => Promise<void>
+  navigate: (to: string) => void
+}) {
+  const [tournament, setTournament] = useState<TournamentDetail | null>(null)
+  const [mode, setMode] = useState<'single' | 'chain' | 'pickem'>('single')
+  const [picks, setPicks] = useState<Pick[]>([])
+  const [problem, setProblem] = useState('')
+  useEffect(() => {
+    setTournament(null)
+    setPicks([])
+    gambaApi.tournament(tournamentId)
+      .then((payload) => setTournament(payload.tournament))
+      .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'That tournament is gone.'))
+  }, [tournamentId])
+  const rounds = tournament?.rounds || []
+  const openRounds = rounds.filter((round) => round.state === 'open')
+  const pickemRound = rounds.find((round) => round.events.length > 0 && round.events.every((race) => race.phase === 'open')) || null
+  const blocked = blockedEvents(me)
+  const chainReady = openRounds.length >= 2 && openRounds.length <= 6 && openRounds.every((round) =>
+    picks.some((pick) => round.events.some((race) => race.id === pick.eventId)),
+  )
+  const pickemReady = Boolean(pickemRound && pickemRound.events.every((race) => picks.some((pick) => pick.eventId === race.id)))
+  const ready = mode === 'single' ? picks.length === 1 : mode === 'chain' ? chainReady : pickemReady
+  const perfect = pickemRound ? pickemRound.pickemPayouts[pickemRound.events.length] || 0 : 0
+  const go = (href: string) => (event: { preventDefault: () => void }) => {
+    event.preventDefault()
+    navigate(href)
+  }
+  if (!tournament && !problem) return <p className="paddock-main">Loading the tournament.</p>
+  return <div className="paddock-main with-slip">
+    <div>
+      <p><a href="/gamba" onClick={go('/gamba')}>Back to the board</a></p>
+      {problem && <p className="problem">{problem}</p>}
+      {tournament && <>
+        <h1>{tournament.name}</h1>
+        <div className="round-strip">
+          {rounds.map((round) => (
+            <article className={`round-chip ${round.state}`} key={round.id}>
+              <span>{round.label}</span>
+              <strong>{round.state === 'open' ? 'Pick now' : round.state === 'settled' ? 'Settled' : 'Waiting'}</strong>
+            </article>
+          ))}
+        </div>
+        <div className="slip-tabs" role="tablist" aria-label="Bet mode">
+          {([
+            ['single', 'Single'],
+            ['chain', 'Chain'],
+            ['pickem', 'Pick\'em'],
+          ] as const).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={mode === id} className={mode === id ? 'slip-tab on' : 'slip-tab'} onClick={() => { setMode(id); setPicks([]) }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="when">
+          {mode === 'single' && 'One horse to win one match.'}
+          {mode === 'chain' && (openRounds.length >= 2 ? 'One horse in each open round. Every pick has to win.' : 'The chain opens when two rounds are open.')}
+          {mode === 'pickem' && (pickemRound ? `Pick every match in ${pickemRound.label}. A miss can still pay.` : 'Pick\'em opens when every match in a round is open.')}
+        </p>
+        {mode === 'pickem' && pickemRound && <p className="when">Perfect card pays x{perfect}. Other scores use the round table, capped at x20.</p>}
+        {rounds.map((round) => (
+          <section className="stage" key={round.id}>
+            <h2>{round.label}</h2>
+            {round.events.map((race) => (
+              <RaceCard
+                key={race.id}
+                race={race}
+                picks={picks}
+                blockedReason={blocked.get(race.id) || (mode === 'pickem' && pickemRound?.id !== round.id ? 'Pick\'em uses the round where every match is open.' : '') || (mode === 'chain' && round.state !== 'open' ? 'This round is not open for the chain.' : '')}
+                onToggle={(pick) => {
+                  if (blocked.get(race.id)) return
+                  if (mode === 'single') {
+                    setPicks((current) => current.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber) ? [] : [pick])
+                    return
+                  }
+                  if (mode === 'chain') {
+                    if (round.state !== 'open') return
+                    setPicks((current) => {
+                      const rest = current.filter((item) => !round.events.some((itemRace) => itemRace.id === item.eventId))
+                      const same = current.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber)
+                      return same ? rest : [...rest, pick]
+                    })
+                    return
+                  }
+                  if (!pickemRound || pickemRound.id !== round.id) return
+                  setPicks((current) => togglePick(current, pick))
+                }}
+              />
+            ))}
+          </section>
+        ))}
+      </>}
+    </div>
+    {tournament && <TicketSlip
+      title={mode === 'single' ? 'Single' : mode === 'chain' ? 'Chain' : 'Pick\'em'}
+      picks={picks}
+      hint={mode === 'pickem' ? 'One horse in every match of this round.' : 'Win only.'}
+      ready={ready}
+      payNote={mode === 'pickem' ? `A perfect card pays x${perfect}.` : ''}
+      onRemove={(eventId) => setPicks((current) => current.filter((pick) => pick.eventId !== eventId))}
+      onPlace={async (stake) => {
+        const legs = picks.map((pick) => ({ eventId: pick.eventId, entryNumber: pick.entryNumber }))
+        if (mode === 'single') {
+          const pick = picks[0]
+          const result = await gambaApi.bet({ eventId: pick.eventId, entryNumber: pick.entryNumber, amount: stake })
+          setPicks([])
+          await reload()
+          return result.carrots
+        }
+        if (mode === 'chain') {
+          const result = await gambaApi.tournamentChain(tournament.id, { stake, legs })
+          setPicks([])
+          await reload()
+          return result.carrots
+        }
+        const result = await gambaApi.tournamentPickem(tournament.id, { roundId: pickemRound?.id || '', stake, legs })
+        setPicks([])
+        await reload()
+        return result.carrots
+      }}
+    />}
+  </div>
+}
+
 function MeetPage({ chainId, me, reload }: { chainId: string; me: Me; reload: () => Promise<void> }) {
   const [chain, setChain] = useState<ChainDetail | null>(null)
   const [picks, setPicks] = useState<Pick[]>([])
@@ -674,13 +825,14 @@ function RaceCard({ race, picks, blockedReason, onToggle, titled = true }: {
   </article>
 }
 
-function TicketSlip({ title, picks, hint, ready, onRemove, onPlace }: {
+function TicketSlip({ title, picks, hint, ready, onRemove, onPlace, payNote = '' }: {
   title: string
   picks: Pick[]
   hint: string
   ready: boolean
   onRemove: (eventId: string) => void
   onPlace: (stake: number) => Promise<number>
+  payNote?: string
 }) {
   const [stakeText, setStakeText] = useState('100')
   const [busy, setBusy] = useState(false)
@@ -719,7 +871,8 @@ function TicketSlip({ title, picks, hint, ready, onRemove, onPlace }: {
     <label className="stake">Carrots on this ticket
       <input inputMode="numeric" value={stakeText} onChange={(event) => setStakeText(event.target.value.replace(/[^\d]/g, ''))} />
     </label>
-    {picks.length > 0 && Number.isFinite(pay) && pay > 0 && <p className="payline"><Carrot size={18} /> Pays {coins.format(pay)} if they win</p>}
+    {payNote && <p className="payline">{payNote}</p>}
+    {!payNote && picks.length > 0 && Number.isFinite(pay) && pay > 0 && <p className="payline"><Carrot size={18} /> Pays {coins.format(pay)} if they win</p>}
     {error && <p className="problem">{error}</p>}
     <button type="button" className="place" disabled={!ready || busy || stake < 10} onClick={() => void place()}>
       {busy ? 'Placing ticket…' : 'Place ticket'}
@@ -830,6 +983,7 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
   if (!trainer && !problem) return <p className="paddock-main">Loading this trainer.</p>
   const singles = trainer ? groupSingles(trainer.openTickets) : []
   const parlays = trainer?.openParlays || []
+  const pickems = trainer?.openPickems || []
   const settled = trainer ? groupHistory(trainer.history) : []
   const settledParlays = settled.filter((row) => row.kind === 'parlay')
   const showRunning = filter === 'all' || filter === 'running' || (filter === 'parlay' && parlays.length > 0)
@@ -871,8 +1025,8 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
         </section>
         <div className="slip-tabs" role="tablist" aria-label="Tickets">
           {([
-            ['all', 'All slips', singles.length + parlays.length + settled.length],
-            ['running', 'In play', singles.length + parlays.length],
+            ['all', 'All slips', singles.length + parlays.length + pickems.length + settled.length],
+            ['running', 'In play', singles.length + parlays.length + pickems.length],
             ['parlay', 'Chained parlays', parlays.length + settledParlays.length],
             ['settled', 'Settled slips', settled.length],
           ] as const).map(([id, label, count]) => (
@@ -881,7 +1035,7 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
             </button>
           ))}
         </div>
-        {showRunning && (filter !== 'parlay' ? singles.length + parlays.length : parlays.length) > 0 && <section className="slip-block">
+        {showRunning && (filter !== 'parlay' ? singles.length + parlays.length + pickems.length : parlays.length) > 0 && <section className="slip-block">
           <h2>Active ticket</h2>
           {filter !== 'parlay' && singles.map((ticket) => (
             <a key={`${ticket.eventId}-${ticket.entryNumber}`} className="live-slip" href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
@@ -900,6 +1054,20 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
               </span>
             </a>
           ))}
+          {filter !== 'parlay' && pickems.map((card) => (
+            <article className="live-slip parlay" key={card.pickemId}>
+              <span className="gate-num chain"><span>Picks</span>{card.legs.length}</span>
+              <span className="live-copy">
+                <span>Pick&apos;em</span>
+                <strong>{card.tournamentName || 'Tournament'} · {card.roundLabel}</strong>
+                <span>{card.legs.map((leg) => `#${leg.entryNumber} ${leg.entryName}`).join(' · ')}</span>
+              </span>
+              <span className="live-math">
+                <span><span>Staked</span><strong>{coins.format(card.stake)} 🥕</strong></span>
+                <span><span>Perfect card</span><strong>{coins.format(card.payoutIfPerfect)} 🥕</strong></span>
+              </span>
+            </article>
+          ))}
           {(filter === 'all' || filter === 'running' || filter === 'parlay') && parlays.map((parlay) => (
             <article className="live-slip parlay" key={parlay.parlayId}>
               <span className="gate-num chain"><span>Legs</span>{parlay.legs.length}</span>
@@ -916,7 +1084,7 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
             </article>
           ))}
         </section>}
-        {showRunning && filter !== 'parlay' && !singles.length && !parlays.length && <p className="empty">No tickets are still running.</p>}
+        {showRunning && filter !== 'parlay' && !singles.length && !parlays.length && !pickems.length && <p className="empty">No tickets are still running.</p>}
         {filter === 'parlay' && !parlays.length && !settledParlays.length && <p className="empty">No chained parlay yet. Add a horse on two open races, then place one ticket.</p>}
         {showSettled && (filter !== 'parlay' || shownSettled.length > 0) && <section className="slip-block">
           <h2>Settled betting slips</h2>
@@ -935,15 +1103,16 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
 function SettledSlip({ row, navigate }: { row: HistoryRow & { count?: number }; navigate: (to: string) => void }) {
   const hit = row.result === 'win'
   const parlay = row.kind === 'parlay'
+  const stacked = parlay || row.kind === 'pickem'
   const mega = hit && parlay && (row.oddsAtBet || 0) >= 10
-  const href = !parlay && row.eventId && !row.eventId.startsWith('parlay:')
+  const href = !stacked && row.eventId && !row.eventId.startsWith('parlay:') && !row.eventId.startsWith('pickem:')
     ? `/gamba/race/${encodeURIComponent(row.eventId)}`
     : ''
   const body = <>
     <span className={mega ? 'slip-stamp mega' : hit ? 'slip-stamp hit' : 'slip-stamp miss'}>{mega ? 'Mega hit' : hit ? 'Hit' : 'Missed'}</span>
-    <span className="slip-kicker">{parlay ? `${row.legs?.length || 0}-leg chained parlay` : 'Single win'}{(row.count || 0) > 1 ? ` · ${row.count} tickets` : ''}</span>
+    <span className="slip-kicker">{row.kind === 'pickem' ? 'Pick\'em' : parlay ? `${row.legs?.length || 0}-leg chained parlay` : 'Single win'}{(row.count || 0) > 1 ? ` · ${row.count} tickets` : ''}</span>
     <strong>{row.eventName}</strong>
-    {parlay && row.legs?.length
+    {stacked && row.legs?.length
       ? <ul>{row.legs.map((leg) => <li key={leg.eventId}>#{leg.entryNumber} {leg.entryName}{leg.status === 'won' ? ' hit' : ''}</li>)}</ul>
       : <span className="slip-runner">
         {row.entryNumber != null && <span className="gate-mini" style={{ background: silkColor(row.entryNumber) }}>{row.entryNumber}</span>}
@@ -988,6 +1157,12 @@ function blockedEvents(me: Me) {
     for (const leg of parlay.legs) {
       if (leg.status === 'skipped') continue
       reasons.set(leg.eventId, 'Already on another ticket')
+    }
+  }
+  for (const card of me.openPickems || []) {
+    for (const leg of card.legs) {
+      if (leg.status && leg.status !== 'open') continue
+      reasons.set(leg.eventId, 'Already on a pick\'em card')
     }
   }
   return reasons
