@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { adminApi } from './api'
 
-type Sibling = { key: string; title: string; note: string; original?: boolean }
+type Sibling = { key: string; title: string; note: string; image?: string; original?: boolean }
 
 export function RecordPortrait({
   dataset,
@@ -45,6 +45,7 @@ export function RecordPortrait({
             key: entry.key,
             title: entry.card_name || entry.id,
             note: entry.rarity ? entry.rarity.toUpperCase() : '',
+            image: entry.thumbnail || '',
           }
       ))
       rows.sort((a, b) => Number(Boolean(b.original)) - Number(Boolean(a.original)) || a.title.localeCompare(b.title) || a.note.localeCompare(b.note))
@@ -72,9 +73,12 @@ export function RecordPortrait({
         <p>{dataset === 'characters' ? 'Other outfits' : 'Other cards'}</p>
         {others.length === 0 && <p>None for this character.</p>}
         {others.map((item) => (
-          <button key={item.key} type="button" onClick={() => navigate(`/admin/${dataset}/edit?key=${encodeURIComponent(item.key)}`)}>
-            <span>{item.original ? 'Original' : item.title}</span>
-            {item.note && <small>{item.note}</small>}
+          <button key={item.key} type="button" className={item.image ? 'has-art' : ''} onClick={() => navigate(`/admin/${dataset}/edit?key=${encodeURIComponent(item.key)}`)}>
+            {item.image && <img src={item.image} alt="" />}
+            <span>
+              <span>{item.original ? 'Original' : item.title}</span>
+              {item.note && <small>{item.note}</small>}
+            </span>
           </button>
         ))}
       </div>

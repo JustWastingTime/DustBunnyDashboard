@@ -72,7 +72,7 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
         dataset="supporters"
         currentKey={String(draft.id || entryKey || '')}
         name={String(draft.character_name || '')}
-        image={String(draft.thumbnail || '')}
+        image={supportArt(String(draft.id || entryKey || '')) || String(draft.thumbnail || '')}
         heading={String(draft.character_name || 'Support card')}
         detail={String(draft.card_name || '')}
         url={String(draft.url || '')}
@@ -93,6 +93,11 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
       } finally { setBusy(false) }
     } : undefined} />
   </section>
+}
+
+function supportArt(id: string) {
+  const match = id.match(/\d+/)
+  return match ? `https://media.gametora.com/umamusume/supports/full/small/${match[0]}.png` : ''
 }
 
 function safeParse(text: string, fallback: Record<string, unknown>) {

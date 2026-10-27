@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminApi, type Summary } from './api'
-import { SKILL_TYPE_FILTERS, SUPPORT_ICONS, SUPPORT_TYPES, skillIcon, skillMatchesType } from './icons'
+import { CARD_EVENT_STATUS, SKILL_TYPE_FILTERS, SUPPORT_ICONS, SUPPORT_TYPES, skillIcon, skillMatchesType } from './icons'
 
 const PAGE = 50
 
@@ -23,6 +23,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
   const [q, setQ] = useState('')
   const [rarity, setRarity] = useState('')
   const [types, setTypes] = useState<string[]>([])
+  const [eventStatus, setEventStatus] = useState('')
   const [upcoming, setUpcoming] = useState(true)
   const [sort, setSort] = useState(defaultSort(dataset))
   const [shown, setShown] = useState(PAGE)
@@ -33,7 +34,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
   }, [dataset])
 
-  useEffect(() => { setShown(PAGE); setQ(''); setRarity(''); setTypes([]); setSort(defaultSort(dataset)) }, [dataset])
+  useEffect(() => { setShown(PAGE); setQ(''); setRarity(''); setTypes([]); setEventStatus(''); setSort(defaultSort(dataset)) }, [dataset])
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
@@ -51,6 +52,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       }
       if (dataset === 'supporters') {
         if (rarity && row.rarity !== rarity) return false
+        if (eventStatus && (row._event || 'todo') !== eventStatus) return false
         if (types.length && !types.includes(row.category || '')) return false
       }
       if (dataset === 'characters') {
@@ -59,6 +61,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       return true
     })
     const rarityRank: Record<string, number> = { normal: 0, rare: 1, unique: 2, evo: 3, r: 0, sr: 1, ssr: 2 }
+    if (sort === 'file') return list
     list.sort((a, b) => {
       if (sort === 'id') return compareId(a, b, dataset)
       if (sort === 'rarity') return (rarityRank[a.rarity] ?? 9) - (rarityRank[b.rarity] ?? 9) || labelOf(a, dataset).localeCompare(labelOf(b, dataset))
@@ -66,7 +69,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       return labelOf(a, dataset).localeCompare(labelOf(b, dataset))
     })
     return list
-  }, [rows, q, rarity, types, upcoming, sort, dataset])
+  }, [rows, q, rarity, types, eventStatus, upcoming, sort, dataset])
 
   const visible = filtered.slice(0, shown)
   const open = (key: string) => navigate(`/admin/${dataset}/edit?key=${encodeURIComponent(key)}`)
@@ -79,7 +82,7 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
     </div>
     {error && <p className="notice error">{error}</p>}
     <div className="filter-card">
-      <button type="button" className="text-button" onClick={() => { setQ(''); setRarity(''); setTypes([]); setUpcoming(true) }}>Reset filters</button>
+      <button type="button" className="text-button" onClick={() => { setQ(''); setRarity(''); setTypes([]); setEventStatus(''); setUpcoming(true) }}>Reset filters</button>
       <input value={q} placeholder={dataset === 'skills' ? 'Search by skill name' : 'Search'} onChange={(event) => { setQ(event.target.value); setShown(PAGE) }} />
       {dataset === 'skills' && <div className="filter-line">
         <span>Rarity:</span>
@@ -96,6 +99,19 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
           <label key={id || 'all'} className={rarity === id ? 'chip on' : 'chip'}>
             <input type="radio" name="card-rarity" checked={rarity === id} onChange={() => setRarity(id)} />
             {id ? id.toUpperCase() : 'All'}
+          </label>
+        ))}
+      </div>}
+      {dataset === 'supporters' && <div className="filter-line">
+        <span>Events:</span>
+        <label className={eventStatus === '' ? 'chip on' : 'chip'}>
+          <input type="radio" name="event-status" checked={eventStatus === ''} onChange={() => setEventStatus('')} />
+          All
+        </label>
+        {CARD_EVENT_STATUS.map((item) => (
+          <label key={item.value} className={eventStatus === item.value ? 'chip on' : 'chip'}>
+            <input type="radio" name="event-status" checked={eventStatus === item.value} onChange={() => setEventStatus(item.value)} />
+            {item.label}
           </label>
         ))}
       </div>}
@@ -134,7 +150,8 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
       {shown < filtered.length && <button type="button" className="text-button" onClick={() => setShown(filtered.length)}>Show all</button>}
       <label className="sort-label">Sort by
         <select value={sort} onChange={(event) => setSort(event.target.value)}>
-          {(dataset === 'skills' || dataset === 'supporters') && <option value="id">ID</option>}
+          {dataset === 'skills' && <option value="file">File order</option>}
+          <option value="id">ID</option>
           <option value="name">Name</option>
           <option value="rarity">Rarity</option>
           {dataset !== 'characters' && <option value="category">Type</option>}
@@ -175,7 +192,8 @@ export function DataBrowser({ dataset, title, owner, navigate }: {
 }
 
 function defaultSort(dataset: string) {
-  if (dataset === 'skills' || dataset === 'supporters') return 'id'
+  if (dataset === 'skills') return 'file'
+  if (dataset === 'supporters') return 'id'
   return 'name'
 }
 
