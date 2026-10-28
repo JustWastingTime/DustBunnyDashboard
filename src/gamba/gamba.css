@@ -578,6 +578,146 @@
 .paddock .tile .result,
 .paddock .tile .num { display: inline-flex; align-items: center; gap: 4px; }
 
+.paddock .standings { display: flex; flex-direction: column; gap: 22px; }
+.paddock .standings-kicker {
+  margin: 0;
+  color: #4edea3;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.paddock .standings h1 { margin: 4px 0 6px; }
+.paddock .podium-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.12fr 1fr;
+  gap: 14px;
+  align-items: end;
+}
+.paddock .podium-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px 14px 16px;
+  border-radius: 16px;
+  background: #131b2e;
+  border: 1px solid rgb(255 255 255 / 0.06);
+  color: inherit;
+  text-align: center;
+}
+.paddock .podium-card.place-1 {
+  min-height: 280px;
+  padding-top: 28px;
+  border-color: rgb(236 106 6 / 0.55);
+  background: #171f33;
+  box-shadow: 0 0 28px rgb(236 106 6 / 0.18);
+}
+.paddock .podium-card.place-2 { border-color: rgb(203 213 225 / 0.35); }
+.paddock .podium-card.place-3 { border-color: rgb(255 182 144 / 0.4); }
+.paddock .podium-card.mine { box-shadow: inset 0 0 0 1px rgb(78 222 163 / 0.45); }
+.paddock .podium-rank {
+  color: #bbcabf;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.paddock .place-1 .podium-rank { color: #ffb690; }
+.paddock .podium-mark {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #121526;
+  font-weight: 800;
+}
+.paddock .podium-mark.sm { width: 32px; height: 32px; font-size: 0.75rem; flex-shrink: 0; }
+.paddock .podium-purse {
+  color: #ffb690;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+.paddock .place-1 .podium-purse { font-size: 2.15rem; }
+.paddock .podium-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(78 222 163 / 0.15);
+  color: #4edea3;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.paddock .podium-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+  color: #bbcabf;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.paddock .podium-stats b {
+  display: block;
+  color: #dae2fd;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.paddock .standings-table { display: flex; flex-direction: column; gap: 8px; }
+.paddock .standings-head,
+.paddock .standings-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1.4fr) minmax(120px, 0.8fr) minmax(0, 1.3fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+.paddock .standings-head {
+  padding: 0 14px;
+  color: #bbcabf;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.paddock .standings-row {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #131b2e;
+  color: inherit;
+}
+.paddock .standings-row.mine {
+  background: #10261f;
+  box-shadow: inset 0 0 0 1px rgb(78 222 163 / 0.35);
+}
+.paddock .standings-who { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 700; }
+.paddock .standings-who span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paddock .standings-carrots { color: #ffb690; font-family: "Space Grotesk", sans-serif; font-weight: 700; }
+.paddock .standings-note { color: #4edea3; font-weight: 700; }
+.paddock .standings-go { color: #bbcabf; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.paddock .standings-row.mine .standings-go { color: #4edea3; }
+.paddock .standings-pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #bbcabf; font-size: 0.85rem; }
+.paddock .standings-pages { display: flex; align-items: center; gap: 8px; }
+.paddock .standings-pages button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #222a3d;
+  color: #dae2fd;
+  font-weight: 800;
+}
+.paddock .standings-pages button:disabled { opacity: 0.4; }
+
 .paddock .podium {
   display: grid;
   grid-template-columns: 1fr 1.15fr 1fr;
@@ -946,7 +1086,13 @@
   .paddock .horse-row .age,
   .paddock .horse-row .jockey { grid-column: 1 / -1; }
   .paddock .horse-row .odds { grid-column: 1 / 3; }
-  .paddock .podium { grid-template-columns: 1fr; }
+  .paddock .podium,
+  .paddock .podium-grid { grid-template-columns: 1fr; }
+  .paddock .podium-card.place-1 { order: -1; min-height: 0; }
+  .paddock .standings-head { display: none; }
+  .paddock .standings-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .paddock .standings-record { display: none; }
+  .paddock .standings-pager { flex-direction: column; align-items: flex-start; }
   .paddock .rosette,
   .paddock .rosette.first { min-height: 0; }
   .paddock .rosette.first { order: -1; }

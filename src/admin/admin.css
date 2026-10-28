@@ -90,8 +90,9 @@
 .skill-pair > .admin-field { grid-template-rows: auto minmax(7.5rem, 1fr); }
 .skill-pair .tag-box { height: 100%; box-sizing: border-box; }
 .portrait-card { background: #0c1016; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-.portrait-frame { min-height: 220px; display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #314056, #0c1016 68%); }
-.portrait-frame img { width: 100%; max-height: 360px; object-fit: contain; display: block; }
+.portrait-frame { display: block; background: #0c1016; line-height: 0; }
+.portrait-frame img { width: 100%; height: auto; display: block; }
+.portrait-frame p { min-height: 8rem; display: grid; place-items: center; line-height: 1.4; }
 .portrait-frame p, .portrait-sheet p { margin: 0; color: var(--muted); font-size: .85rem; }
 .portrait-sheet { display: grid; gap: .55rem; padding: .85rem .9rem 1rem; }
 .portrait-sheet strong { font-size: 1.05rem; }

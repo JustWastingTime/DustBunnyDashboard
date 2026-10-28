@@ -5,6 +5,7 @@ import {
   GambaError,
   oddsLabel,
   silkColor,
+  type BoardRow,
   type ChainDetail,
   type ChainSummary,
   type HistoryRow,
@@ -33,21 +34,6 @@ const loginHref = `/api/auth/login?returnTo=${encodeURIComponent('/gamba')}`
 
 function Carrot({ size = 22 }: { size?: number }) {
   return <span className="carrot" style={{ fontSize: size }} aria-hidden="true">🥕</span>
-}
-
-function Crown({ rank }: { rank: number }) {
-  const color = rank === 1 ? '#fef08a' : rank === 2 ? '#cbd5e1' : '#f472b6'
-  const size = rank === 1 ? 68 : 52
-  return <svg className="crown" width={size} height={size} viewBox="0 0 64 56" aria-hidden="true">
-    <path fill={color} d="M6 40 L16 18 L26 32 L32 10 L38 32 L48 18 L58 40 Z" />
-    <circle cx="16" cy="16" r="3.2" fill={color} />
-    <circle cx="32" cy="8" r="3.6" fill={color} />
-    <circle cx="48" cy="16" r="3.2" fill={color} />
-    <path fill={color} d="M6 38 h52 v8 a4 4 0 0 1 -4 4 H10 a4 4 0 0 1 -4 -4 z" />
-    <circle cx="20" cy="44" r="2.3" fill="#f7fbfe" />
-    <circle cx="32" cy="44" r="2.3" fill="#f7fbfe" />
-    <circle cx="44" cy="44" r="2.3" fill="#f7fbfe" />
-  </svg>
 }
 
 function shownName(name: string) {
@@ -173,7 +159,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   }
 
   let body: ReactNode = <CardPage me={me} picks={picks} setPicks={setPicks} onPlace={placePicks} navigate={navigate} />
-  if (clean === '/gamba/board') body = <BoardPage navigate={navigate} />
+  if (clean === '/gamba/board') body = <BoardPage me={me} navigate={navigate} />
   else if (clean.startsWith('/gamba/trainer/')) body = <TrainerPage discordId={decodeURIComponent(clean.slice('/gamba/trainer/'.length))} navigate={navigate} />
   else if (clean === '/gamba/new') {
     const params = new URLSearchParams(path.includes('?') ? path.slice(path.indexOf('?') + 1) : '')
@@ -993,9 +979,10 @@ function ParlaySlip({ parlay }: { parlay: Parlay }) {
   </article>
 }
 
-function BoardPage({ navigate }: { navigate: (to: string) => void }) {
-  const [rows, setRows] = useState<Array<{ rank: number; discordId: string; name: string; carrots: number; wins: number; losses: number }>>([])
+function BoardPage({ me, navigate }: { me: Me; navigate: (to: string) => void }) {
+  const [rows, setRows] = useState<BoardRow[]>([])
   const [problem, setProblem] = useState('')
+  const [page, setPage] = useState(0)
   useEffect(() => {
     gambaApi.leaderboard().then((payload) => setRows(payload.rows)).catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The board could not load.'))
   }, [])
@@ -1003,36 +990,94 @@ function BoardPage({ navigate }: { navigate: (to: string) => void }) {
     event.preventDefault()
     navigate(href)
   }
-  const top = rows.slice(0, 3)
-  const order = [top[1], top[0], top[2]].filter(Boolean)
+  const first = rows[0]
+  const second = rows[1]
+  const third = rows[2]
+  const rest = rows.slice(3)
+  const pageSize = 12
+  const pages = Math.max(1, Math.ceil(rest.length / pageSize))
+  const shown = rest.slice(page * pageSize, page * pageSize + pageSize)
+  const tenth = rows.find((row) => row.rank === 10)
+  const mine = (row: BoardRow) => row.discordId === me.discordId
+  const chase = (row: BoardRow) => {
+    if (!mine(row) || !tenth || row.rank <= 10) return ''
+    const gap = tenth.carrots - row.carrots
+    return gap > 0 ? `Chasing top 10 (+${coins.format(gap)})` : ''
+  }
   return <div className="paddock-main">
-    <div>
-      <h1>Leaderboard</h1>
+    <div className="standings">
+      <div>
+        <p className="standings-kicker">Live standings</p>
+        <h1>Paddock Board</h1>
+        <p className="when">Trainers ranked by carrots.</p>
+      </div>
       {problem && <p className="problem">{problem}</p>}
       {!rows.length && !problem && <p>Nobody has carrots yet.</p>}
-      {order.length > 0 && <div className="podium">
-        {order.map((row) => (
-          <a key={row.discordId} className={row.rank === 1 ? 'rosette first press' : 'rosette press'} href={`/gamba/trainer/${row.discordId}`} onClick={go(`/gamba/trainer/${row.discordId}`)}>
-            <Crown rank={row.rank} />
-            <span className="place-num">{row.rank}</span>
+      {(second || first || third) && <div className="podium-grid">
+        {[second, first, third].filter((row): row is BoardRow => Boolean(row)).map((row) => (
+          <a key={row.discordId} className={`podium-card place-${row.rank}${mine(row) ? ' mine' : ''}`} href={`/gamba/trainer/${row.discordId}`} onClick={go(`/gamba/trainer/${row.discordId}`)}>
+            <span className="podium-rank">{row.rank === 1 ? '1st' : row.rank === 2 ? '2nd' : '3rd'}</span>
+            <span className="podium-mark" style={{ background: markColor(row.discordId) }}>{markOf(row.name)}</span>
             <strong>{shownName(row.name)}</strong>
-            <span className="record">{row.wins} hit · {row.losses} missed</span>
-            <span className="purse num"><Carrot size={18} /> {coins.format(row.carrots)}</span>
+            {row.wins > 0 && row.losses === 0 && <span className="podium-tag">No misses</span>}
+            <span className="podium-purse">{coins.format(row.carrots)} 🥕</span>
+            <span className="podium-stats">
+              <span><b>{row.wins}</b> hit</span>
+              <span><b>{row.losses}</b> missed</span>
+              <span><b>{rateLabel(row.wins, row.losses)}</b> win rate</span>
+            </span>
           </a>
         ))}
       </div>}
-      <ul className="board">
-        {rows.slice(3).map((row) => (
-          <li key={row.discordId}>
-            <a className="press" href={`/gamba/trainer/${row.discordId}`} onClick={go(`/gamba/trainer/${row.discordId}`)}>
-              <strong><span className="place-num">{row.rank}</span> {shownName(row.name)}</strong>
-              <span className="num"><Carrot size={16} /> {coins.format(row.carrots)}</span>
-            </a>
-          </li>
+      {rest.length > 0 && <div className="standings-table">
+        <div className="standings-head">
+          <span>Position</span>
+          <span>Trainer</span>
+          <span>Carrots</span>
+          <span>Record</span>
+          <span />
+        </div>
+        {shown.map((row) => (
+          <a key={row.discordId} className={mine(row) ? 'standings-row mine' : 'standings-row'} href={`/gamba/trainer/${row.discordId}`} onClick={go(`/gamba/trainer/${row.discordId}`)}>
+            <span className="standings-pos">{row.rank}</span>
+            <span className="standings-who">
+              <span className="podium-mark sm" style={{ background: markColor(row.discordId) }}>{markOf(row.name)}</span>
+              <span>{shownName(row.name)}</span>
+            </span>
+            <span className="standings-carrots">{coins.format(row.carrots)} 🥕</span>
+            <span className={chase(row) ? 'standings-record standings-note' : 'standings-record'}>{chase(row) || `${row.wins} hit · ${row.losses} missed`}</span>
+            <span className="standings-go">{mine(row) ? 'Your card' : 'Profile'}</span>
+          </a>
         ))}
-      </ul>
+        <div className="standings-pager">
+          <span>Showing {page * pageSize + 1}–{page * pageSize + shown.length} of {rest.length}</span>
+          <span className="standings-pages">
+            <button type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Prev</button>
+            <span>Page {page + 1} / {pages}</span>
+            <button type="button" disabled={page + 1 >= pages} onClick={() => setPage((current) => current + 1)}>Next</button>
+          </span>
+        </div>
+      </div>}
     </div>
   </div>
+}
+
+function rateLabel(wins: number, losses: number) {
+  const rate = winRate(wins, losses)
+  return rate == null ? '—' : `${rate}%`
+}
+
+function markOf(name: string) {
+  const parts = shownName(name).split(/\s+/).filter(Boolean)
+  const letters = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : (parts[0]?.slice(0, 1) || '?')
+  return letters.toUpperCase()
+}
+
+function markColor(id: string) {
+  const colors = ['#4edea3', '#ffb690', '#cbd5e1', '#f9a8d4', '#93c5fd', '#fde68a']
+  let total = 0
+  for (const char of id) total += char.charCodeAt(0)
+  return colors[total % colors.length]
 }
 
 function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to: string) => void }) {
