@@ -24,10 +24,19 @@ export type Summary = Record<string, string>
 export type GitEntry = { entry: Record<string, unknown>; blobSha: string; commitSha: string }
 export type SaveResult = { commitSha: string; blobSha: string; key?: string; warnings?: string[] }
 
+export type AdvanceSlot = { id?: string; label: string; eventIds: string[]; hint?: string }
+export type AdvanceResult = { eventId: string; entryNumber: number; entryName?: string }
 export type GambaTournament = {
   id: string
   name: string
-  rounds: Array<{ id?: string; label: string; eventIds: string[]; pickemPayouts: number[] }>
+  rounds: Array<{
+    id?: string
+    label: string
+    eventIds: string[]
+    pickemPayouts: number[]
+    advanceSlots?: AdvanceSlot[]
+    advanceResults?: Record<string, AdvanceResult>
+  }>
 }
 export type GambaChain = {
   id: string

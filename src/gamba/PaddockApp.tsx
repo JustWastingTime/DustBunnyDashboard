@@ -6,8 +6,6 @@ import {
   oddsLabel,
   silkColor,
   type BoardRow,
-  type ChainDetail,
-  type ChainSummary,
   type HistoryRow,
   type Me,
   type OpenTicket,
@@ -27,7 +25,8 @@ type Pick = {
   entryNumber: number
   entryName: string
   odds: number
-  stageId?: string
+  kind?: 'match' | 'advance'
+  slotId?: string
 }
 
 const loginHref = `/api/auth/login?returnTo=${encodeURIComponent('/gamba')}`
@@ -185,17 +184,9 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   }
 
   const placePicks = async (stake: number) => {
-    if (picks.length === 1) {
-      const pick = picks[0]
-      const result = await gambaApi.bet({ eventId: pick.eventId, entryNumber: pick.entryNumber, amount: stake })
-      setPicks([])
-      await reload()
-      return result.carrots
-    }
-    const result = await gambaApi.parlay({
-      stake,
-      legs: picks.map((pick) => ({ eventId: pick.eventId, entryNumber: pick.entryNumber })),
-    })
+    const pick = picks[0]
+    if (!pick) return me.carrots
+    const result = await gambaApi.bet({ eventId: pick.eventId, entryNumber: pick.entryNumber, amount: stake })
     setPicks([])
     await reload()
     return result.carrots
@@ -209,7 +200,6 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     body = <NewRace key={`${params.get('race') || ''}-${params.get('tournament') || ''}-${params.get('round') || ''}`} owner={Boolean(me.owner)} eventId={params.get('race')} tournamentId={params.get('tournament')} roundId={params.get('round')} navigate={navigate} />
   }
   else if (clean === '/gamba/tournaments') body = <TournamentsPage owner={Boolean(me.owner)} navigate={navigate} />
-  else if (clean.startsWith('/gamba/meet/')) body = <MeetPage chainId={decodeURIComponent(clean.slice('/gamba/meet/'.length))} me={me} reload={reload} />
   else if (clean.startsWith('/gamba/tournament/')) body = <TournamentPage tournamentId={decodeURIComponent(clean.slice('/gamba/tournament/'.length))} me={me} reload={reload} navigate={navigate} />
   else if (clean.startsWith('/gamba/race/')) {
     body = <RacePage
@@ -310,7 +300,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
   navigate: (to: string) => void
 }) {
   const [events, setEvents] = useState<Race[]>([])
-  const [chains, setChains] = useState<ChainSummary[]>([])
   const [problem, setProblem] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [toast, setToast] = useState('')
@@ -321,7 +310,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
       .then((payload) => setEvents(payload.events))
       .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The board could not load.'))
       .finally(() => setLoaded(true))
-    gambaApi.chains().then((payload) => setChains(payload.chains)).catch(() => setChains([]))
   }, [])
   useEffect(() => {
     if (!toast) return
@@ -332,25 +320,17 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
     event.preventDefault()
     navigate(href)
   }
-  const offerFavorite = (race: Race, mode: 'quick' | 'parlay') => {
+  const offerFavorite = (race: Race) => {
     const fav = favorite(race)
     if (!fav || blocked.get(race.id)) return
-    const pick: Pick = {
+    setPicks([{
       eventId: race.id,
       eventName: race.name,
       entryNumber: fav.number,
       entryName: fav.name,
       odds: fav.odds,
-    }
-    if (mode === 'quick') {
-      setPicks([pick])
-      setToast(`Quick bet on #${fav.number} ${fav.name}`)
-      return
-    }
-    const next = togglePick(picks, pick)
-    setPicks(next)
-    const added = next.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber)
-    setToast(added ? `Added ${race.name} (${markOdds(fav.odds)}) to parlay` : `Removed ${race.name} from the ticket`)
+    }])
+    setToast(`Quick bet on #${fav.number} ${fav.name}`)
   }
   const open = events.filter((race) => race.phase === 'open')
   const soon = events.filter((race) => race.phase === 'scheduled')
@@ -392,11 +372,8 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
                 {reason && <p className="when">{reason}</p>}
               </div>
               <div className="open-actions">
-                <button type="button" className="quick" disabled={!fav || Boolean(reason)} onClick={() => offerFavorite(race, 'quick')}>
+                <button type="button" className="quick" disabled={!fav || Boolean(reason)} onClick={() => offerFavorite(race)}>
                   <span aria-hidden="true">🥕</span> Quick Bet
-                </button>
-                <button type="button" className="add-parlay" disabled={!fav || Boolean(reason)} onClick={() => offerFavorite(race, 'parlay')}>
-                  <span aria-hidden="true">+</span> Add to Parlay
                 </button>
               </div>
             </article>
@@ -452,25 +429,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           </article>
         ))}
       </section>}
-      <section className="race-lane" id="meets">
-        <div className="race-lane-head">
-          <div className="race-lane-title">
-            <span aria-hidden="true">⛓️</span>
-            <h2>Chained Parlay</h2>
-            {chains.length > 0 && <span className="count mint">{chains.length} {chains.length === 1 ? 'meet' : 'meets'}</span>}
-          </div>
-        </div>
-        {!chains.length && <p className="empty">No meet is posted. Add a horse on two open races, then place one ticket.</p>}
-        <div className="open-grid">
-          {chains.map((chain) => (
-            <a className="meet-card" key={chain.id} href={`/gamba/meet/${chain.id}`} onClick={go(`/gamba/meet/${chain.id}`)}>
-              <span className="pill open">Meet</span>
-              <h3>{chain.name}</h3>
-              <p>One horse from each of {chain.stages.length} stages. Every pick has to hit.</p>
-            </a>
-          ))}
-        </div>
-      </section>
       {settled.length > 0 && <section className="race-lane">
         <div className="race-lane-head">
           <div className="race-lane-title">
@@ -505,15 +463,15 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
     {picks.length > 0 && <TicketSlip
       title="Your ticket"
       picks={picks}
-      hint={picks.length > 1 ? 'Every pick has to hit.' : 'Open another race to add a parlay.'}
+      hint="One horse. Win only."
       ready
-      onRemove={(eventId) => setPicks(picks.filter((pick) => pick.eventId !== eventId))}
+      onRemove={(pick) => setPicks(picks.filter((item) => item !== pick))}
       onPlace={onPlace}
     />}
     <div className={toast ? 'toast show' : 'toast'} role="status">
       <span aria-hidden="true">✨</span>
       <span>
-        <strong>{toast || 'Added to parlay'}</strong>
+        <strong>{toast || 'Ticket ready'}</strong>
         <span>Stake it on the ticket.</span>
       </span>
     </div>
@@ -562,7 +520,7 @@ function RacePage({ eventId, me, picks, setPicks, onPlace, navigate }: {
           picks={picks}
           titled={false}
           blockedReason={blocked}
-          onToggle={(pick) => setPicks(togglePick(picks, pick))}
+          onToggle={(pick) => setPicks(picks.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber) ? [] : [pick])}
         />
         {race.phase === 'settled' && <Results race={race} />}
       </>}
@@ -570,9 +528,9 @@ function RacePage({ eventId, me, picks, setPicks, onPlace, navigate }: {
     {showTicket && <TicketSlip
       title="Your ticket"
       picks={picks}
-      hint={picks.length > 1 ? 'Every pick has to hit.' : 'Add a horse. Open another race to build a parlay.'}
+      hint="Add one horse. Win only."
       ready={picks.length > 0}
-      onRemove={(id) => setPicks(picks.filter((pick) => pick.eventId !== id))}
+      onRemove={(pick) => setPicks(picks.filter((item) => pickKey(item) !== pickKey(pick)))}
       onPlace={onPlace}
     />}
   </div>
@@ -701,6 +659,138 @@ function TournamentsPage({ owner, navigate }: { owner: boolean; navigate: (to: s
   </div>
 }
 
+function pickKey(pick: Pick) {
+  return `${pick.kind || 'match'}:${pick.slotId || ''}:${pick.eventId}:${pick.entryNumber}`
+}
+
+function sheetReady(round: TournamentDetail['rounds'][number], picks: Pick[]) {
+  const slots = round.advanceSlots || []
+  const matches = round.events.every((race) => picks.some((pick) => pick.kind !== 'advance' && pick.eventId === race.id))
+  const advances = slots.every((slot) => picks.some((pick) => pick.kind === 'advance' && pick.slotId === slot.id))
+  return round.events.length > 0 && matches && advances
+}
+
+function PickemSheet({ round, picks, setPicks, blocked }: {
+  round: TournamentDetail['rounds'][number]
+  picks: Pick[]
+  setPicks: (next: Pick[] | ((current: Pick[]) => Pick[])) => void
+  blocked: Map<string, string>
+}) {
+  const slots = round.advanceSlots || []
+  return <div className="pick-sheet">
+    <section className="pick-block">
+      <h3>Matches</h3>
+      {round.events.map((race) => (
+        <RaceCard
+          key={race.id}
+          race={race}
+          picks={picks.filter((pick) => pick.kind !== 'advance')}
+          blockedReason={blocked.get(race.id) || ''}
+          onToggle={(pick) => {
+            if (blocked.get(race.id)) return
+            setPicks((current) => {
+              const rest = current.filter((item) => item.kind === 'advance' || item.eventId !== pick.eventId)
+              const same = current.some((item) => item.kind !== 'advance' && item.eventId === pick.eventId && item.entryNumber === pick.entryNumber)
+              return same ? rest : [...rest, { ...pick, kind: 'match' }]
+            })
+          }}
+        />
+      ))}
+    </section>
+    {slots.length > 0 && <section className="pick-block">
+      <h3>Advances</h3>
+      {slots.map((slot) => (
+        <div className="pick-row" key={slot.id}>
+          <strong>{slot.label}</strong>
+          {slot.hint && <span className="pick-hint">{slot.hint}</span>}
+          {round.events.filter((race) => slot.eventIds.includes(race.id)).map((race) => (
+            <div key={race.id}>
+              <span className="pick-hint">{race.name}</span>
+              <div className="chip-pool">
+                {race.entries.map((entry) => {
+                  const on = picks.some((pick) => pick.kind === 'advance' && pick.slotId === slot.id && pick.eventId === race.id && pick.entryNumber === entry.number)
+                  return <button
+                    key={entry.number}
+                    type="button"
+                    className={on ? 'horse-chip on' : 'horse-chip'}
+                    onClick={() => setPicks((current) => {
+                      const rest = current.filter((item) => !(item.kind === 'advance' && item.slotId === slot.id))
+                      if (on) return rest
+                      return [...rest, {
+                        kind: 'advance',
+                        slotId: slot.id,
+                        eventId: race.id,
+                        eventName: slot.label,
+                        entryNumber: entry.number,
+                        entryName: entry.name,
+                        odds: 0,
+                      }]
+                    })}
+                  >
+                    <span className="silk" style={{ background: silkColor(entry.number) }}>{entry.number}</span>
+                    {entry.name}
+                  </button>
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </section>}
+  </div>
+}
+
+function AdvanceConfirm({ tournamentId, round, onSaved }: {
+  tournamentId: string
+  round: TournamentDetail['rounds'][number]
+  onSaved: (tournament: TournamentDetail) => void
+}) {
+  const slots = round.advanceSlots || []
+  const filled = slots.length > 0 && slots.every((slot) => round.advanceResults?.[slot.id])
+  const [choices, setChoices] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+  if (!slots.length || round.state !== 'settled') return null
+  if (filled) {
+    return <section className="pick-block">
+      <h3>{round.label} advances</h3>
+      {slots.map((slot) => {
+        const result = round.advanceResults[slot.id]
+        return <p key={slot.id}>{slot.label}: #{result?.entryNumber} {result?.entryName}</p>
+      })}
+    </section>
+  }
+  const ready = slots.every((slot) => choices[slot.id])
+  return <section className="pick-block advance-confirm">
+    <h3>Confirm {round.label} advances</h3>
+    <p className="pick-hint">Pick the horse that actually filled each slot. This grades open pick&apos;em cards.</p>
+    {slots.map((slot) => (
+      <label key={slot.id}>{slot.label}
+        <select value={choices[slot.id] || ''} onChange={(event) => setChoices((current) => ({ ...current, [slot.id]: event.target.value }))}>
+          <option value="">Choose a horse</option>
+          {round.events.filter((race) => slot.eventIds.includes(race.id)).map((race) => race.entries.map((entry) => (
+            <option key={`${race.id}-${entry.number}`} value={`${race.id}:${entry.number}`}>#{entry.number} {entry.name} · {race.name}</option>
+          )))}
+        </select>
+      </label>
+    ))}
+    {problem && <p className="problem">{problem}</p>}
+    <button type="button" className="place" disabled={!ready || busy} onClick={() => {
+      const results: Record<string, { eventId: string; entryNumber: number }> = {}
+      for (const slot of slots) {
+        const [eventId, number] = (choices[slot.id] || '').split(':')
+        results[slot.id] = { eventId, entryNumber: Number(number) }
+      }
+      setBusy(true)
+      setProblem('')
+      gambaApi.confirmAdvances(tournamentId, { roundId: round.id, results })
+        .then((payload) => onSaved(payload.tournament))
+        .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'Those advances were not saved.'))
+        .finally(() => setBusy(false))
+    }}>{busy ? 'Saving…' : 'Save advances'}</button>
+  </section>
+}
+
 function TournamentPage({ tournamentId, me, reload, navigate }: {
   tournamentId: string
   me: Me
@@ -708,7 +798,7 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
   navigate: (to: string) => void
 }) {
   const [tournament, setTournament] = useState<TournamentDetail | null>(null)
-  const [mode, setMode] = useState<'single' | 'chain' | 'pickem'>('single')
+  const [mode, setMode] = useState<'single' | 'pickem'>('single')
   const [picks, setPicks] = useState<Pick[]>([])
   const [problem, setProblem] = useState('')
   useEffect(() => {
@@ -719,15 +809,12 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
       .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'That tournament is gone.'))
   }, [tournamentId])
   const rounds = tournament?.rounds || []
-  const openRounds = rounds.filter((round) => round.state === 'open')
   const pickemRound = rounds.find((round) => round.events.length > 0 && round.events.every((race) => race.phase === 'open')) || null
   const blocked = blockedEvents(me)
-  const chainReady = openRounds.length >= 2 && openRounds.length <= 6 && openRounds.every((round) =>
-    picks.some((pick) => round.events.some((race) => race.id === pick.eventId)),
-  )
-  const pickemReady = Boolean(pickemRound && pickemRound.events.every((race) => picks.some((pick) => pick.eventId === race.id)))
-  const ready = mode === 'single' ? picks.length === 1 : mode === 'chain' ? chainReady : pickemReady
-  const perfect = pickemRound ? pickemRound.pickemPayouts[pickemRound.events.length] || 0 : 0
+  const pickemReady = Boolean(pickemRound && sheetReady(pickemRound, picks))
+  const ready = mode === 'single' ? picks.length === 1 : pickemReady
+  const slotTotal = pickemRound ? pickemRound.events.length + (pickemRound.advanceSlots || []).length : 0
+  const perfect = pickemRound ? pickemRound.pickemPayouts[slotTotal] || 0 : 0
   const go = (href: string) => (event: { preventDefault: () => void }) => {
     event.preventDefault()
     navigate(href)
@@ -753,17 +840,15 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
           onChange={(id) => { setMode(id as typeof mode); setPicks([]) }}
           tabs={[
             { id: 'single', label: 'Single' },
-            { id: 'chain', label: 'Chain' },
             { id: 'pickem', label: 'Pick\'em' },
           ]}
         />
         <p className="when">
           {mode === 'single' && 'One horse to win one match.'}
-          {mode === 'chain' && (openRounds.length >= 2 ? 'One horse in each open round. Every pick has to win.' : 'The chain opens when two rounds are open.')}
-          {mode === 'pickem' && (pickemRound ? `Pick every match in ${pickemRound.label}. A miss can still pay.` : 'Pick\'em opens when every match in a round is open.')}
+          {mode === 'pickem' && (pickemRound ? `Fill every line in ${pickemRound.label}. A miss can still pay.` : 'Pick\'em opens when every match in a round is open.')}
         </p>
         {mode === 'pickem' && pickemRound && <p className="when">Perfect card pays x{perfect}. Other scores use the round table, capped at x20.</p>}
-        {rounds.map((round) => (
+        {mode === 'single' && rounds.map((round) => (
           <section className="stage" key={round.id}>
             <h2>{round.label}</h2>
             {round.events.map((race) => (
@@ -771,40 +856,31 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
                 key={race.id}
                 race={race}
                 picks={picks}
-                blockedReason={blocked.get(race.id) || (mode === 'pickem' && pickemRound?.id !== round.id ? 'Pick\'em uses the round where every match is open.' : '') || (mode === 'chain' && round.state !== 'open' ? 'This round is not open for the chain.' : '')}
+                blockedReason={blocked.get(race.id) || ''}
                 onToggle={(pick) => {
                   if (blocked.get(race.id)) return
-                  if (mode === 'single') {
-                    setPicks((current) => current.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber) ? [] : [pick])
-                    return
-                  }
-                  if (mode === 'chain') {
-                    if (round.state !== 'open') return
-                    setPicks((current) => {
-                      const rest = current.filter((item) => !round.events.some((itemRace) => itemRace.id === item.eventId))
-                      const same = current.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber)
-                      return same ? rest : [...rest, pick]
-                    })
-                    return
-                  }
-                  if (!pickemRound || pickemRound.id !== round.id) return
-                  setPicks((current) => togglePick(current, pick))
+                  setPicks((current) => current.some((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber) ? [] : [pick])
                 }}
               />
             ))}
           </section>
         ))}
+        {mode === 'pickem' && pickemRound && (
+          <PickemSheet round={pickemRound} picks={picks} setPicks={setPicks} blocked={blocked} />
+        )}
+        {me.owner && rounds.map((round) => (
+          <AdvanceConfirm key={round.id} tournamentId={tournament.id} round={round} onSaved={setTournament} />
+        ))}
       </>}
     </div>
     {tournament && <TicketSlip
-      title={mode === 'single' ? 'Single' : mode === 'chain' ? 'Chain' : 'Pick\'em'}
+      title={mode === 'single' ? 'Single' : 'Pick\'em'}
       picks={picks}
-      hint={mode === 'pickem' ? 'One horse in every match of this round.' : 'Win only.'}
+      hint={mode === 'pickem' ? 'Fill every match and every advance slot.' : 'Win only.'}
       ready={ready}
       payNote={mode === 'pickem' ? `A perfect card pays x${perfect}.` : ''}
-      onRemove={(eventId) => setPicks((current) => current.filter((pick) => pick.eventId !== eventId))}
+      onRemove={(pick) => setPicks((current) => current.filter((item) => pickKey(item) !== pickKey(pick)))}
       onPlace={async (stake) => {
-        const legs = picks.map((pick) => ({ eventId: pick.eventId, entryNumber: pick.entryNumber }))
         if (mode === 'single') {
           const pick = picks[0]
           const result = await gambaApi.bet({ eventId: pick.eventId, entryNumber: pick.entryNumber, amount: stake })
@@ -812,68 +888,12 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
           await reload()
           return result.carrots
         }
-        if (mode === 'chain') {
-          const result = await gambaApi.tournamentChain(tournament.id, { stake, legs })
-          setPicks([])
-          await reload()
-          return result.carrots
-        }
+        const legs = picks.map((pick) => (
+          pick.kind === 'advance'
+            ? { kind: 'advance', slotId: pick.slotId, eventId: pick.eventId, entryNumber: pick.entryNumber }
+            : { kind: 'match', eventId: pick.eventId, entryNumber: pick.entryNumber }
+        ))
         const result = await gambaApi.tournamentPickem(tournament.id, { roundId: pickemRound?.id || '', stake, legs })
-        setPicks([])
-        await reload()
-        return result.carrots
-      }}
-    />}
-  </div>
-}
-
-function MeetPage({ chainId, me, reload }: { chainId: string; me: Me; reload: () => Promise<void> }) {
-  const [chain, setChain] = useState<ChainDetail | null>(null)
-  const [picks, setPicks] = useState<Pick[]>([])
-  const [problem, setProblem] = useState('')
-  useEffect(() => {
-    gambaApi.chain(chainId).then((payload) => setChain(payload.chain)).catch((reason) => setProblem(reason instanceof Error ? reason.message : 'That meet is gone.'))
-  }, [chainId])
-  const blocked = blockedEvents(me)
-  const ready = Boolean(chain && chain.stages.every((stage) => picks.some((pick) => pick.stageId === stage.id)))
-  if (!chain && !problem) return <p className="paddock-main">Loading the meet.</p>
-  return <div className="paddock-main with-slip">
-    <div>
-      {problem && <p className="problem">{problem}</p>}
-      {chain && <>
-        <h1>{chain.name}</h1>
-        <p>One horse from one race in each stage. Every pick has to hit.</p>
-        <div className="stages">
-          {chain.stages.map((stage) => (
-            <section className="stage" key={stage.id}>
-              <h2>{stage.label}</h2>
-              {stage.events.map((race) => (
-                <RaceCard
-                  key={race.id}
-                  race={race}
-                  picks={picks}
-                  blockedReason={blocked.get(race.id) || ''}
-                  onToggle={(pick) => setPicks((current) => togglePick(current.filter((item) => item.stageId !== stage.id), { ...pick, stageId: stage.id }))}
-                />
-              ))}
-            </section>
-          ))}
-        </div>
-      </>}
-    </div>
-    {chain && <TicketSlip
-      title={chain.name}
-      picks={chain.stages.map((stage) => picks.find((pick) => pick.stageId === stage.id)).filter((pick): pick is Pick => Boolean(pick))}
-      hint="Every pick has to hit."
-      ready={ready}
-      onRemove={(eventId) => setPicks((current) => current.filter((pick) => pick.eventId !== eventId))}
-      onPlace={async (stake) => {
-        const ordered = chain.stages.map((stage) => picks.find((pick) => pick.stageId === stage.id)).filter((pick): pick is Pick => Boolean(pick))
-        const result = await gambaApi.parlay({
-          stake,
-          chainId: chain.id,
-          legs: ordered.map((pick) => ({ eventId: pick.eventId, entryNumber: pick.entryNumber })),
-        })
         setPicks([])
         await reload()
         return result.carrots
@@ -928,7 +948,7 @@ function TicketSlip({ title, picks, hint, ready, onRemove, onPlace, payNote = ''
   picks: Pick[]
   hint: string
   ready: boolean
-  onRemove: (eventId: string) => void
+  onRemove: (pick: Pick) => void
   onPlace: (stake: number) => Promise<number>
   payNote?: string
 }) {
@@ -959,9 +979,9 @@ function TicketSlip({ title, picks, hint, ready, onRemove, onPlace, payNote = ''
     {picks.length === 0 && <p className="hint">{hint}</p>}
     {picks.length > 0 && <ol>
       {picks.map((pick) => (
-        <li key={pick.eventId}>
-          <span>#{pick.entryNumber} {pick.entryName}</span>
-          <button type="button" className="quiet" onClick={() => onRemove(pick.eventId)}>Remove</button>
+        <li key={pickKey(pick)}>
+          <span>{pick.kind === 'advance' ? pick.eventName : pick.eventName} · #{pick.entryNumber} {pick.entryName}</span>
+          <button type="button" className="quiet" onClick={() => onRemove(pick)}>Remove</button>
         </li>
       ))}
     </ol>}
@@ -1125,7 +1145,7 @@ function markColor(id: string) {
 function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to: string) => void }) {
   const [trainer, setTrainer] = useState<Trainer | null>(null)
   const [problem, setProblem] = useState('')
-  const [filter, setFilter] = useState<'all' | 'running' | 'parlay' | 'settled'>('all')
+  const [filter, setFilter] = useState<'all' | 'running' | 'settled'>('all')
   const [more, setMore] = useState(false)
   useEffect(() => {
     setTrainer(null)
@@ -1142,10 +1162,9 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
   const parlays = trainer?.openParlays || []
   const pickems = trainer?.openPickems || []
   const settled = trainer ? groupHistory(trainer.history) : []
-  const settledParlays = settled.filter((row) => row.kind === 'parlay')
-  const showRunning = filter === 'all' || filter === 'running' || (filter === 'parlay' && parlays.length > 0)
-  const shownSettled = filter === 'parlay' ? settledParlays : settled
-  const showSettled = filter === 'all' || filter === 'settled' || filter === 'parlay'
+  const showRunning = filter === 'all' || filter === 'running'
+  const shownSettled = settled
+  const showSettled = filter === 'all' || filter === 'settled'
   const visibleSettled = more ? shownSettled : shownSettled.slice(0, 6)
   const hidden = shownSettled.length - visibleSettled.length
   const rate = trainer ? winRate(trainer.wins, trainer.losses) : null
@@ -1187,13 +1206,12 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
           tabs={[
             { id: 'all', label: 'All slips', count: singles.length + parlays.length + pickems.length + settled.length },
             { id: 'running', label: 'In play', count: singles.length + parlays.length + pickems.length },
-            { id: 'parlay', label: 'Chained parlays', count: parlays.length + settledParlays.length },
             { id: 'settled', label: 'Settled slips', count: settled.length },
           ]}
         />
-        {showRunning && (filter !== 'parlay' ? singles.length + parlays.length + pickems.length : parlays.length) > 0 && <section className="slip-block">
+        {showRunning && (singles.length + parlays.length + pickems.length) > 0 && <section className="slip-block">
           <h2>Active ticket</h2>
-          {filter !== 'parlay' && singles.map((ticket) => (
+          {singles.map((ticket) => (
             <a key={`${ticket.eventId}-${ticket.entryNumber}`} className="live-slip" href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>
               <span className="gate-num" style={{ background: silkColor(ticket.entryNumber) }}>
                 <span>Gate</span>{ticket.entryNumber}
@@ -1210,7 +1228,7 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
               </span>
             </a>
           ))}
-          {filter !== 'parlay' && pickems.map((card) => (
+          {pickems.map((card) => (
             <article className="live-slip parlay" key={card.pickemId}>
               <span className="gate-num chain"><span>Picks</span>{card.legs.length}</span>
               <span className="live-copy">
@@ -1224,7 +1242,7 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
               </span>
             </article>
           ))}
-          {(filter === 'all' || filter === 'running' || filter === 'parlay') && parlays.map((parlay) => (
+          {parlays.map((parlay) => (
             <article className="live-slip parlay" key={parlay.parlayId}>
               <span className="gate-num chain"><span>Legs</span>{parlay.legs.length}</span>
               <span className="live-copy">
@@ -1240,9 +1258,8 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
             </article>
           ))}
         </section>}
-        {showRunning && filter !== 'parlay' && !singles.length && !parlays.length && !pickems.length && <p className="empty">No tickets are still running.</p>}
-        {filter === 'parlay' && !parlays.length && !settledParlays.length && <p className="empty">No chained parlay yet. Add a horse on two open races, then place one ticket.</p>}
-        {showSettled && (filter !== 'parlay' || shownSettled.length > 0) && <section className="slip-block">
+        {showRunning && !singles.length && !parlays.length && !pickems.length && <p className="empty">No tickets are still running.</p>}
+        {showSettled && <section className="slip-block">
           <h2>Settled betting slips</h2>
           {!shownSettled.length && <p className="empty">No settled slips yet.</p>}
           <div className="slip-grid">
@@ -1300,12 +1317,6 @@ function maxOdds(trainer: Trainer) {
   return values.length ? Math.max(...values) : null
 }
 
-function togglePick(current: Pick[], pick: Pick) {
-  const same = current.find((item) => item.eventId === pick.eventId && item.entryNumber === pick.entryNumber)
-  if (same) return current.filter((item) => item !== same)
-  return [...current.filter((item) => item.eventId !== pick.eventId), pick]
-}
-
 function blockedEvents(me: Me) {
   const reasons = new Map<string, string>()
   for (const ticket of me.openTickets) reasons.set(ticket.eventId, 'Already on a single ticket')
@@ -1317,6 +1328,7 @@ function blockedEvents(me: Me) {
   }
   for (const card of me.openPickems || []) {
     for (const leg of card.legs) {
+      if (leg.kind === 'advance') continue
       if (leg.status && leg.status !== 'open') continue
       reasons.set(leg.eventId, 'Already on a pick\'em card')
     }

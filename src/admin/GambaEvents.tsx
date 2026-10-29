@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AdminError, adminApi, type GambaChain, type GambaEntry, type GambaEvent, type GambaTournament } from './api'
+import { AdminError, adminApi, type GambaEntry, type GambaEvent, type GambaTournament } from './api'
 
 const EMPTY: GambaEvent = {
   id: '',
@@ -56,100 +56,19 @@ export function GambaEventList({ owner, navigate }: { owner: boolean; navigate: 
         </tbody>
       </table>
     </div>
-    <GambaMeets events={rows.map((row) => ({ id: row.id, name: row.name }))} />
     <GambaTournaments />
   </section>
 }
 
-function GambaMeets({ events }: { events: Array<{ id: string; name: string }> }) {
-  const blank = (): GambaChain => ({
-    id: '',
-    name: '',
-    stages: [
-      { label: 'Group', eventIds: [] },
-      { label: 'Final', eventIds: [] },
-    ],
-  })
-  const [chains, setChains] = useState<GambaChain[]>([])
-  const [draft, setDraft] = useState<GambaChain>(blank())
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const load = () => adminApi.gambaChains().then((payload) => setChains(payload.chains)).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
-  useEffect(() => { void load() }, [])
-  const setStage = (index: number, patch: Partial<GambaChain['stages'][number]>) => {
-    const stages = draft.stages.slice()
-    stages[index] = { ...stages[index], ...patch }
-    setDraft({ ...draft, stages })
-  }
-  const save = async () => {
-    setBusy(true)
-    setError('')
-    try {
-      await adminApi.saveGambaChain(draft)
-      setDraft(blank())
-      await load()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
-    } finally {
-      setBusy(false)
-    }
-  }
-  return <section>
-    <h2>Linked meets</h2>
-    <p className="muted">A meet ties races into stages. Players pick one horse in each stage for one ticket.</p>
-    {error && <p className="notice error">{error}</p>}
-    <ul>
-      {chains.map((chain) => (
-        <li key={chain.id}>
-          <button type="button" className="text-button" onClick={() => setDraft(chain)}>{chain.name}</button>
-          {' '}
-          <button type="button" onClick={async () => {
-            if (!window.confirm(`Delete ${chain.name}?`)) return
-            setBusy(true)
-            try {
-              await adminApi.removeGambaChain(chain.id)
-              if (draft.id === chain.id) setDraft(blank())
-              await load()
-            } catch (reason) {
-              setError(reason instanceof Error ? reason.message : String(reason))
-            } finally { setBusy(false) }
-          }}>Delete</button>
-        </li>
-      ))}
-      {!chains.length && <li>No meets yet.</li>}
-    </ul>
-    <label className="admin-field">Meet name
-      <input value={draft.name} onChange={(input) => setDraft({ ...draft, name: input.target.value })} />
-    </label>
-    {draft.stages.map((stage, index) => (
-      <div key={index} className="admin-field">
-        <label>Stage name
-          <input value={stage.label} onChange={(input) => setStage(index, { label: input.target.value })} />
-        </label>
-        <label>Races in this stage
-          <select multiple size={Math.min(8, Math.max(3, events.length))} value={stage.eventIds} onChange={(input) => {
-            const eventIds = [...input.target.selectedOptions].map((option) => option.value)
-            setStage(index, { eventIds })
-          }}>
-            {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
-          </select>
-        </label>
-        {draft.stages.length > 2 && <button type="button" onClick={() => setDraft({ ...draft, stages: draft.stages.filter((_, item) => item !== index) })}>Remove stage</button>}
-      </div>
-    ))}
-    <div className="admin-row">
-      {draft.stages.length < 6 && <button type="button" onClick={() => setDraft({ ...draft, stages: [...draft.stages, { label: '', eventIds: [] }] })}>Add stage</button>}
-      <button type="button" className="primary" disabled={busy} onClick={() => void save()}>{draft.id ? 'Update meet' : 'Save meet'}</button>
-      {draft.id && <button type="button" onClick={() => setDraft(blank())}>New meet</button>}
-    </div>
-  </section>
-}
-
-function resizePayouts(current: number[], raceCount: number) {
-  const next = current.slice(0, raceCount + 1)
-  while (next.length < raceCount + 1) next.push(0)
-  if (next.every((value) => !value)) next[raceCount] = 5
-  return next.map((value) => Math.min(20, Math.max(0, Number(value) || 0)))
+function resizePayouts(current: number[], slotCount: number) {
+  const cap = (value: number) => Math.min(20, Math.max(0, Number(value) || 0))
+  const perfect = current.length ? cap(current[current.length - 1]) : 5
+  const middle = current.length ? current.slice(0, -1) : []
+  const next = middle.slice(0, slotCount).map(cap)
+  while (next.length < slotCount) next.push(0)
+  next.push(slotCount > 0 ? perfect : 0)
+  if (slotCount > 0 && next.every((value) => !value)) next[slotCount] = 5
+  return next
 }
 
 function GambaTournaments() {
@@ -172,7 +91,15 @@ function GambaTournaments() {
   const setRound = (index: number, patch: Partial<GambaTournament['rounds'][number]>) => {
     const rounds = draft.rounds.slice()
     const next = { ...rounds[index], ...patch }
-    if (patch.eventIds) next.pickemPayouts = resizePayouts(next.pickemPayouts || [], patch.eventIds.length)
+    if (patch.eventIds) {
+      const kept = new Set(patch.eventIds)
+      next.advanceSlots = (next.advanceSlots || []).map((slot) => ({
+        ...slot,
+        eventIds: slot.eventIds.filter((id) => kept.has(id)),
+      }))
+    }
+    const slots = (next.advanceSlots || []).length
+    next.pickemPayouts = resizePayouts(next.pickemPayouts || [], next.eventIds.length + slots)
     rounds[index] = next
     setDraft({ ...draft, rounds })
   }
@@ -229,6 +156,45 @@ function GambaTournaments() {
             {eligible.map((race) => <option key={race.id} value={race.id}>{race.name}</option>)}
           </select>
         </label>
+        <div>
+          <p className="muted">Matches are automatic. Add an advance slot when 2nd or 3rd (or anyone from these races) goes somewhere else.</p>
+          {(round.advanceSlots || []).map((slot, slotIndex) => (
+            <div key={slot.id || slotIndex}>
+              <label>Advance name
+                <input value={slot.label} onChange={(input) => {
+                  const advanceSlots = (round.advanceSlots || []).slice()
+                  advanceSlots[slotIndex] = { ...slot, label: input.target.value }
+                  setRound(index, { advanceSlots })
+                }} />
+              </label>
+              <label>Hint for players
+                <input value={slot.hint || ''} onChange={(input) => {
+                  const advanceSlots = (round.advanceSlots || []).slice()
+                  advanceSlots[slotIndex] = { ...slot, hint: input.target.value }
+                  setRound(index, { advanceSlots })
+                }} />
+              </label>
+              <div>
+                {round.eventIds.map((eventId) => {
+                  const race = eligible.find((item) => item.id === eventId)
+                  const on = slot.eventIds.includes(eventId)
+                  return <label key={eventId}>
+                    <input type="checkbox" checked={on} onChange={() => {
+                      const advanceSlots = (round.advanceSlots || []).slice()
+                      const eventIds = on ? slot.eventIds.filter((id) => id !== eventId) : [...slot.eventIds, eventId]
+                      advanceSlots[slotIndex] = { ...slot, eventIds }
+                      setRound(index, { advanceSlots })
+                    }} />
+                    {race?.name || eventId}
+                  </label>
+                })}
+                {!round.eventIds.length && <span>Attach races before choosing a pool.</span>}
+              </div>
+              <button type="button" onClick={() => setRound(index, { advanceSlots: (round.advanceSlots || []).filter((_, item) => item !== slotIndex) })}>Remove advance</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setRound(index, { advanceSlots: [...(round.advanceSlots || []), { label: '', eventIds: round.eventIds.slice(), hint: '' }] })}>Add advance</button>
+        </div>
         <div>
           {(round.pickemPayouts || []).map((payout, correct) => (
             <label key={correct}> {correct} correct

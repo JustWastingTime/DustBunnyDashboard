@@ -917,6 +917,47 @@
 .paddock .slip-tab span { padding: 1px 6px; border-radius: 999px; background: #2d3449; font-size: 0.65rem; }
 .paddock .slip-tab.on { color: #4edea3; font-weight: 800; }
 .paddock .slip-block { display: flex; flex-direction: column; gap: 12px; }
+.paddock .pick-sheet,
+.paddock .pick-block { display: flex; flex-direction: column; gap: 12px; }
+.paddock .pick-block h3 {
+  margin: 0;
+  color: #bbcabf;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.paddock .pick-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #171f33;
+}
+.paddock .pick-row strong { color: #dae2fd; }
+.paddock .pick-hint { color: #bbcabf; font-size: 0.8rem; }
+.paddock .chip-pool { display: flex; flex-wrap: wrap; gap: 8px; }
+.paddock .horse-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #222a3d;
+  color: #dae2fd;
+}
+.paddock .horse-chip.on { box-shadow: inset 0 0 0 1px #4edea3; color: #4edea3; }
+.paddock .horse-chip .silk {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #121526;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.paddock .advance-confirm select { margin-top: 4px; }
 .paddock .live-slip {
   position: relative;
   display: grid;
