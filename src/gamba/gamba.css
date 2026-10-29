@@ -882,8 +882,30 @@
 .paddock .slip-pay .up { color: #4edea3; }
 .paddock .vault-balance .down,
 .paddock .slip-pay .down { color: #ffb4ab; }
-.paddock .slip-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px; border-radius: 12px; background: #131b2e; }
+.paddock .slip-tabs {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #131b2e;
+}
+.paddock .slip-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 8px;
+  background: rgb(110 231 183 / 0.15);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 280ms cubic-bezier(0.22, 0.8, 0.24, 1), width 280ms cubic-bezier(0.22, 0.8, 0.24, 1), opacity 160ms ease;
+}
+.paddock .slip-slider.on { opacity: 1; }
 .paddock .slip-tab {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -893,7 +915,7 @@
   font-size: 0.85rem;
 }
 .paddock .slip-tab span { padding: 1px 6px; border-radius: 999px; background: #2d3449; font-size: 0.65rem; }
-.paddock .slip-tab.on { background: #222a3d; color: #4edea3; font-weight: 800; }
+.paddock .slip-tab.on { color: #4edea3; font-weight: 800; }
 .paddock .slip-block { display: flex; flex-direction: column; gap: 12px; }
 .paddock .live-slip {
   position: relative;
@@ -911,10 +933,10 @@
 .paddock .slip-card::before {
   content: "";
   position: absolute;
-  top: 16px;
-  bottom: 16px;
+  top: 0;
+  bottom: 0;
   left: 0;
-  width: 6px;
+  width: 8px;
   border-radius: 0;
 }
 .paddock .live-slip::before { background: #ec6a06; }

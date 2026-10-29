@@ -111,13 +111,17 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
           .map((id) => ({ id, label: '' }))
         return extras.length ? [...current, ...extras] : current
       })
-      setHorses(event.entries.map((entry) => ({
-        number: String(entry.number),
-        name: entry.name,
-        age: entry.ageSex || '',
-        jockey: entry.jockey || '',
-        odds: entry.odds == null ? '' : String(entry.odds),
-      })))
+      setHorses(
+        [...event.entries]
+          .sort((a, b) => a.number - b.number)
+          .map((entry) => ({
+            number: String(entry.number),
+            name: entry.name,
+            age: entry.ageSex || '',
+            jockey: entry.jockey || '',
+            odds: entry.odds == null ? '' : String(entry.odds),
+          })),
+      )
     } catch (reason) {
       setProblem(reason instanceof Error ? reason.message : 'That race could not be opened.')
     } finally {
@@ -170,6 +174,7 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
         odds: Number(horse.odds),
       }))
       .filter((horse) => horse.name)
+      .sort((a, b) => a.number - b.number)
     if (!entries.length) {
       setProblem('Add at least one horse.')
       return
@@ -389,7 +394,12 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
       {horses.map((horse, index) => (
         <div className="horse-row" key={index}>
           <label>No.
-            <input inputMode="numeric" value={horse.number} onChange={(event) => setHorse(index, { number: event.target.value.replace(/[^\d]/g, '') })} />
+            <input
+              inputMode="numeric"
+              value={horse.number}
+              onChange={(event) => setHorse(index, { number: event.target.value.replace(/[^\d]/g, '') })}
+              onBlur={() => setHorses((current) => [...current].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0)))}
+            />
           </label>
           <label>Name
             <input value={horse.name} onChange={(event) => setHorse(index, { name: event.target.value })} />

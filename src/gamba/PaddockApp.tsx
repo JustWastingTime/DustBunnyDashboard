@@ -32,6 +32,49 @@ type Pick = {
 
 const loginHref = `/api/auth/login?returnTo=${encodeURIComponent('/gamba')}`
 
+function SlipTabs({
+  label,
+  value,
+  onChange,
+  tabs,
+}: {
+  label: string
+  value: string
+  onChange: (id: string) => void
+  tabs: { id: string; label: ReactNode; count?: number }[]
+}) {
+  const tabRef = useRef<HTMLDivElement>(null)
+  const [slider, setSlider] = useState({ x: 0, width: 0, on: false })
+  const mark = tabs.map((tab) => `${tab.id}:${tab.count ?? ''}`).join('|')
+  useLayoutEffect(() => {
+    const root = tabRef.current
+    const current = root?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!root || !current) {
+      setSlider((item) => ({ ...item, on: false }))
+      return
+    }
+    setSlider({ x: current.offsetLeft, width: current.offsetWidth, on: true })
+  }, [value, mark])
+  return (
+    <div className="slip-tabs" role="tablist" aria-label={label} ref={tabRef}>
+      <span className={slider.on ? 'slip-slider on' : 'slip-slider'} style={{ transform: `translateX(${slider.x}px)`, width: slider.width }} />
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          role="tab"
+          aria-selected={value === tab.id}
+          className={value === tab.id ? 'slip-tab on' : 'slip-tab'}
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.label}
+          {tab.count != null && <span>{tab.count}</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Carrot({ size = 22 }: { size?: number }) {
   return <span className="carrot" style={{ fontSize: size }} aria-hidden="true">🥕</span>
 }
@@ -704,17 +747,16 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
             </article>
           ))}
         </div>
-        <div className="slip-tabs" role="tablist" aria-label="Bet mode">
-          {([
-            ['single', 'Single'],
-            ['chain', 'Chain'],
-            ['pickem', 'Pick\'em'],
-          ] as const).map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={mode === id} className={mode === id ? 'slip-tab on' : 'slip-tab'} onClick={() => { setMode(id); setPicks([]) }}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <SlipTabs
+          label="Bet mode"
+          value={mode}
+          onChange={(id) => { setMode(id as typeof mode); setPicks([]) }}
+          tabs={[
+            { id: 'single', label: 'Single' },
+            { id: 'chain', label: 'Chain' },
+            { id: 'pickem', label: 'Pick\'em' },
+          ]}
+        />
         <p className="when">
           {mode === 'single' && 'One horse to win one match.'}
           {mode === 'chain' && (openRounds.length >= 2 ? 'One horse in each open round. Every pick has to win.' : 'The chain opens when two rounds are open.')}
@@ -851,7 +893,7 @@ function RaceCard({ race, picks, blockedReason, onToggle, titled = true }: {
     {titled && <h2>{race.name}</h2>}
     {titled && <p className="when">{raceNote(race)}</p>}
     {blockedReason && <p className="when">{blockedReason}</p>}
-    {race.entries.map((entry) => {
+    {[...race.entries].sort((a, b) => a.number - b.number).map((entry) => {
       const selected = picks.some((pick) => pick.eventId === race.id && pick.entryNumber === entry.number)
       const open = race.phase === 'open' && !blockedReason
       const won = race.phase === 'settled' && race.winner === entry.number
@@ -1138,18 +1180,17 @@ function TrainerPage({ discordId, navigate }: { discordId: string; navigate: (to
             </div>
           </div>
         </section>
-        <div className="slip-tabs" role="tablist" aria-label="Tickets">
-          {([
-            ['all', 'All slips', singles.length + parlays.length + pickems.length + settled.length],
-            ['running', 'In play', singles.length + parlays.length + pickems.length],
-            ['parlay', 'Chained parlays', parlays.length + settledParlays.length],
-            ['settled', 'Settled slips', settled.length],
-          ] as const).map(([id, label, count]) => (
-            <button key={id} type="button" role="tab" aria-selected={filter === id} className={filter === id ? 'slip-tab on' : 'slip-tab'} onClick={() => { setFilter(id); setMore(false) }}>
-              {label} <span>{count}</span>
-            </button>
-          ))}
-        </div>
+        <SlipTabs
+          label="Tickets"
+          value={filter}
+          onChange={(id) => { setFilter(id as typeof filter); setMore(false) }}
+          tabs={[
+            { id: 'all', label: 'All slips', count: singles.length + parlays.length + pickems.length + settled.length },
+            { id: 'running', label: 'In play', count: singles.length + parlays.length + pickems.length },
+            { id: 'parlay', label: 'Chained parlays', count: parlays.length + settledParlays.length },
+            { id: 'settled', label: 'Settled slips', count: settled.length },
+          ]}
+        />
         {showRunning && (filter !== 'parlay' ? singles.length + parlays.length + pickems.length : parlays.length) > 0 && <section className="slip-block">
           <h2>Active ticket</h2>
           {filter !== 'parlay' && singles.map((ticket) => (

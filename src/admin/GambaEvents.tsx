@@ -267,7 +267,8 @@ export function GambaEventEditor({ eventId, creating, owner, navigate }: {
   useEffect(() => {
     if (!owner || creating || !eventId) return
     adminApi.gambaEvent(eventId).then((payload) => {
-      setEvent({ ...payload.event, threadId: payload.event.threadId || '', startsAt: payload.event.startsAt || '', endsAt: payload.event.endsAt || '' })
+      const entries = [...payload.event.entries].sort((a, b) => a.number - b.number)
+      setEvent({ ...payload.event, entries, threadId: payload.event.threadId || '', startsAt: payload.event.startsAt || '', endsAt: payload.event.endsAt || '' })
       setFile(payload.file)
       setBlobSha(payload.blobSha)
     }).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
@@ -282,9 +283,12 @@ export function GambaEventEditor({ eventId, creating, owner, navigate }: {
   const save = async () => {
     setBusy(true); setConflict(''); setError('')
     try {
+      const entries = [...event.entries].sort((a, b) => a.number - b.number)
+      setEvent((current) => ({ ...current, entries }))
       const saved = await adminApi.saveGambaEvent({
         event: {
           ...event,
+          entries,
           startsAt: event.startsAt || null,
           endsAt: event.endsAt || null,
           threadId: event.threadId || null,
