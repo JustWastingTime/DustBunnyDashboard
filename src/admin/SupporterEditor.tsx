@@ -124,7 +124,7 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
             <div className="effect-line">
               <span className="effect-label">Effect name</span>
               {Array.from({ length: columns }, (_, index) => <span className="effect-label" key={index}>{columns === 5 ? LEVELS[index] : `Value ${index + 1}`}</span>)}
-              <span className="effect-label">Actions</span>
+              <span className="effect-label" aria-hidden="true" />
             </div>
             {rows.length === 0 && <p className="muted">No effects yet.</p>}
             {rows.map((row, index) => (
@@ -149,7 +149,11 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
                     {!row.raw && row.suffix && <em>{row.suffix}</em>}
                   </span>
                 ))}
-                {owner ? <button type="button" onClick={() => writeEffects(effects.filter((_, item) => item !== index))}>Remove</button> : <span />}
+                {owner
+                  ? <button type="button" className="icon-button" aria-label="Remove effect" title="Remove" onClick={() => writeEffects(effects.filter((_, item) => item !== index))}>
+                    <TrashIcon />
+                  </button>
+                  : <span />}
               </div>
             ))}
           </div>
@@ -261,6 +265,15 @@ function parseEffect(line: string): EffectRow {
 function formatEffect(row: EffectRow) {
   if (row.raw || row.values.length === 0) return row.name
   return `${row.name} - ${row.values.join('/')}${row.suffix}`
+}
+
+function TrashIcon() {
+  return <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7h16" />
+    <path d="M9 7V5h6v2" />
+    <path d="M6 7l1 14h10l1-14" />
+    <path d="M10 11v6M14 11v6" />
+  </svg>
 }
 
 function asList(value: unknown) {

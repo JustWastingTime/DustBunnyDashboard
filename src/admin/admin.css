@@ -65,8 +65,10 @@
 .tag-box input { flex: 1 1 8rem; min-width: 7rem; border: 0; background: transparent; padding: .25rem .35rem; }
 .tag { cursor: pointer; }
 .effect-grid { display: grid; gap: .35rem; min-width: 0; }
-.effect-line { display: grid; grid-template-columns: minmax(14rem, 1.8fr) repeat(var(--effect-cols), minmax(0, 1fr)) 4.6rem; gap: .35rem; align-items: center; }
+.effect-line { display: grid; grid-template-columns: minmax(14rem, 1.8fr) repeat(var(--effect-cols), minmax(0, 1fr)) 2.4rem; gap: .35rem; align-items: center; }
 .effect-line > * { min-width: 0; }
+.admin-shell .icon-button { display: inline-grid; place-items: center; width: 2.2rem; height: 2.2rem; padding: 0; color: var(--muted); }
+.admin-shell .icon-button:hover { color: var(--danger); border-color: #6a3a3a; background: #2a1717; }
 .effect-label { color: var(--muted); font-size: .72rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
 .effect-grid input { width: 100%; min-width: 0; box-sizing: border-box; background: var(--page); border: 1px solid var(--line); border-radius: 8px; padding: .3rem .35rem; color: var(--ink); }
 .effect-value input { padding-right: 1.15rem; }
