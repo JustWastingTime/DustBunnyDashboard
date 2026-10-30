@@ -288,6 +288,11 @@ function openDay(iso: string | null) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+function finishStamp(race: Race) {
+  const stamp = Date.parse(race.settledAt || race.endsAt || '')
+  return Number.isFinite(stamp) ? stamp : 0
+}
+
 function horseCount(count: number, word: 'runners' | 'horses') {
   return `${count} ${count === 1 ? word.replace(/s$/, '') : word}`
 }
@@ -335,7 +340,9 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
   const open = events.filter((race) => race.phase === 'open')
   const soon = events.filter((race) => race.phase === 'scheduled')
   const expired = events.filter((race) => race.phase === 'closed')
-  const settled = events.filter((race) => race.phase === 'settled')
+  const settled = events
+    .filter((race) => race.phase === 'settled')
+    .sort((a, b) => finishStamp(b) - finishStamp(a) || a.name.localeCompare(b.name))
   const settledShown = showSettled ? settled : settled.slice(0, 4)
   return <div className={picks.length ? 'paddock-main with-slip' : 'paddock-main'}>
     <div className="board-stack">

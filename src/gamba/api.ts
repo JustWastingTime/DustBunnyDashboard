@@ -32,6 +32,7 @@ export type Race = {
   phase: Phase
   startsAt: string | null
   endsAt: string | null
+  settledAt?: string | null
   winner: number | null
   winnerName: string | null
   winnerOdds: number | null
