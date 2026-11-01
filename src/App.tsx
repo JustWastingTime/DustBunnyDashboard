@@ -320,7 +320,7 @@ function MemberTable({
   members: supplied,
   assignments = [],
   onSaveDiscord,
-  directory = [],
+  directory = NO_DIRECTORY,
   onOpenProfile,
 }: {
   clubs: Club[]
@@ -1382,15 +1382,62 @@ function uniqueLiveMembers(members: Member[], assignments: Assignment[]): Member
   return [...membersByUmaId(members).values()].map((copies) => pickLiveMember(copies, destByUma.get(copies[0].umaId)))
 }
 
-function pruneCompletedAssignments(assignments: Assignment[], members: Member[]): Assignment[] {
+const NO_DIRECTORY: MemberDirectoryRow[] = []
+
+function assignmentOrigin(item: Assignment, directory: MemberDirectoryRow[] = []): string | null {
+  if (item.fromCircleId) return item.fromCircleId
+  const row = directory.find((entry) => entry.umaId === item.entityId)
+  return row?.currentCircleId || row?.lastCircleId || null
+}
+
+/**
+ * A planned move is complete only once uma.moe shows the player in the destination club.
+ * A kick is complete only once the player is gone from a source club whose roster actually
+ * loaded, so a month rollover or failed fetch never wipes the plan.
+ */
+function pruneCompletedAssignments(
+  assignments: Assignment[],
+  members: Member[],
+  directory: MemberDirectoryRow[] = [],
+): Assignment[] {
   const copies = membersByUmaId(members)
+  const loadedClubs = new Set(members.map((member) => member.circleId).filter(Boolean))
   return assignments.filter((item) => {
     const dest = item.destination === 'unassigned' ? 'applicants' : item.destination
     const homes = copies.get(item.entityId) || []
-    if (dest === 'kick') return homes.length > 0
+    if (dest === 'kick') {
+      if (homes.length > 0) return true
+      const from = assignmentOrigin(item, directory)
+      return !(from && loadedClubs.has(from))
+    }
     if (!isClubDestination(dest)) return true
     return !homes.some((member) => member.circleId === dest)
   })
+}
+
+/** Cards for planned member moves whose player is missing from the current uma.moe rosters. */
+function pendingMemberEntities(
+  assignments: Assignment[],
+  members: Member[],
+  directory: MemberDirectoryRow[] = [],
+): PlannerEntity[] {
+  const live = new Set(members.map((member) => member.umaId))
+  return assignments
+    .filter((item) => item.entityType === 'member' && !live.has(item.entityId))
+    .map((item) => {
+      const row = directory.find((entry) => entry.umaId === item.entityId)
+      return {
+        key: `member:${item.entityId}`,
+        kind: 'member' as const,
+        umaId: item.entityId,
+        name: item.name || row?.ign || item.entityId,
+        meta: 'Not in uma.moe data yet',
+        fallback: assignmentOrigin(item, directory) || 'applicants',
+        sortValue: 0,
+        band: null,
+        reason: 'Planned move — waiting for uma.moe to show this player',
+      }
+    })
 }
 
 function assignmentsEqual(left: Assignment[], right: Assignment[]) {
@@ -1574,6 +1621,7 @@ function StaffPlanner({
   initialAssignments,
   boardStatus,
   reload,
+  directory = NO_DIRECTORY,
 }: {
   clubs: Club[]
   members: Member[]
@@ -1581,6 +1629,7 @@ function StaffPlanner({
   initialAssignments: Assignment[]
   boardStatus: string
   reload: () => Promise<void>
+  directory?: MemberDirectoryRow[]
 }) {
   const clubNames = useMemo(() => new Map(clubs.map((club) => [club.circleId, club.name])), [clubs])
   const [checklistFilter, setChecklistFilter] = useState<string | 'all'>('all')
@@ -1619,11 +1668,11 @@ function StaffPlanner({
     const normalized = initialAssignments.map((item) => (
       item.destination === 'unassigned' ? { ...item, destination: 'applicants' } : item
     ))
-    const pruned = pruneCompletedAssignments(normalized, members)
+    const pruned = pruneCompletedAssignments(normalized, members, directory)
     setAssignments(pruned)
     assignmentsRef.current = pruned
     if (!assignmentsEqual(pruned, normalized)) void persist(pruned)
-  }, [initialAssignments, members, persist])
+  }, [initialAssignments, members, directory, persist])
 
   const memberIds = useMemo(() => new Set(members.map((member) => member.umaId)), [members])
   const memberIgns = useMemo(
@@ -1658,6 +1707,7 @@ function StaffPlanner({
         reason: assessed.reason,
       }
     }),
+    ...pendingMemberEntities(assignments, members, directory),
     ...applicants
       .filter((applicant) => (
         applicant.status !== 'rejected'
@@ -1675,7 +1725,7 @@ function StaffPlanner({
         band: null,
         reason: '',
       })),
-  ], [liveMembers, applicants, memberIds, memberIgns, clubs])
+  ], [liveMembers, assignments, members, directory, applicants, memberIds, memberIgns, clubs])
 
   const destination = (entity: PlannerEntity) => {
     const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
@@ -1718,6 +1768,8 @@ function StaffPlanner({
         entityId,
         destination: dest,
         position: next.filter((item) => item.destination === dest).length,
+        name: entity.name,
+        fromCircleId: entity.fallback,
       })
     }
     if (dest === 'kick' || dest === 'applicants' || dest === 'waitlist') setTrayTab(dest)
@@ -2206,6 +2258,7 @@ function StaffPage() {
         initialAssignments={assignments}
         boardStatus={boardStatus}
         reload={safeReload}
+        directory={directory}
       />
     )}
     {tab === 'blacklist' && (
@@ -2593,6 +2646,10 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       fallback: member.circleId || 'applicants',
       sortValue: member.dailyAverage,
     })),
+    ...pendingMemberEntities(assignments, state.members).map(({ band: _band, reason: _reason, ...entity }) => ({
+      ...entity,
+      key: entity.key as `member:${string}`,
+    })),
     ...state.applicants
       .filter((applicant) => (
         applicant.status !== 'rejected'
@@ -2608,7 +2665,7 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
       fallback: 'applicants',
       sortValue: applicant.dailyAverage,
     })),
-  ], [liveMembers, state.applicants, memberIds, memberIgns])
+  ], [liveMembers, assignments, state.members, state.applicants, memberIds, memberIgns])
   const destination = (entity: typeof entities[number]) => {
     const assigned = assignments.find((item) => `${item.entityType}:${item.entityId}` === entity.key)?.destination
     if (!assigned) return entity.fallback
@@ -2641,7 +2698,14 @@ function Planner({ state, reload }: { state: DashboardState; reload: () => Promi
     const [entityType, entityId] = activeKey.split(':') as ['member' | 'applicant', string]
     const next = assignmentsRef.current.filter((item) => !(item.entityType === entityType && item.entityId === entityId))
     if (dest !== entity.fallback) {
-      next.push({ entityType, entityId, destination: dest, position: next.filter((item) => item.destination === dest).length })
+      next.push({
+        entityType,
+        entityId,
+        destination: dest,
+        position: next.filter((item) => item.destination === dest).length,
+        name: entity.name,
+        fromCircleId: entity.fallback,
+      })
     }
     await persistPlan(next)
   }

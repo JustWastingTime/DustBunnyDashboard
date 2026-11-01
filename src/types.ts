@@ -135,6 +135,9 @@ export type Assignment = {
   entityId: string
   destination: string
   position: number
+  /** Snapshot taken when the move was planned, so the card survives gaps in uma.moe data. */
+  name?: string
+  fromCircleId?: string
 }
 
 export type SyncError = {
