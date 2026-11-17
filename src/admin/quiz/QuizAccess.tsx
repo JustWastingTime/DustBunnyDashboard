@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { quizApi, errorText, type CategorySummary, type DraftSummary, type QuizAccess as Access, type QuizEditor } from './api'
+import { quizApi, errorText, type CategorySummary, type QuizAccess as Access, type QuizEditor } from './api'
 import './quiz.css'
 
 const ROLE_INFO: Array<{ role: string; dot: string; can: Array<[boolean, string]> }> = [
   { role: 'Owner', dot: 'owner', can: [[true, 'Everything, including this page'], [true, 'Turn categories on or off'], [true, 'Edit $pools and add categories']] },
-  { role: 'Reviewer', dot: 'reviewer', can: [[true, 'Edit questions in their categories'], [true, 'Approve and publish drafts'], [false, 'Change who has access']] },
-  { role: 'Quiz editor', dot: 'editor', can: [[true, 'Edit questions in their categories'], [true, 'Use the generator'], [false, 'Publish: saves go to review']] },
+  { role: 'Reviewer', dot: 'reviewer', can: [[true, 'Edit questions in their categories'], [true, 'Approve Test questions into their categories'], [false, 'Change who has access']] },
+  { role: 'Quiz editor', dot: 'editor', can: [[true, 'Submit new questions for their categories'], [true, 'Use the generator'], [false, 'Publish: new questions wait in Test']] },
 ]
 
 export function QuizAccessPage({ access }: { access: Access }) {
@@ -114,7 +114,7 @@ export function QuizAccessPage({ access }: { access: Access }) {
           <legend className="quiz-label">Categories they can edit</legend>
           <CategoryPicker categories={categories} value={form.categories} onChange={(next) => setForm({ ...form, categories: next })} />
         </fieldset>
-        {form.role === 'editor' && <label className="quiz-inline"><input type="checkbox" checked={form.canPublish} onChange={(event) => setForm({ ...form, canPublish: event.target.checked })} /> Can publish without review</label>}
+        {form.role === 'editor' && <label className="quiz-inline"><input type="checkbox" checked={form.canPublish} onChange={(event) => setForm({ ...form, canPublish: event.target.checked })} /> Can approve and publish without review</label>}
         <div className="admin-row"><button type="submit" className="primary" disabled={busy || !form.categories.length}>{busy ? 'Adding…' : 'Add person'}</button></div>
         <p className="muted quiz-help">They open <code>/admin/quizzes</code> and log in with Discord. Every save shows in the Audit log.</p>
       </form>
@@ -131,68 +131,4 @@ function CategoryPicker({ categories, value, onChange }: { categories: CategoryS
       <input type="checkbox" checked={value.includes(c.id)} onChange={() => flip(c.id)} />{c.name}
     </label>)}
   </div>
-}
-
-export function QuizReviews({ access, navigate }: { access: Access; navigate: (to: string) => void }) {
-  const [drafts, setDrafts] = useState<DraftSummary[] | null>(null)
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState('')
-  const reviewer = access.role !== 'editor'
-  const load = () => quizApi.drafts().then((payload) => setDrafts(payload.drafts)).catch((reason) => setError(errorText(reason)))
-  useEffect(() => { void load() }, [])
-
-  const act = async (id: string, fn: () => Promise<unknown>) => {
-    setBusy(id)
-    setError('')
-    try {
-      await fn()
-      await load()
-    } catch (reason) {
-      setError(errorText(reason))
-    } finally {
-      setBusy('')
-    }
-  }
-
-  return <section className="admin-grid quiz-page">
-    <div>
-      <p className="crumb"><a href="/admin/quizzes" onClick={(event) => { event.preventDefault(); navigate('/admin/quizzes') }}>Quizzes</a> / Reviews</p>
-      <h1>{reviewer ? 'Review queue' : 'My drafts'}</h1>
-      <p className="muted">{reviewer ? 'Drafts from quiz editors. Approving commits them to GitHub and the bot picks them up.' : 'Changes you saved. A reviewer or the owner publishes them.'}</p>
-    </div>
-    {error && <p className="notice error">{error}</p>}
-    {!drafts && <p className="muted">Loading…</p>}
-    {drafts && !drafts.length && <p className="quiz-check ok">Nothing waiting.</p>}
-    <div className="quiz-drafts">
-      {drafts?.map((draft) => {
-        const open = `/admin/quizzes/edit?draft=${draft.id}&q=${draft.summary.first ?? 0}`
-        return <article key={draft.id} className="admin-section quiz-draft">
-          <div className="quiz-draft-head">
-            <strong>{draft.message || draft.summary.text}</strong>
-            <span className={`quiz-pill ${draft.status === 'pending' ? 'wait' : 'warn'}`}>{draft.status === 'pending' ? 'Waiting' : 'Changes requested'}</span>
-          </div>
-          <p className="muted">{draft.authorName} · {draft.categoryName} · {new Date(draft.updatedAt).toLocaleString()}</p>
-          <div className="quiz-diffstat">
-            {draft.summary.questions !== 0 && <code className={draft.summary.questions > 0 ? 'add' : 'del'}>{draft.summary.questions > 0 ? '+' : ''}{draft.summary.questions} questions</code>}
-            {draft.summary.entries !== 0 && <code className={draft.summary.entries > 0 ? 'add' : 'del'}>{draft.summary.entries > 0 ? '+' : ''}{draft.summary.entries} entries</code>}
-            {draft.summary.changed > 0 && <code>{draft.summary.changed} edited</code>}
-          </div>
-          {draft.note && <p className="admin-warn">{draft.reviewedBy}: {draft.note}</p>}
-          <div className="admin-row">
-            <a className="quiz-button" href={open} onClick={(event) => { event.preventDefault(); navigate(open) }}>Open</a>
-            {reviewer && <>
-              <button type="button" disabled={busy === draft.id} onClick={() => {
-                const note = window.prompt('What should they change?') ?? null
-                if (note != null) void act(draft.id, () => quizApi.rejectDraft(draft.id, note))
-              }}>Request changes</button>
-              <button type="button" className="primary" disabled={busy === draft.id} onClick={() => void act(draft.id, () => quizApi.approveDraft(draft.id))}>{busy === draft.id ? 'Publishing…' : 'Approve & publish'}</button>
-            </>}
-            {(!reviewer || access.role === 'owner') && <button type="button" className="quiz-danger" disabled={busy === draft.id} onClick={() => {
-              if (window.confirm('Delete this draft?')) void act(draft.id, () => quizApi.deleteDraft(draft.id))
-            }}>Delete</button>}
-          </div>
-        </article>
-      })}
-    </div>
-  </section>
 }

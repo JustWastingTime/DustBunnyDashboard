@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { quizApi, errorText, type CategoryFile, type CategorySummary, type QuizAccess } from './api'
+import { quizApi, errorText, type CategoryFile, type CategorySummary, type QuizAccess, type TestSummary } from './api'
 import { DIFFICULTIES, DIFFICULTY_LABEL, shapeOf, usesSlot, type Difficulty } from './model'
 import './quiz.css'
 
@@ -7,7 +7,7 @@ type Props = { access: QuizAccess; selected: string; navigate: (to: string) => v
 
 export function QuizLibrary({ access, selected, navigate }: Props) {
   const [categories, setCategories] = useState<CategorySummary[]>([])
-  const [pending, setPending] = useState(0)
+  const [test, setTest] = useState<TestSummary | null>(null)
   const [file, setFile] = useState<{ id: string; data: CategoryFile } | null>(null)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
@@ -18,7 +18,7 @@ export function QuizLibrary({ access, selected, navigate }: Props) {
 
   const loadList = () => quizApi.categories().then((payload) => {
     setCategories(payload.categories)
-    setPending(payload.pendingDrafts)
+    setTest(payload.test)
   }).catch((reason) => setError(errorText(reason)))
   useEffect(() => { void loadList() }, [])
 
@@ -62,18 +62,24 @@ export function QuizLibrary({ access, selected, navigate }: Props) {
       </div>
       <div className="admin-row">
         <a className="quiz-button" href="/admin/quizzes/coverage" onClick={(event) => { event.preventDefault(); navigate('/admin/quizzes/coverage') }}>Coverage &amp; generator</a>
-        {current && summary?.canEdit && <a className="quiz-button primary" href={`/admin/quizzes/edit?key=${current}&q=new`} onClick={(event) => { event.preventDefault(); navigate(`/admin/quizzes/edit?key=${current}&q=new`) }}>New question</a>}
+        {current && summary?.canSubmit && <a className="quiz-button primary" href={`/admin/quizzes/edit?key=${current}&q=new`} onClick={(event) => { event.preventDefault(); navigate(`/admin/quizzes/edit?key=${current}&q=new`) }}>New question</a>}
       </div>
     </div>
 
     {error && <p className="notice error">{error}</p>}
-    {pending > 0 && <div className="admin-banner quiz-banner">
-      <span>{pending} {pending === 1 ? 'draft is' : 'drafts are'} {access.role === 'editor' ? 'yours, waiting for review' : 'waiting for review'}.</span>
-      <a href="/admin/quizzes/reviews" onClick={(event) => { event.preventDefault(); navigate('/admin/quizzes/reviews') }}>Open review queue</a>
-    </div>}
 
     <div className="quiz-split">
       <aside className="admin-section quiz-cats" aria-label="Categories">
+        {test && <a className="quiz-test-card" href="/admin/quizzes/test" onClick={(event) => { event.preventDefault(); navigate('/admin/quizzes/test') }}>
+          <span className="quiz-test-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7.5 14h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+          <span className="quiz-cat-text">
+            <strong>Test</strong>
+            <small>{test.total} question{test.total === 1 ? '' : 's'}{access.canPublish ? '' : test.mine ? ` · ${test.mine} yours` : ''}</small>
+          </span>
+          {access.canPublish && test.waiting > 0 && <span className="quiz-badge" aria-label={`${test.waiting} waiting for approval`}>{test.waiting}</span>}
+        </a>}
         <h2>Categories {owner && <button type="button" className="icon-button add" aria-label="New category" onClick={() => setCreating((v) => !v)}>+</button>}</h2>
         {creating && <NewCategory onDone={async (id) => { setCreating(false); await loadList(); if (id) navigate(`/admin/quizzes?key=${id}`) }} />}
         {categories.map((category) => (
@@ -82,7 +88,7 @@ export function QuizLibrary({ access, selected, navigate }: Props) {
               <span className={`quiz-dot${category.enabled ? ' live' : ''}`} aria-hidden="true" />
               <span className="quiz-cat-text">
                 <strong>{category.name}</strong>
-                <small>{category.questions} questions · {category.entries} entries{category.pendingDrafts ? ` · ${category.pendingDrafts} draft${category.pendingDrafts === 1 ? '' : 's'}` : ''}</small>
+                <small>{category.questions} questions · {category.entries} entries</small>
               </span>
             </a>
             {owner
@@ -93,14 +99,14 @@ export function QuizLibrary({ access, selected, navigate }: Props) {
               : <small className={category.enabled ? 'quiz-on' : 'muted'}>{category.enabled ? 'On' : 'Off'}</small>}
           </div>
         ))}
-        <p className="muted quiz-note">Categories that are off never roll in /quiz. Use them for drafts and testing.</p>
+        <p className="muted quiz-note">Categories that are off never roll in /quiz. New questions wait in Test until they’re approved.</p>
       </aside>
 
       <div className="admin-section quiz-main">
         {summary && <>
           <div className="quiz-head">
             <div>
-              <h2 className="quiz-title">{summary.name} <span className={`quiz-pill ${summary.enabled ? 'live' : ''}`}>{summary.enabled ? 'Enabled' : 'Off'}</span>{!summary.canEdit && <span className="quiz-pill">Read only</span>}</h2>
+              <h2 className="quiz-title">{summary.name} <span className={`quiz-pill ${summary.enabled ? 'live' : ''}`}>{summary.enabled ? 'Enabled' : 'Off'}</span>{!summary.canEdit && <span className="quiz-pill">{summary.canSubmit ? 'Submit via Test' : 'Read only'}</span>}</h2>
               <p className="muted">{summary.questions} questions · {summary.entries} entries · categories/{summary.id}.json</p>
             </div>
           </div>

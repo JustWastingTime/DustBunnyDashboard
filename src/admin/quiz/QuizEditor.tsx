@@ -1,31 +1,41 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { quizApi, errorText, type CategoryFile, type QuizAccess } from './api'
+import { quizApi, errorText, type CategoryFile, type CategorySummary, type QuizAccess, type RawQuestion, type Submission } from './api'
 import {
-  DIFFICULTIES, DIFFICULTY_LABEL, IMPORT_KEY, blankEntry, checkQuestion, entryFromRaw, fillPrompt, isImageUrl, isToken, isUrl,
+  DIFFICULTIES, DIFFICULTY_LABEL, IMPORT_KEY, blankEntry, checkQuestion, entryFromRaw, entryToRaw, fillPrompt, isImageUrl, isToken, isUrl,
   newQuestion, parsePastedRows, previewOptions, questionFromRaw, questionToRaw, usesSlot,
   type Difficulty, type EditEntry, type EditQuestion, type PendingImport,
 } from './model'
 import { PromptText } from './QuizLibrary'
+import { ApprovePanel } from './QuizTest'
 import './quiz.css'
 
 type Props = {
   access: QuizAccess
   categoryId: string
   question: string
-  draftId: string
+  submissionId: string
   navigate: (to: string) => void
 }
+
+/** live: editing a published question. new: a question headed for Test. submission: a question already in Test. */
+type Mode = 'live' | 'new' | 'submission'
 
 const PAGE = 60
 const GRADES = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 
-export function QuizEditor({ access, categoryId: categoryParam, question: questionParam, draftId: draftParam, navigate }: Props) {
-  const [categoryId, setCategoryId] = useState(categoryParam)
+function stripSubmission(raw: RawQuestion): RawQuestion {
+  const { submission: _meta, ...rest } = raw
+  return rest
+}
+
+export function QuizEditor({ access, categoryId, question: questionParam, submissionId, navigate }: Props) {
+  const [mode, setMode] = useState<Mode>('new')
   const [file, setFile] = useState<CategoryFile | null>(null)
   const [blobSha, setBlobSha] = useState('')
-  const [draftId, setDraftId] = useState(draftParam)
-  const [draftNote, setDraftNote] = useState('')
-  const [index, setIndex] = useState<number | 'new'>(questionParam === 'new' || questionParam === '' ? 'new' : Number(questionParam))
+  const [index, setIndex] = useState<number | null>(null)
+  const [submission, setSubmission] = useState<Submission | null>(null)
+  const [categories, setCategories] = useState<CategorySummary[]>([])
+  const [target, setTarget] = useState('')
   const [q, setQ] = useState<EditQuestion | null>(null)
   const [baseline, setBaseline] = useState('')
   const [lists, setLists] = useState<Record<string, string[]>>({})
@@ -39,64 +49,71 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
   const [limit, setLimit] = useState(PAGE)
   const [paste, setPaste] = useState<string | null>(null)
   const [poolEdit, setPoolEdit] = useState<{ name: string; text: string; isNew: boolean } | null>(null)
+  const [approving, setApproving] = useState(false)
 
-  const canEdit = access.categories.includes('*') || access.categories.includes(categoryId)
   const owner = access.role === 'owner'
 
   useEffect(() => {
     quizApi.lists().then((payload) => setLists(payload.lists)).catch(() => {})
+    quizApi.categories().then((payload) => setCategories(payload.categories)).catch(() => {})
   }, [])
 
   useEffect(() => {
     let cancelled = false
     setError('')
+    setApproving(false)
     const load = async () => {
-      let data: CategoryFile
-      let sha: string
-      let cat = categoryParam
-      if (draftParam) {
-        const { draft } = await quizApi.draft(draftParam)
-        data = draft.data
-        sha = draft.baseBlobSha
-        cat = draft.categoryId
-        setDraftNote(draft.status === 'changes_requested' ? `${draft.reviewedBy || 'A reviewer'} asked for changes${draft.note ? `: ${draft.note}` : '.'}` : `Draft by ${draft.authorName}, waiting for review (${draft.summary.text}).`)
+      let nextMode: Mode
+      let next: EditQuestion
+      let nextTarget = ''
+      let liveIndex: number | null = null
+      if (submissionId) {
+        const payload = await quizApi.submission(submissionId)
+        if (cancelled) return
+        nextMode = 'submission'
+        next = questionFromRaw(stripSubmission(payload.question))
+        nextTarget = payload.submission.target || ''
+        setSubmission(payload.submission)
+        setFile(null)
+      } else if (!categoryId || questionParam === 'new' || questionParam === '' || Number.isNaN(Number(questionParam))) {
+        nextMode = 'new'
+        next = newQuestion()
+        nextTarget = categoryId
+        setSubmission(null)
+        setFile(null)
       } else {
-        const payload = await quizApi.category(categoryParam)
-        data = payload.data
-        sha = payload.blobSha
-        setDraftNote('')
+        const payload = await quizApi.category(categoryId)
+        if (cancelled) return
+        liveIndex = Number(questionParam)
+        if (!payload.data.questions[liveIndex]) throw new Error(`Question ${liveIndex + 1} does not exist in ${payload.data.name}.`)
+        nextMode = 'live'
+        next = questionFromRaw(payload.data.questions[liveIndex])
+        setFile(payload.data)
+        setBlobSha(payload.blobSha)
+        setSubmission(null)
       }
-      if (cancelled) return
-      setDraftId(draftParam)
-      setFilter('')
-      setLimit(PAGE)
-      const idx: number | 'new' = questionParam === 'new' || questionParam === '' || Number.isNaN(Number(questionParam)) ? 'new' : Number(questionParam)
-      let next = idx === 'new' || !data.questions[idx] ? newQuestion() : questionFromRaw(data.questions[idx])
-      const base = JSON.stringify(questionToRaw(next))
-      const imported = takeImport(cat, idx)
+      const base = nextMode === 'new' ? '' : JSON.stringify(questionToRaw(next)) + nextTarget
+      const imported = takeImport(nextMode === 'live' ? categoryId : nextTarget, nextMode === 'live' ? liveIndex : 'new')
       if (imported) {
         const rows = imported.entries.map(entryFromRaw)
         const blank = next.entries.length === 1 && !next.entries[0].correct && !next.entries[0].subject
-        next = {
-          ...next,
-          prompt: next.prompt || imported.promptTemplate,
-          entries: blank ? rows : [...next.entries, ...rows],
-        }
-        setNotice(`Added ${rows.length} generated entr${rows.length === 1 ? 'y' : 'ies'}. Review them, then save.`)
+        next = { ...next, prompt: next.prompt || imported.promptTemplate, entries: blank ? rows : [...next.entries, ...rows] }
+        setNotice(`Added ${rows.length} entr${rows.length === 1 ? 'y' : 'ies'}. Review them, then save.`)
       }
-      setCategoryId(cat)
-      setFile(data)
-      setBlobSha(sha)
-      setIndex(idx === 'new' || !data.questions[idx] ? 'new' : idx)
+      setMode(nextMode)
+      setIndex(liveIndex)
+      setTarget(nextTarget)
       setQ(next)
-      setBaseline(idx === 'new' ? '' : base)
+      setBaseline(base)
       setSelected(0)
+      setFilter('')
+      setLimit(PAGE)
     }
     load().catch((reason) => { if (!cancelled) setError(errorText(reason)) })
     return () => { cancelled = true }
-  }, [categoryParam, questionParam, draftParam])
+  }, [categoryId, questionParam, submissionId])
 
-  const dirty = q ? JSON.stringify(questionToRaw(q)) !== baseline : false
+  const dirty = q ? JSON.stringify(questionToRaw(q)) + target !== baseline : false
   const checks = useMemo(() => (q ? checkQuestion(q, lists) : []), [q, lists])
   const errors = checks.filter((c) => c.level === 'error')
 
@@ -116,7 +133,12 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
   }, [q, filter])
 
   if (error && !q) return <section className="admin-grid"><p className="notice error">{error}</p></section>
-  if (!q || !file) return <p className="muted">Loading question…</p>
+  if (!q) return <p className="muted">Loading question…</p>
+
+  const names = new Map(categories.map((c) => [c.id, c.name]))
+  const scoped = (id: string) => access.categories.includes('*') || access.categories.includes(id)
+  const canEdit = mode === 'live' ? access.canPublish && scoped(categoryId) : mode === 'submission' ? Boolean(submission?.canEdit) : true
+  const targets = categories.filter((c) => c.canSubmit || c.id === target)
 
   const update = (patch: Partial<EditQuestion>) => setQ((prev) => (prev ? { ...prev, ...patch } : prev))
   const setEntry = (i: number, patch: Partial<EditEntry>) =>
@@ -131,15 +153,10 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
     setFilter('')
     setLimit((l) => Math.max(l, q.entries.length + 1))
   }
-  const addToken = (token: string, all = false) => {
-    setQ((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        entries: prev.entries.map((e, j) => ((all || j === selected) && !e.raw && !e.wrong.includes(token) ? { ...e, wrong: [...e.wrong, token] } : e)),
-      }
-    })
-  }
+  const addToken = (token: string, all = false) => setQ((prev) => (prev ? {
+    ...prev,
+    entries: prev.entries.map((e, j) => ((all || j === selected) && !e.raw && !e.wrong.includes(token) ? { ...e, wrong: [...e.wrong, token] } : e)),
+  } : prev))
   const applyGrades = () => setQ((prev) => (prev ? {
     ...prev,
     entries: prev.entries.map((e) => (GRADES.includes(e.correct.trim().toUpperCase()) ? { ...e, wrong: GRADES.filter((g) => g !== e.correct.trim().toUpperCase()) } : e)),
@@ -147,51 +164,40 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
 
   const entry = q.entries[Math.min(selected, q.entries.length - 1)]
   const options = entry ? previewOptions(entry, lists, seed + selected * 7919) : []
-  const difficulty = (entry?.difficulty || q.difficulty || String(file.difficulty || 'easy')) as Difficulty
+  const difficulty = (entry?.difficulty || q.difficulty || String(file?.difficulty || 'easy')) as Difficulty
   const subject = q.shape === 'template' ? entry?.subject || '' : ''
   const promptShown = q.shape === 'template' && usesSlot(q.prompt) ? fillPrompt(q.prompt, subject || '…') : q.prompt
   const pools = Object.entries(lists).filter(([, items]) => Array.isArray(items))
   const answerOptions = [...new Set([...pools.map(([name]) => `$${name}`), ...(lists.uma || [])])]
+  const categoryName = mode === 'live' ? file?.name || categoryId : `Test → ${names.get(target) || target || 'no category'}`
 
-  const save = async (deleting = false) => {
-    if (!deleting && errors.length) {
-      setError('Fix the problems under Checks before saving.')
-      return
-    }
-    if (deleting && !window.confirm('Delete this question and all of its entries?')) return
+  const save = async () => {
+    if (errors.length) { setError('Fix the problems under Checks before saving.'); return }
+    if (mode !== 'live' && !target) { setError('Pick the category this question is for.'); return }
     setBusy(true)
     setError('')
     setNotice('')
     try {
       const raw = questionToRaw(q)
-      const questions = [...file.questions]
-      let nextIndex: number | 'new' = index
-      if (deleting && index !== 'new') questions.splice(index, 1)
-      else if (index === 'new') { questions.push(raw); nextIndex = questions.length - 1 }
-      else questions[index] = raw
-      const data = { ...file, questions }
-      const result = await quizApi.saveCategory(categoryId, { data, baseBlobSha: blobSha, message: message.trim() || undefined, draftId: draftId || null })
-      setMessage('')
-      if (result.published) {
-        setNotice(`Published: ${result.summary.text}. The bot uses it on the next round.`)
-        if (deleting) { navigate(`/admin/quizzes?key=${categoryId}`); return }
+      if (mode === 'live' && file && index != null) {
+        const questions = [...file.questions]
+        questions[index] = raw
+        const data = { ...file, questions }
+        const result = await quizApi.saveCategory(categoryId, { data, baseBlobSha: blobSha, message: message.trim() || undefined })
         setFile(data)
         if (result.blobSha) setBlobSha(result.blobSha)
-        setBaseline(JSON.stringify(raw))
-        setDraftId('')
-        setDraftNote('')
-        setIndex(nextIndex)
-        if (index === 'new' || draftId) navigate(`/admin/quizzes/edit?key=${categoryId}&q=${nextIndex}`)
-      } else {
-        setNotice(`Sent for review (${result.draft.summary.text}). A reviewer or the owner publishes it.`)
-        if (deleting) { navigate('/admin/quizzes/reviews'); return }
-        setFile(data)
-        setBaseline(JSON.stringify(raw))
-        setDraftId(result.draft.id)
-        setDraftNote(`Your draft is waiting for review (${result.draft.summary.text}).`)
-        setIndex(nextIndex)
-        if (index === 'new' || !draftId) navigate(`/admin/quizzes/edit?draft=${result.draft.id}&q=${nextIndex}`)
+        setBaseline(JSON.stringify(raw) + target)
+        setNotice(`Published: ${result.summary.text}. The bot uses it on the next round.`)
+      } else if (mode === 'new') {
+        const { id } = await quizApi.submit(raw, target)
+        setNotice(`Added to Test for ${names.get(target) || target}. ${access.canPublish && scoped(target) ? 'Approve it when it plays well.' : 'A reviewer approves it into the category.'}`)
+        navigate(`/admin/quizzes/edit?sub=${id}`)
+      } else if (submissionId) {
+        const { id } = await quizApi.updateSubmission(submissionId, raw, target, message.trim() || undefined)
+        setNotice('Saved to Test.')
+        navigate(`/admin/quizzes/edit?sub=${id}`)
       }
+      setMessage('')
     } catch (reason) {
       setError(errorText(reason))
     } finally {
@@ -199,22 +205,83 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
     }
   }
 
-  const back = `/admin/quizzes?key=${categoryId}`
-  const title = q.prompt || (index === 'new' ? 'New question' : `Question ${Number(index) + 1}`)
+  const remove = async () => {
+    const label = mode === 'live' ? 'Delete this live question and all of its entries?' : 'Remove this question from Test?'
+    if (!window.confirm(label)) return
+    setBusy(true)
+    setError('')
+    try {
+      if (mode === 'live' && file && index != null) {
+        const questions = file.questions.filter((_, i) => i !== index)
+        await quizApi.saveCategory(categoryId, { data: { ...file, questions }, baseBlobSha: blobSha, message: message.trim() || undefined })
+        navigate(`/admin/quizzes?key=${categoryId}`)
+      } else if (submissionId) {
+        await quizApi.removeSubmission(submissionId)
+        navigate('/admin/quizzes/test')
+      }
+    } catch (reason) {
+      setError(errorText(reason))
+      setBusy(false)
+    }
+  }
+
+  const copyToTest = () => {
+    const pending: PendingImport = { categoryId, question: 'new', promptTemplate: q.prompt, entries: q.entries.map(entryToRaw) }
+    try {
+      sessionStorage.setItem(IMPORT_KEY, JSON.stringify(pending))
+      navigate(`/admin/quizzes/edit?key=${categoryId}&q=new`)
+    } catch {
+      setError('This browser blocked session storage.')
+    }
+  }
+
+  const backHref = mode === 'live' ? `/admin/quizzes?key=${categoryId}` : '/admin/quizzes/test'
+  const title = q.prompt || (mode === 'new' ? 'New question' : 'Untitled question')
+  const saveLabel = mode === 'live' ? 'Publish to bot' : mode === 'new' ? 'Submit to Test' : 'Save to Test'
 
   return <section className="admin-grid quiz-page quiz-editor">
     <div>
       <p className="crumb">
         <a href="/admin/quizzes" onClick={(event) => { event.preventDefault(); navigate('/admin/quizzes') }}>Quizzes</a>
         {' / '}
-        <a href={back} onClick={(event) => { event.preventDefault(); navigate(back) }}>{file.name}</a>
-        {' / '}{index === 'new' ? 'New question' : `Question ${Number(index) + 1}`}
+        <a href={backHref} onClick={(event) => { event.preventDefault(); navigate(backHref) }}>{mode === 'live' ? file?.name : 'Test'}</a>
+        {' / '}{mode === 'live' && index != null ? `Question ${index + 1}` : mode === 'new' ? 'New question' : 'Test question'}
       </p>
       <h1 className="quiz-h1"><PromptText text={title} /></h1>
     </div>
 
-    {draftNote && <div className="admin-banner">{draftNote}</div>}
-    {!canEdit && <div className="admin-banner">You can view this category but not edit it.</div>}
+    {mode === 'new' && <div className="admin-banner quiz-banner">New questions go to the Test category first, where they play in the <code>testing</code> /quiz mode. {access.canPublish ? 'Approve them from Test when they’re ready.' : 'A reviewer approves them into the category you pick.'}</div>}
+    {mode === 'submission' && submission && <div className="admin-banner quiz-banner">
+      <span>In Test{submission.by ? `, submitted by ${submission.by}` : ''}{submission.at ? ` on ${new Date(submission.at).toLocaleDateString()}` : ''}.</span>
+      {submission.canApprove && !dirty && <button type="button" className="primary" onClick={() => setApproving((v) => !v)}>Approve…</button>}
+      {submission.canApprove && dirty && <span className="muted">Save your changes before approving.</span>}
+    </div>}
+    {approving && submission && <section className="admin-section">
+      <h2>Approve into a category</h2>
+      <ApprovePanel
+        submission={{ ...submission, target: target || submission.target }}
+        categories={categories.filter((c) => c.canEdit)}
+        busy={busy}
+        onCancel={() => setApproving(false)}
+        onApprove={async (body) => {
+          setBusy(true)
+          setError('')
+          try {
+            const result = await quizApi.approve(submissionId, body)
+            setNotice(`Approved into ${names.get(result.categoryId) || result.categoryId}. This is the live question now.`)
+            navigate(`/admin/quizzes/edit?key=${result.categoryId}&q=${result.questionIndex}`)
+          } catch (reason) {
+            setError(errorText(reason))
+          } finally {
+            setBusy(false)
+          }
+        }}
+      />
+    </section>}
+    {mode === 'live' && !canEdit && <div className="admin-banner quiz-banner">
+      <span>Live questions can only be changed by reviewers. To suggest more entries or a fix, copy it into Test.</span>
+      {q.shape === 'template' && categories.some((c) => c.id === categoryId && c.canSubmit) && <button type="button" onClick={copyToTest}>Copy to a new Test question</button>}
+    </div>}
     {notice && <p className="notice quiz-ok" role="status">{notice}</p>}
     {error && <p className="notice error" role="alert">{error}</p>}
 
@@ -223,8 +290,8 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
         <section className="admin-section">
           <h2>Question
             <span className="quiz-seg" role="group" aria-label="Question shape">
-              <button type="button" className={q.shape === 'template' ? 'on' : ''} disabled={!canEdit} onClick={() => update({ shape: 'template', promptKey: q.promptKey })}>Template + entries</button>
-              <button type="button" className={q.shape === 'fixed' ? 'on' : ''} disabled={!canEdit} onClick={() => { update({ shape: 'fixed', promptKey: 'prompt', entries: q.entries.slice(0, 1).length ? q.entries.slice(0, 1) : [blankEntry()] }); setSelected(0) }}>Fixed answers</button>
+              <button type="button" className={q.shape === 'template' ? 'on' : ''} disabled={!canEdit} onClick={() => update({ shape: 'template' })}>Template + entries</button>
+              <button type="button" className={q.shape === 'fixed' ? 'on' : ''} disabled={!canEdit} onClick={() => { update({ shape: 'fixed', promptKey: 'prompt', entries: q.entries.length ? q.entries.slice(0, 1) : [blankEntry()] }); setSelected(0) }}>Fixed answers</button>
             </span>
           </h2>
           <label className="admin-field">
@@ -239,6 +306,13 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
                 {DIFFICULTIES.map((d) => <button key={d} type="button" disabled={!canEdit} aria-pressed={q.difficulty === d} className={`quiz-diff-pick ${d}${q.difficulty === d ? ' on' : ''}`} onClick={() => update({ difficulty: d })}>{DIFFICULTY_LABEL[d]}</button>)}
               </div>
             </div>
+            {mode !== 'live' && <label className="admin-field">
+              <span className="quiz-label">Category it’s for</span>
+              <select value={target} disabled={!canEdit} onChange={(event) => setTarget(event.target.value)}>
+                {!target && <option value="">Pick a category…</option>}
+                {targets.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>}
           </div>
         </section>
 
@@ -314,7 +388,7 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
           <div className="quiz-discord">
             <div className="quiz-discord-who"><span className="quiz-avatar">T</span><strong>Tazuna</strong><span className="quiz-app">APP</span></div>
             <div className={`quiz-embed ${difficulty}`}>
-              <small>{file.name} · {DIFFICULTY_LABEL[difficulty] || difficulty}</small>
+              <small>{categoryName} · {DIFFICULTY_LABEL[difficulty] || difficulty}</small>
               <strong>{promptShown || 'Your prompt shows here'}</strong>
               {q.shape === 'template' && isImageUrl(subject) && <img src={subject} alt="Question image" />}
               {q.shape === 'template' && isUrl(subject) && !isImageUrl(subject) && <audio controls src={subject} preload="none" />}
@@ -361,24 +435,27 @@ export function QuizEditor({ access, categoryId: categoryParam, question: questi
 
     {canEdit && <div className="quiz-savebar">
       <span className="muted">{dirty ? <b className="quiz-unsaved">Unsaved changes</b> : 'No changes'}{errors.length ? ` · ${errors.length} problem${errors.length === 1 ? '' : 's'} to fix` : ''}</span>
-      <input aria-label="Change note" placeholder="Change note (optional)" value={message} onChange={(event) => setMessage(event.target.value)} />
+      {mode !== 'new' && <input aria-label="Change note" placeholder="Change note (optional)" value={message} onChange={(event) => setMessage(event.target.value)} />}
       <div className="admin-row">
-        {index !== 'new' && <button type="button" className="quiz-danger" disabled={busy} onClick={() => void save(true)}>Delete question</button>}
-        <button type="button" disabled={busy || !dirty} onClick={() => {
-          if (!file) return
-          const restored = index === 'new' || !file.questions[index] ? newQuestion() : questionFromRaw(file.questions[index])
-          setQ(restored)
+        {mode !== 'new' && <button type="button" className="quiz-danger" disabled={busy} onClick={() => void remove()}>{mode === 'live' ? 'Delete question' : 'Remove from Test'}</button>}
+        {mode !== 'new' && <button type="button" disabled={busy || !dirty} onClick={() => {
+          if (mode === 'live' && file && index != null) setQ(questionFromRaw(file.questions[index]))
+          else quizApi.submission(submissionId).then((payload) => {
+            setQ(questionFromRaw(stripSubmission(payload.question)))
+            setTarget(payload.submission.target || '')
+          }).catch((reason) => setError(errorText(reason)))
           setNotice('')
-        }}>Discard</button>
-        <button type="button" className="primary" disabled={busy || (!dirty && !draftId) || errors.length > 0} onClick={() => void save()}>
-          {busy ? 'Saving…' : access.canPublish ? (draftId ? 'Publish draft' : 'Publish to bot') : 'Submit for review'}
+        }}>Discard</button>}
+        <button type="button" className="primary" disabled={busy || !dirty || errors.length > 0 || (mode !== 'live' && !target)} onClick={() => void save()}>
+          {busy ? 'Saving…' : saveLabel}
         </button>
       </div>
     </div>}
   </section>
 }
 
-function takeImport(categoryId: string, question: number | 'new'): PendingImport | null {
+function takeImport(categoryId: string, question: number | 'new' | null): PendingImport | null {
+  if (question == null) return null
   try {
     const raw = sessionStorage.getItem(IMPORT_KEY)
     if (!raw) return null

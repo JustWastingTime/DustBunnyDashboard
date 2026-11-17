@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   quizApi, errorText,
-  type CategoryFile, type CategorySummary, type CoverageCheck, type CoverageDataset, type CoverageItem, type QuizAccess, type RawEntry, type Recipe,
+  type CategoryFile, type CategorySummary, type CoverageCheck, type CoverageDataset, type CoverageItem, type RawEntry, type Recipe,
 } from './api'
 import { IMPORT_KEY, type PendingImport } from './model'
 import { PromptText } from './QuizLibrary'
@@ -12,7 +12,7 @@ const ANY = 'any'
 
 type Coverage = { datasets: Record<CoverageDataset, CoverageItem[]>; checks: CoverageCheck[]; recipes: Recipe[] }
 
-export function QuizCoverage({ access, navigate }: { access: QuizAccess; navigate: (to: string) => void }) {
+export function QuizCoverage({ navigate }: { navigate: (to: string) => void }) {
   const [data, setData] = useState<Coverage | null>(null)
   const [categories, setCategories] = useState<CategorySummary[]>([])
   const [error, setError] = useState('')
@@ -78,7 +78,7 @@ export function QuizCoverage({ access, navigate }: { access: QuizAccess; navigat
     quizApi.category(targetCat).then((payload) => setTargetFile(payload.data)).catch(() => setTargetFile(null))
   }, [targetCat])
 
-  const editable = categories.filter((c) => c.canEdit)
+  const editable = categories.filter((c) => c.canSubmit)
   const toggle = (key: string) => setPicked((prev) => {
     const next = new Set(prev)
     if (next.has(key)) next.delete(key)
@@ -102,8 +102,13 @@ export function QuizCoverage({ access, navigate }: { access: QuizAccess; navigat
 
   const openInEditor = () => {
     if (!result || !targetCat) return
-    const question: number | 'new' = targetQ === 'new' ? 'new' : Number(targetQ)
-    const pending: PendingImport = { categoryId: targetCat, question, promptTemplate: result.promptTemplate, entries: result.entries }
+    // Only publishers add straight to a live question; everyone else starts a Test question with the same prompt,
+    // which the approver can merge into that live question.
+    const live = categories.find((c) => c.id === targetCat)?.canEdit === true
+    const existing = targetQ === 'new' ? null : targetFile?.questions[Number(targetQ)]
+    const question: number | 'new' = targetQ !== 'new' && live ? Number(targetQ) : 'new'
+    const prompt = existing ? String(existing.promptTemplate || existing.prompt || result.promptTemplate) : result.promptTemplate
+    const pending: PendingImport = { categoryId: targetCat, question, promptTemplate: prompt, entries: result.entries }
     try {
       sessionStorage.setItem(IMPORT_KEY, JSON.stringify(pending))
     } catch {
@@ -213,7 +218,7 @@ export function QuizCoverage({ access, navigate }: { access: QuizAccess; navigat
             <button type="button" className="primary" disabled={!targetCat || !result.entries.length} onClick={openInEditor}>
               {targetCat ? 'Review in editor' : 'Pick a category first'}
             </button>
-            <p className="muted quiz-help">Rows open as unsaved changes. {access.canPublish ? 'You publish them from the editor.' : 'Saving sends them for review.'}</p>
+            <p className="muted quiz-help">Rows open as unsaved changes. {categories.find((c) => c.id === targetCat)?.canEdit && targetQ !== 'new' ? 'You publish them straight to the live question.' : 'Saving puts them in Test until they are approved.'}</p>
           </div>}
         </section>
       </aside>

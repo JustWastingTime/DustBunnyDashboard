@@ -14,7 +14,8 @@ import { VisualizerTool } from './tools/VisualizerTool'
 import { QuizLibrary } from './quiz/QuizLibrary'
 import { QuizEditor } from './quiz/QuizEditor'
 import { QuizCoverage } from './quiz/QuizCoverage'
-import { QuizAccessPage, QuizReviews } from './quiz/QuizAccess'
+import { QuizAccessPage } from './quiz/QuizAccess'
+import { QuizTest } from './quiz/QuizTest'
 import './admin.css'
 
 const LIBRARY = [
@@ -87,9 +88,9 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
     if (!me) body = <p className="muted">Checking Discord login…</p>
     else if (!quiz) body = <p>{me.authenticated ? 'This account does not have quiz editor access. Ask the bot owner to add you.' : 'Log in with Discord to edit quizzes.'}</p>
     else if (name.startsWith('/admin/quiz-access')) body = <QuizAccessPage access={quiz} />
-    else if (name.startsWith('/admin/quizzes/edit')) body = <QuizEditor access={quiz} categoryId={key} question={params.get('q') || 'new'} draftId={params.get('draft') || ''} navigate={go} />
-    else if (name.startsWith('/admin/quizzes/coverage')) body = <QuizCoverage access={quiz} navigate={go} />
-    else if (name.startsWith('/admin/quizzes/reviews')) body = <QuizReviews access={quiz} navigate={go} />
+    else if (name.startsWith('/admin/quizzes/edit')) body = <QuizEditor access={quiz} categoryId={key} question={params.get('q') || 'new'} submissionId={params.get('sub') || ''} navigate={go} />
+    else if (name.startsWith('/admin/quizzes/coverage')) body = <QuizCoverage navigate={go} />
+    else if (name.startsWith('/admin/quizzes/test') || name.startsWith('/admin/quizzes/reviews')) body = <QuizTest access={quiz} navigate={go} />
     else body = <QuizLibrary access={quiz} selected={key} navigate={go} />
   }
 
