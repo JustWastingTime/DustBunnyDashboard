@@ -11,6 +11,10 @@ import { SupporterEditor } from './SupporterEditor'
 import { PremiumServers } from './PremiumServers'
 import { RawAssetEditor } from './RawAssetEditor'
 import { VisualizerTool } from './tools/VisualizerTool'
+import { QuizLibrary } from './quiz/QuizLibrary'
+import { QuizEditor } from './quiz/QuizEditor'
+import { QuizCoverage } from './quiz/QuizCoverage'
+import { QuizAccessPage, QuizReviews } from './quiz/QuizAccess'
 import './admin.css'
 
 const LIBRARY = [
@@ -18,6 +22,7 @@ const LIBRARY = [
   ['/admin/skills', 'Skills', 'M12 3l7 4v10l-7 4-7-4V7z M12 12l7-4M12 12v9M12 12L5 8'],
   ['/admin/supporters', 'Supporters', 'M4 7h16v12H4z M8 7V5h8v2'],
   ['/admin/characters', 'Umas', 'M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4z M5 20a7 7 0 0 1 14 0'],
+  ['/admin/quizzes', 'Quizzes', 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01'],
   ['/admin/gamba', 'Gamba events', 'M4 8h16v10H4z M8 8V6h8v2 M9 13h6'],
   ['/admin/tools/visualizer', 'Skill visualizer', 'M4 19V5h4l2 4h10v10z'],
 ] as const
@@ -25,6 +30,7 @@ const LIBRARY = [
 const ADMIN = [
   ['/admin/premium', 'Premium servers', 'M12 3l2.2 4.6L19 8.2l-3.5 3.4.8 4.9L12 14.8 7.7 16.5l.8-4.9L5 8.2l4.8-.6z'],
   ['/admin/clubs', 'Clubs', 'M4 20V9l8-5 8 5v11H4z M10 20v-6h4v6'],
+  ['/admin/quiz-access', 'Quiz access', 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z'],
   ['/admin/assets', 'Other assets', 'M5 5h6v6H5z M13 5h6v6h-6z M5 13h6v6H5z M13 13h6v6h-6z'],
   ['/admin/audit', 'Audit log', 'M7 4h10v16H7z M10 8h4M10 12h4M10 16h4'],
 ] as const
@@ -38,7 +44,7 @@ function pageOf(path: string) {
   const url = new URL(path, 'http://local')
   const key = url.searchParams.get('key') || ''
   const name = path.replace(/\?.*$/, '')
-  return { name, key }
+  return { name, key, params: url.searchParams }
 }
 
 export function AdminApp({ path, navigate }: { path: string; navigate: (to: string) => void }) {
@@ -55,7 +61,8 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
     const timer = window.setTimeout(() => setShowOwnerNote(false), 4000)
     return () => window.clearTimeout(timer)
   }, [owner])
-  const { name, key } = pageOf(path)
+  const { name, key, params } = pageOf(path)
+  const quiz = me?.quiz || null
   const go = (href: string) => navigate(href)
 
   let body = <Home />
@@ -76,6 +83,15 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
   else if (name.startsWith('/admin/clubs')) body = <ClubsOverview owner={owner} />
   else if (name.startsWith('/admin/assets')) body = <RawAssetEditor owner={owner} asset={key} navigate={go} />
   else if (name.startsWith('/admin/audit')) body = <AuditLog owner={owner} />
+  else if (name.startsWith('/admin/quizzes') || name.startsWith('/admin/quiz-access')) {
+    if (!me) body = <p className="muted">Checking Discord login…</p>
+    else if (!quiz) body = <p>{me.authenticated ? 'This account does not have quiz editor access. Ask the bot owner to add you.' : 'Log in with Discord to edit quizzes.'}</p>
+    else if (name.startsWith('/admin/quiz-access')) body = <QuizAccessPage access={quiz} />
+    else if (name.startsWith('/admin/quizzes/edit')) body = <QuizEditor access={quiz} categoryId={key} question={params.get('q') || 'new'} draftId={params.get('draft') || ''} navigate={go} />
+    else if (name.startsWith('/admin/quizzes/coverage')) body = <QuizCoverage access={quiz} navigate={go} />
+    else if (name.startsWith('/admin/quizzes/reviews')) body = <QuizReviews access={quiz} navigate={go} />
+    else body = <QuizLibrary access={quiz} selected={key} navigate={go} />
+  }
 
   return <div className="admin-shell">
     <nav className="admin-nav">
@@ -96,8 +112,8 @@ export function AdminApp({ path, navigate }: { path: string; navigate: (to: stri
       {error && <p className="notice error">{error}</p>}
       {(me == null || (me && !owner) || showOwnerNote) && <div className="admin-banner">
         {me == null && 'Checking Discord login…'}
-        {me && !me.authenticated && <span>Read-only. <a href={authLoginHref('/admin')}>Log in with Discord</a> to edit.</span>}
-        {me?.authenticated && !owner && <span>Signed in as {me.user?.globalName || me.user?.username}. This account cannot edit.</span>}
+        {me && !me.authenticated && <span>Read-only. <a href={authLoginHref(name.startsWith('/admin/quiz') ? '/admin/quizzes' : '/admin')}>Log in with Discord</a> to edit.</span>}
+        {me?.authenticated && !owner && <span>Signed in as {me.user?.globalName || me.user?.username}. {quiz ? `You can edit quizzes as ${quiz.role === 'reviewer' ? 'a reviewer' : 'a quiz editor'}.` : 'This account cannot edit.'}</span>}
         {owner && showOwnerNote && <span>Signed in as {me?.user?.globalName || me?.user?.username}. Saves commit to GitHub.</span>}
       </div>}
       {body}

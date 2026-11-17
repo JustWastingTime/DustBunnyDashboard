@@ -58,7 +58,7 @@
 .effect-value em { position: absolute; right: .45rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-style: normal; pointer-events: none; }
 .admin-shell .tag-box input { border: 0; background: transparent; padding: .25rem .35rem; box-shadow: none; }
 .effect-name { display: flex; align-items: center; gap: .4rem; min-width: 0; }
-.effect-name input { flex: 1; min-width: 0; }
+.effect-name input, .effect-name select { flex: 1; min-width: 0; }
 .effect-dot { width: .55rem; height: .55rem; border-radius: 50%; flex: 0 0 auto; }
 .admin-section { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: .95rem 1rem 1.05rem; display: grid; gap: .75rem; min-width: 0; }
 .admin-section h2 { margin: 0; font-size: .98rem; font-weight: 650; display: flex; justify-content: space-between; align-items: center; gap: .5rem; }

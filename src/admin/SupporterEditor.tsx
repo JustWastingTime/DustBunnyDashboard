@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useState, type CSSProperties } from 'react'
 import { AdminError, adminApi } from './api'
 import { parseEvents } from './lib/parseEvents'
 import { Area, Choice, DiffPreview, SaveBar, Text, useLoadedEntry } from './entryForm'
@@ -7,6 +7,34 @@ import { RecordPortrait } from './RecordPortrait'
 
 const LEVELS = ['LB0', 'LB1', 'LB2', 'LB3', 'MLB']
 const DOTS = ['#5ee0a0', '#7eb6ff', '#e7c56a', '#c9a6ff']
+// Effect names used across supporter.json, with the unit each one is written in.
+const EFFECTS: Array<{ name: string; percent: boolean }> = [
+  { name: 'Friendship Bonus', percent: true },
+  { name: 'Mood Effect', percent: true },
+  { name: 'Race Bonus', percent: true },
+  { name: 'Fan Bonus', percent: true },
+  { name: 'Training Effectiveness', percent: true },
+  { name: 'Hint Frequency', percent: true },
+  { name: 'Event Effectiveness', percent: true },
+  { name: 'Event Recovery', percent: true },
+  { name: 'Energy Cost Reduction', percent: true },
+  { name: 'Failure Protection', percent: true },
+  { name: 'Initial Friendship Gauge', percent: false },
+  { name: 'Specialty Priority', percent: false },
+  { name: 'Hint Levels', percent: false },
+  { name: 'Skill Point Bonus', percent: false },
+  { name: 'Wit Friendship Recovery', percent: false },
+  { name: 'Speed Bonus', percent: false },
+  { name: 'Stamina Bonus', percent: false },
+  { name: 'Power Bonus', percent: false },
+  { name: 'Guts Bonus', percent: false },
+  { name: 'Wit Bonus', percent: false },
+  { name: 'Initial Speed', percent: false },
+  { name: 'Initial Stamina', percent: false },
+  { name: 'Initial Power', percent: false },
+  { name: 'Initial Guts', percent: false },
+  { name: 'Initial Wit', percent: false },
+]
 
 export function SupporterEditor({ entryKey, creating, owner, navigate }: {
   entryKey?: string
@@ -24,7 +52,13 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
   const [rawText, setRawText] = useState('')
   const [paste, setPaste] = useState('')
   const [eventsText, setEventsText] = useState<string | null>(null)
+  const [skillNames, setSkillNames] = useState<string[]>([])
   useEffect(() => { setEventsText(null) }, [entryKey])
+  useEffect(() => {
+    adminApi.publicList('skills').then((payload) => {
+      setSkillNames([...new Set(payload.entries.map((entry) => entry.skill_name).filter(Boolean))].sort((a, b) => a.localeCompare(b)))
+    }).catch(() => setSkillNames([]))
+  }, [])
   const original = loaded.baseline
   if (loaded.loading) return <p>Loading support card…</p>
   if (!entry) return <p className="notice error">{loaded.error || 'Support card not found.'}</p>
@@ -71,8 +105,13 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
   const writeEffects = (next: string[]) => set({ effects: next })
   const writeRow = (index: number, row: EffectRow) => {
     const next = effects.slice()
-    next[index] = formatEffect(row)
+    next[index] = formatEffect(withUnit(row))
     writeEffects(next)
+  }
+  const addEffect = () => {
+    const used = new Set(rows.map((row) => row.name))
+    const pick = EFFECTS.find((effect) => !used.has(effect.name)) || EFFECTS[0]
+    writeEffects([...effects, formatEffect({ name: pick.name, values: Array(5).fill('0'), suffix: pick.percent ? '%' : '', raw: false })])
   }
 
   return <section className="admin-editor with-card">
@@ -114,7 +153,7 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
         </section>
         <section className="admin-section">
           <h2>Effects & parameter scaling
-            {owner && <button type="button" onClick={() => writeEffects([...effects, 'New effect - 0/0/0/0/0%'])}>Add effect row</button>}
+            {owner && <button type="button" onClick={addEffect}>Add effect row</button>}
           </h2>
           <label className="unique-box">
             <span className="unique-kicker">Unique effect</span>
@@ -127,11 +166,17 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
               <span className="effect-label" aria-hidden="true" />
             </div>
             {rows.length === 0 && <p className="muted">No effects yet.</p>}
-            {rows.map((row, index) => (
-              <div className="effect-line" key={index}>
+            {rows.map((row, index) => {
+              const suffix = row.raw ? '' : unitFor(row)
+              return <div className="effect-line" key={index}>
                 <span className="effect-name">
                   <i className="effect-dot" style={{ background: DOTS[index % DOTS.length] }} />
-                  <input value={row.name} disabled={!owner} onChange={(event) => writeRow(index, { ...row, name: event.target.value })} />
+                  {row.raw
+                    ? <input value={row.name} disabled={!owner} onChange={(event) => writeRow(index, { ...row, name: event.target.value })} />
+                    : <select value={row.name} disabled={!owner} onChange={(event) => writeRow(index, { ...row, name: event.target.value })}>
+                      {!knownEffect(row.name) && <option value={row.name}>{row.name || '(unnamed)'}</option>}
+                      {EFFECTS.map((effect) => <option key={effect.name} value={effect.name}>{effect.name}</option>)}
+                    </select>}
                 </span>
                 {Array.from({ length: columns }, (_, cell) => (
                   <span className="effect-value" key={cell}>
@@ -146,7 +191,7 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
                         writeRow(index, { ...row, values, suffix: typed.includes('%') ? '%' : row.suffix })
                       }}
                     />
-                    {!row.raw && row.suffix && <em>{row.suffix}</em>}
+                    {suffix && <em>{suffix}</em>}
                   </span>
                 ))}
                 {owner
@@ -155,14 +200,14 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
                   </button>
                   : <span />}
               </div>
-            ))}
+            })}
           </div>
         </section>
         <section className="admin-section">
           <h2>Associated skills</h2>
           <div className="field-pair skill-pair">
-            <TagList label="Support skills" values={asList(draft.support_skills)} disabled={!owner} onChange={(support_skills) => set({ support_skills })} />
-            <TagList label="Event skills" values={asList(draft.event_skills)} disabled={!owner} onChange={(event_skills) => set({ event_skills })} />
+            <TagList label="Support skills" values={asList(draft.support_skills)} suggestions={skillNames} disabled={!owner} onChange={(support_skills) => set({ support_skills })} />
+            <TagList label="Event skills" values={asList(draft.event_skills)} suggestions={skillNames} disabled={!owner} onChange={(event_skills) => set({ event_skills })} />
           </div>
         </section>
         <section className="admin-section">
@@ -220,15 +265,17 @@ export function SupporterEditor({ entryKey, creating, owner, navigate }: {
   </section>
 }
 
-function TagList({ label, values, disabled, onChange }: {
+function TagList({ label, values, suggestions, disabled, onChange }: {
   label: string
   values: string[]
+  suggestions?: string[]
   disabled?: boolean
   onChange: (values: string[]) => void
 }) {
+  const listId = useId()
   const [text, setText] = useState('')
-  const add = () => {
-    const next = text.trim()
+  const add = (value = text) => {
+    const next = value.trim()
     if (!next) return
     onChange([...values, next])
     setText('')
@@ -238,8 +285,25 @@ function TagList({ label, values, disabled, onChange }: {
       {values.map((item, index) => (
         <button key={`${item}-${index}`} type="button" className="tag" disabled={disabled} onClick={() => onChange(values.filter((_, itemIndex) => itemIndex !== index))}>{item} ×</button>
       ))}
-      <input value={text} disabled={disabled} placeholder="Add…" onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); add() } }} />
+      <input
+        value={text}
+        list={suggestions ? listId : undefined}
+        autoComplete="off"
+        disabled={disabled}
+        placeholder="Add…"
+        onChange={(event) => {
+          const value = event.target.value
+          // Picking a datalist option fires a change without an inputType; add it straight away.
+          const picked = !(event.nativeEvent as InputEvent).inputType || (event.nativeEvent as InputEvent).inputType === 'insertReplacementText'
+          if (picked && suggestions?.includes(value)) add(value)
+          else setText(value)
+        }}
+        onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); add() } }}
+      />
     </div>
+    {suggestions && <datalist id={listId}>
+      {suggestions.filter((name) => !values.includes(name)).map((name) => <option key={name} value={name} />)}
+    </datalist>}
   </label>
 }
 
@@ -260,6 +324,19 @@ function parseEffect(line: string): EffectRow {
     return { name: line, values: [], suffix: '', raw: true }
   }
   return { name, values, suffix, raw: false }
+}
+
+function knownEffect(name: string) {
+  return EFFECTS.find((effect) => effect.name === name)
+}
+
+function unitFor(row: EffectRow) {
+  const known = knownEffect(row.name)
+  return known ? (known.percent ? '%' : '') : row.suffix
+}
+
+function withUnit(row: EffectRow): EffectRow {
+  return row.raw ? row : { ...row, suffix: unitFor(row) }
 }
 
 function formatEffect(row: EffectRow) {

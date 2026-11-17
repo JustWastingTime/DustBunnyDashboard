@@ -6,7 +6,7 @@ export class AdminError extends Error {
   }
 }
 
-async function adminFetch<T>(url: string, init?: RequestInit): Promise<T> {
+export async function adminFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body != null && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   const method = (init?.method || 'GET').toUpperCase()
@@ -61,6 +61,7 @@ export type GambaEvent = {
 export type AdminMe = {
   authenticated: boolean
   isOwner: boolean
+  quiz?: { role: 'owner' | 'reviewer' | 'editor'; categories: string[]; canPublish: boolean } | null
   user?: { discordId: string; username: string; globalName: string | null; avatar: string | null }
 }
 
