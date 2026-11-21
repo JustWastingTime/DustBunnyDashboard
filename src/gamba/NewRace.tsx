@@ -10,6 +10,33 @@ function raceId(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
 }
 
+// Reads a pasted race card: No., name (maybe a markdown link), age, jockey, weight (ignored), odds.
+export function parseHorses(text: string): Horse[] {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const isInt = (line: string) => /^\d+$/.test(line)
+  const isNum = (line: string) => /^\d+(\.\d+)?$/.test(line)
+  const chunks: string[][] = []
+  for (const line of lines) {
+    if (isInt(line) && (!chunks.length || chunks[chunks.length - 1].length >= 4)) chunks.push([line])
+    else if (chunks.length) chunks[chunks.length - 1].push(line)
+  }
+  const horses: Horse[] = []
+  for (const chunk of chunks) {
+    const [number, rawName, age = '', jockey = '', ...rest] = chunk
+    if (!rawName) continue
+    const link = rawName.match(/^\[([^\]]*)\]\([^)]*\)$/)
+    const nums = rest.filter(isNum)
+    horses.push({
+      number,
+      name: (link ? link[1] : rawName).trim(),
+      age,
+      jockey,
+      odds: nums.length ? nums[nums.length - 1] : '',
+    })
+  }
+  return horses
+}
+
 function toLocalInput(iso: string | null) {
   if (!iso) return ''
   const date = new Date(iso)
@@ -48,6 +75,7 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
   const [newId, setNewId] = useState('')
   const [posted, setPosted] = useState<Array<{ id: string; name: string; status: string }>>([])
   const [editing, setEditing] = useState<{ id: string; file: string; blobSha: string | null; status: string } | null>(null)
+  const [pasted, setPasted] = useState('')
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
   const openedId = useRef<string | null>(null)
@@ -391,6 +419,26 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
       </div>
       </>}
       <h2>Horses</h2>
+      <label>Paste a race card
+        <textarea
+          rows={5}
+          value={pasted}
+          placeholder="Paste the entries (No., name, age, jockey, weight, odds) to fill the list"
+          onChange={(event) => setPasted(event.target.value)}
+        />
+      </label>
+      <div className="form-actions">
+        <button type="button" className="quiet" disabled={!pasted.trim()} onClick={() => {
+          const parsed = parseHorses(pasted)
+          if (!parsed.length) {
+            setProblem('No horses found in that text.')
+            return
+          }
+          setProblem('')
+          setHorses(parsed)
+          setPasted('')
+        }}>Fill horses from paste</button>
+      </div>
       {horses.map((horse, index) => (
         <div className="horse-row" key={index}>
           <label>No.
