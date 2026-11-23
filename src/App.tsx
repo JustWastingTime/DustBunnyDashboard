@@ -765,26 +765,64 @@ function PublicDashboard({ navigate }: { navigate: (to: string) => void }) {
   return <PublicSite path="/" navigate={navigate} />
 }
 
+type ApplicantsUpdate = (update: (list: Applicant[]) => Applicant[]) => void
+
 function StaffApplicants({
   applicants,
   clubs,
-  reload,
+  onApplicantsChange,
+  refreshApplicants,
 }: {
   applicants: Applicant[]
   clubs: Array<{ circleId: string; name: string }>
-  reload: () => Promise<void>
+  onApplicantsChange: ApplicantsUpdate
+  refreshApplicants: () => Promise<void>
 }) {
   const [editing, setEditing] = useState<Applicant | null>(null)
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('pending')
+  // Per-card action in flight ("Approving…"), so a click shows a reaction straight away.
+  const [busy, setBusy] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const [actionError, setActionError] = useState('')
   const clubNames = new Map(clubs.map((club) => [club.circleId, club.name]))
   const statusCounts = applicants.reduce<Record<string, number>>((counts, applicant) => {
     counts[applicant.status] = (counts[applicant.status] || 0) + 1
     return counts
   }, {})
   const filtered = applicants.filter((applicant) => statusFilter === 'all' || applicant.status === statusFilter)
-  const setStatus = async (applicant: Applicant, status: Status) => {
-    await api.staffUpdateApplicant(applicant.umaId, { status })
-    await reload()
+  // Approve / waitlist / delete only touch the bot's own records, so apply the server's answer to
+  // this card directly instead of reloading the whole staff page (which waits on uma.moe).
+  const runAction = async (applicant: Applicant, label: string, action: () => Promise<void>) => {
+    setBusy((current) => ({ ...current, [applicant.umaId]: label }))
+    setActionError('')
+    try {
+      await action()
+    } catch (error) {
+      setActionError(`${applicant.ign}: ${(error as Error).message}`)
+    } finally {
+      setBusy((current) => {
+        const next = { ...current }
+        delete next[applicant.umaId]
+        return next
+      })
+    }
+  }
+  const setStatus = (applicant: Applicant, status: Status) => runAction(
+    applicant,
+    status === 'approved' ? 'Approving…' : status === 'waitlisted' ? 'Waitlisting…' : 'Saving…',
+    async () => {
+      const saved = await api.staffUpdateApplicant(applicant.umaId, { status }) as Partial<Applicant> | undefined
+      onApplicantsChange((list) => list.map((row) => (
+        row.umaId === applicant.umaId ? { ...row, status: saved?.status || status } : row
+      )))
+    },
+  )
+  const remove = (applicant: Applicant) => {
+    if (!confirm(`Delete ${applicant.ign}?`)) return
+    void runAction(applicant, 'Deleting…', async () => {
+      await api.staffDeleteApplicant(applicant.umaId)
+      onApplicantsChange((list) => list.filter((row) => row.umaId !== applicant.umaId))
+    })
   }
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -804,17 +842,26 @@ function StaffApplicants({
       privateNotes: String(form.get('privateNotes') || ''),
       publishPublicly: form.get('publishPublicly') === 'on',
     }
-    if (editing) {
-      await api.staffUpdateApplicant(editing.umaId, {
-        ...body,
-        refresh: true,
-      })
-    } else {
-      await api.staffAddApplicant(body)
+    setSaving(true)
+    setActionError('')
+    try {
+      if (editing) {
+        await api.staffUpdateApplicant(editing.umaId, {
+          ...body,
+          refresh: true,
+        })
+      } else {
+        // Adding looks the trainer up on uma.moe, so this one can take a moment.
+        await api.staffAddApplicant(body)
+      }
+      setEditing(null)
+      formEl.reset()
+      await refreshApplicants()
+    } catch (error) {
+      setActionError((error as Error).message)
+    } finally {
+      setSaving(false)
     }
-    setEditing(null)
-    formEl.reset()
-    await reload()
   }
   return <section className="split-layout applicants-layout">
     <form className="panel form-stack" onSubmit={submit} key={editing?.umaId || 'new-applicant'}>
@@ -838,7 +885,13 @@ function StaffApplicants({
       <label>Status<select name="status" defaultValue={editing?.status || 'pending'}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></label>
       <label>Private notes<textarea name="privateNotes" rows={4} defaultValue={editing?.privateNotes} /></label>
       <label className="check"><input name="publishPublicly" type="checkbox" defaultChecked={editing?.publishPublicly ?? true} /> Show on public overview</label>
-      <div className="button-row"><button className="primary">{editing ? 'Save applicant' : 'Resolve and add'}</button>{editing && <button type="button" onClick={() => setEditing(null)}>Cancel</button>}</div>
+      <div className="button-row">
+        <button className="primary" disabled={saving}>
+          {saving && <span className="spinner" aria-hidden="true" />}
+          {saving ? (editing ? 'Saving…' : 'Looking up on uma.moe…') : (editing ? 'Save applicant' : 'Resolve and add')}
+        </button>
+        {editing && <button type="button" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>}
+      </div>
     </form>
     <section className="panel">
       <div className="section-heading">
@@ -848,6 +901,7 @@ function StaffApplicants({
           <p>{statusFilter === 'all' ? `${applicants.length} total` : `${statusCounts[statusFilter] || 0} ${statusFilter}`}</p>
         </div>
       </div>
+      {actionError && <p className="notice error" role="alert">{actionError}</p>}
       <div className="band-filter-row" role="group" aria-label="Filter applicants by status">
         <button type="button" className={`band-chip ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>
           All<span>{applicants.length}</span>
@@ -865,7 +919,7 @@ function StaffApplicants({
       </div>
       <div className="applicant-cards">{filtered.length === 0 ? (
         <p className="muted empty-applicants">No applicants in this status.</p>
-      ) : filtered.map((applicant) => <article key={applicant.umaId}>
+      ) : filtered.map((applicant) => <article key={applicant.umaId} className={busy[applicant.umaId] ? 'is-busy' : undefined} aria-busy={Boolean(busy[applicant.umaId])}>
         <div><strong>{applicant.ign}</strong><small className="id">{applicant.umaId}</small></div>
         <span className={`status status-${applicant.status}`}>{applicant.status}</span>
         <dl>
@@ -881,14 +935,20 @@ function StaffApplicants({
         </div>
         <p>{applicant.privateNotes || 'No private notes'}</p>
         <div className="button-row">
-          {applicant.status !== 'approved' && (
-            <button className="primary" onClick={async () => { await setStatus(applicant, 'approved') }}>Approve</button>
+          {busy[applicant.umaId] ? (
+            <span className="busy-label" role="status"><span className="spinner" aria-hidden="true" />{busy[applicant.umaId]}</span>
+          ) : (
+            <>
+              {applicant.status !== 'approved' && (
+                <button className="primary" onClick={() => { void setStatus(applicant, 'approved') }}>Approve</button>
+              )}
+              {applicant.status !== 'waitlisted' && (
+                <button onClick={() => { void setStatus(applicant, 'waitlisted') }}>Waitlist</button>
+              )}
+              <button onClick={() => setEditing(applicant)}>Edit</button>
+              <button className="danger-link" onClick={() => remove(applicant)}>Delete</button>
+            </>
           )}
-          {applicant.status !== 'waitlisted' && (
-            <button onClick={async () => { await setStatus(applicant, 'waitlisted') }}>Waitlist</button>
-          )}
-          <button onClick={() => setEditing(applicant)}>Edit</button>
-          <button className="danger-link" onClick={async () => { if (confirm(`Delete ${applicant.ign}?`)) { await api.staffDeleteApplicant(applicant.umaId); await reload() } }}>Delete</button>
         </div>
       </article>)}</div>
     </section>
@@ -2219,6 +2279,16 @@ function StaffPage() {
       setError((reason as Error).message)
     }
   }
+  // Applicant changes only need the applicant list, not the full reload (which waits on uma.moe).
+  // The same change is applied to the overview's public copy so both tabs stay in step.
+  const updateApplicants: ApplicantsUpdate = (update) => {
+    setApplicants(update)
+    setDashboard((current) => (current ? { ...current, applicants: update(current.applicants || []) } : current))
+  }
+  const refreshApplicants = async () => {
+    const staff = await api.staffApplicants()
+    setApplicants(staff.applicants)
+  }
 
   return <main className="shell local-shell">
     <Header>
@@ -2248,7 +2318,12 @@ function StaffPage() {
       </>
     )}
     {tab === 'applicants' && (
-      <StaffApplicants applicants={applicants} clubs={clubs} reload={safeReload} />
+      <StaffApplicants
+        applicants={applicants}
+        clubs={clubs}
+        onApplicantsChange={updateApplicants}
+        refreshApplicants={refreshApplicants}
+      />
     )}
     {tab === 'planner' && (
       <StaffPlanner

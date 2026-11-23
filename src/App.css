@@ -867,3 +867,30 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
   .tourney-add-grid { grid-template-columns: 1fr; }
   .tourney-teams { grid-template-columns: 1fr; }
 }
+
+/* In-flight feedback for staff actions (approve / waitlist / delete / add). */
+.spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.45em;
+  vertical-align: -0.12em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.busy-label {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+.applicant-cards article.is-busy {
+  opacity: 0.65;
+  transition: opacity 0.15s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.6s; }
+}
