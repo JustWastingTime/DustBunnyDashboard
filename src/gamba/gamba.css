@@ -812,6 +812,49 @@
 .paddock .guilds.specific .guild-line { grid-template-columns: 22px minmax(0, 1fr) auto auto; }
 .paddock .guild-line input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
 .paddock .guild-add { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; align-items: end; }
+/* Host race form: selects and textareas match the text inputs, and the
+   secondary actions look like buttons instead of loose text. */
+.paddock .race-form select,
+.paddock .race-form textarea {
+  width: 100%;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 12px;
+  background: var(--lowest);
+  color: var(--ink);
+  padding: 8px 10px;
+}
+.paddock .race-form textarea { resize: vertical; min-height: 110px; }
+.paddock .race-form textarea::placeholder { color: rgb(203 213 225 / 0.55); }
+.paddock .race-form select option { background: var(--lowest); color: var(--ink); }
+.paddock .race-form button.quiet {
+  padding: 8px 14px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--ink);
+}
+.paddock .race-form button.quiet:hover:not(:disabled) { background: rgb(255 255 255 / 0.1); text-decoration: none; }
+.paddock .race-form button.quiet:disabled { opacity: 0.45; cursor: not-allowed; }
+.paddock .horse-row button.quiet { align-self: end; }
+.paddock .race-form .submit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 16px;
+  margin-top: 4px;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+.paddock .race-form .submit-row button.place { padding: 12px 22px; font-size: 1rem; }
+.paddock .race-form.posted-races { margin-top: 36px; }
+.paddock .race-form .posted button.quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+}
+.paddock .race-form .posted button.quiet:hover { text-decoration: underline; background: none; }
 .paddock .posted { list-style: none; margin: 0; padding: 0; }
 .paddock .posted li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgb(255 255 255 / 0.06); }
 
@@ -1124,10 +1167,19 @@
   .paddock .open-grid { grid-template-columns: 1fr; }
   .paddock .settled-grid,
   .paddock .slip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .paddock .top { height: auto; }
-  .paddock .top-bar { height: auto; flex-wrap: wrap; padding: 12px 0; }
-  .paddock .links { order: 3; width: 100%; overflow: auto; }
-  .paddock .paddock-body { padding-top: 132px; }
+  /* The header wraps to two rows here, so let it take its real height
+     instead of guessing a fixed offset for the page below it. */
+  .paddock .top { position: sticky; height: auto; }
+  .paddock .top-bar { height: auto; flex-wrap: wrap; row-gap: 10px; padding: 12px 0; }
+  /* Lift the brand, nav and Host race out of .top-lead so the nav can
+     drop onto its own full-width row. */
+  .paddock .top-lead { display: contents; }
+  .paddock .brand { margin-right: auto; }
+  .paddock .host-race { order: 1; }
+  .paddock .top-end { order: 2; }
+  .paddock .links { order: 3; width: 100%; overflow-x: auto; }
+  .paddock .links a { flex: 1 0 auto; justify-content: center; }
+  .paddock .paddock-body { padding-top: 0; }
 }
 @media (max-width: 860px) {
   .paddock .paddock-main { width: min(1560px, calc(100% - 20px)); }
@@ -1159,6 +1211,9 @@
   .paddock .rosette,
   .paddock .rosette.first { min-height: 0; }
   .paddock .rosette.first { order: -1; }
+  .paddock .toast { left: 12px; right: 12px; bottom: 72px; }
+  .paddock .links a { flex: 1 1 0; padding: 8px 6px; font-size: 0.85rem; }
+  .paddock .links a > span[aria-hidden="true"] { display: none; }
   .paddock .ticket-dock { display: none; }
   .paddock .ticket-dock.open {
     display: block;
