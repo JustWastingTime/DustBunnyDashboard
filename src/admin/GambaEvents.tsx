@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AdminError, adminApi, type GambaEntry, type GambaEvent, type GambaTournament } from './api'
+import { Badge, FilterChips, SortTh, TableToolbar } from './table'
+import { formatWhen, matchesQuery, relativeWhen, stamp, useSorted } from './tableData'
 
 const EMPTY: GambaEvent = {
   id: '',
@@ -14,14 +16,63 @@ const EMPTY: GambaEvent = {
   entries: [{ number: 1, name: '', ageSex: '', jockey: '', odds: 2 }],
 }
 
+type EventRow = { id: string; name: string; status: string; phase?: string; startsAt: string | null; endsAt: string | null; entryCount: number; listing?: string }
+type PhaseFilter = 'all' | 'open' | 'scheduled' | 'unposted' | 'closed' | 'settled'
+
+const PHASE_LABEL: Record<string, string> = { open: 'Open', scheduled: 'Scheduled', closed: 'Closed', settled: 'Settled', unposted: 'Never posted' }
+
+function phaseOf(row: EventRow, now: number) {
+  const phase = row.phase || row.status
+  if (phase === 'scheduled') {
+    const start = stamp(row.startsAt)
+    if (start != null && start < now) return 'unposted'
+  }
+  return phase
+}
+
+function PhaseBadge({ phase, status }: { phase: string; status: string }) {
+  const tone = phase === 'open' ? 'on' : phase === 'unposted' || phase === 'closed' ? 'warn' : phase === 'scheduled' ? 'info' : 'off'
+  const title = phase !== status && phase !== 'unposted' ? `The file says ${status}, but players see it as ${phase}.` : undefined
+  return <Badge tone={tone} title={title}>{PHASE_LABEL[phase] || phase}</Badge>
+}
+
 export function GambaEventList({ owner, navigate }: { owner: boolean; navigate: (to: string) => void }) {
-  const [rows, setRows] = useState<Array<{ id: string; name: string; status: string; startsAt: string | null; endsAt: string | null; entryCount: number }>>([])
+  const [rows, setRows] = useState<EventRow[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<PhaseFilter>('all')
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!owner) return
-    adminApi.gambaEvents().then((payload) => setRows(payload.events)).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+    adminApi.gambaEvents()
+      .then((payload) => { setRows(payload.events); setNow(Date.now()) })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))
+      .finally(() => setLoaded(true))
   }, [owner])
+  const counts = useMemo(() => {
+    const out: Record<string, number> = { all: rows.length }
+    for (const row of rows) {
+      const phase = phaseOf(row, now)
+      out[phase] = (out[phase] || 0) + 1
+    }
+    return out
+  }, [rows, now])
+  const filtered = useMemo(() => rows.filter((row) => (
+    (filter === 'all' || phaseOf(row, now) === filter) && matchesQuery(query, row.name, row.id)
+  )), [rows, filter, query, now])
+  const columns = useMemo(() => ({
+    name: (row: EventRow) => row.name.toLowerCase(),
+    phase: (row: EventRow) => ['open', 'closed', 'scheduled', 'unposted', 'settled'].indexOf(phaseOf(row, now)),
+    starts: (row: EventRow) => stamp(row.startsAt),
+    ends: (row: EventRow) => stamp(row.endsAt),
+    entries: (row: EventRow) => row.entryCount,
+  }), [now])
+  const { sorted, sort, toggle } = useSorted(filtered, columns, { key: 'phase', dir: 'asc' })
   if (!owner) return <p>Gamba events are visible to the bot owner only.</p>
+  const options = (['all', 'open', 'closed', 'scheduled', 'unposted', 'settled'] as const)
+    .filter((id) => id === 'all' || counts[id])
+    .map((id) => ({ id, label: id === 'all' ? 'All' : PHASE_LABEL[id], count: counts[id] || 0 }))
   return <section className="admin-grid">
     <div className="admin-row catalog-head">
       <h1>Gamba events</h1>
@@ -29,30 +80,35 @@ export function GambaEventList({ owner, navigate }: { owner: boolean; navigate: 
     </div>
     {error && <p className="notice error">{error}</p>}
     <p className="muted">Saving writes the event file and reloads it in this bot process, so /gamba can find it without a restart.</p>
+    <TableToolbar query={query} onQuery={setQuery} placeholder="Search name or ID" shown={sorted.length} total={rows.length}>
+      <FilterChips<PhaseFilter> label="Show" value={filter} onChange={setFilter} options={options} />
+    </TableToolbar>
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>ID</th>
-            <th>Status</th>
-            <th>Starts</th>
-            <th>Entries</th>
+            <SortTh label="Name" column="name" sort={sort} onSort={toggle} />
+            <SortTh label="Status" column="phase" sort={sort} onSort={toggle} />
+            <SortTh label="Opens" column="starts" sort={sort} onSort={toggle} />
+            <SortTh label="Closes" column="ends" sort={sort} onSort={toggle} />
+            <SortTh label="Horses" column="entries" sort={sort} onSort={toggle} className="num" />
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {sorted.map((row) => (
             <tr key={row.id}>
-              <td>
+              <td className="cell-main">
                 <button type="button" className="text-button" onClick={() => navigate(`/admin/gamba/edit?key=${encodeURIComponent(row.id)}`)}>{row.name}</button>
+                <code className="cell-sub">{row.id}{row.listing === 'tournament' ? ' · tournament race' : ''}</code>
               </td>
-              <td>{row.id}</td>
-              <td>{row.status}</td>
-              <td>{row.startsAt || '—'}</td>
-              <td>{row.entryCount}</td>
+              <td><PhaseBadge phase={phaseOf(row, now)} status={row.status} /></td>
+              <td className="nowrap">{row.startsAt ? <>{formatWhen(row.startsAt)}<span className="cell-sub">{relativeWhen(row.startsAt, now)}</span></> : <span className="muted">—</span>}</td>
+              <td className="nowrap">{row.endsAt ? <>{formatWhen(row.endsAt)}<span className="cell-sub">{relativeWhen(row.endsAt, now)}</span></> : <span className="muted">—</span>}</td>
+              <td className="num">{row.entryCount}</td>
             </tr>
           ))}
-          {!rows.length && !error && <tr><td colSpan={5}>No events loaded.</td></tr>}
+          {loaded && !sorted.length && <tr><td colSpan={5} className="muted">{rows.length ? 'No events match.' : 'No events loaded.'}</td></tr>}
+          {!loaded && <tr><td colSpan={5} className="muted">Loading events…</td></tr>}
         </tbody>
       </table>
     </div>
