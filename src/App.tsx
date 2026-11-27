@@ -344,6 +344,7 @@ function MemberTable({
       const assessed = assessMember({
         dailyAverage: member.dailyAverage,
         dailyTarget: club.dailyTarget,
+        dailyGains: member.dailyGains,
         lastUpdatedAt: member.lastUpdatedAt,
         promotionTarget: club.promotionTarget,
         promotionTier: club.promotionTier,
@@ -1320,7 +1321,7 @@ function StaffClubSettings({
           <label>{current.dynamicRequirement ? 'Fallback daily requirement' : 'Daily requirement'}<input name="dailyTarget" type="number" min="0" required defaultValue={current.storedDailyTarget ?? current.dailyTarget} /></label>
           <label>Severe ratio<input name="severeRatio" type="number" min="0" max="1" step=".05" defaultValue={current.severeRatio || .5} /></label>
           <p className="muted">Promotion uses the next rank’s daily requirement. An A+ member is a promotion candidate once they reach the S clubs’ requirement.</p>
-          <label>Inactive after days<input name="inactiveDays" type="number" min="1" defaultValue={current.inactiveDays || 3} /></label>
+          <label>Inactive after days with no fans gained<input name="inactiveDays" type="number" min="1" defaultValue={current.inactiveDays || 3} /></label>
           <label className="check"><input name="promotionEnabled" type="checkbox" defaultChecked={current.promotionEnabled ?? true} /> Enable promotion-candidate assessments for this club</label>
           <p className="muted">Turn this off for your main club where members cannot be promoted further.</p>
           <div className="button-row"><button className="primary">Save club</button></div>
@@ -1747,6 +1748,7 @@ function StaffPlanner({
         ? assessMember({
           dailyAverage: member.dailyAverage,
           dailyTarget: home.dailyTarget,
+          dailyGains: member.dailyGains,
           lastUpdatedAt: member.lastUpdatedAt,
           promotionTarget: home.promotionTarget,
           promotionTier: home.promotionTier,
@@ -2188,6 +2190,9 @@ function StaffPage() {
   const [profileUmaId, setProfileUmaId] = useState<string | null>(null)
   const [boardStatus, setBoardStatus] = useState('draft')
   const [error, setError] = useState('')
+  // False until the first full load lands: the tabs (the planner especially) must not render,
+  // or act on, empty placeholder data while uma.moe-backed requests are still in flight.
+  const [dataLoaded, setDataLoaded] = useState(false)
   const params = new URLSearchParams(window.location.search)
   const loginError = params.get('error')
 
@@ -2223,6 +2228,7 @@ function StaffPage() {
     setAssignments(plan.assignments)
     setBoardStatus(plan.board.status || 'draft')
     setBlacklist(blocked.entries)
+    setDataLoaded(true)
   }
 
   useEffect(() => {
@@ -2303,7 +2309,16 @@ function StaffPage() {
         <button type="button" key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
       ))}
     </nav>
-    {tab === 'overview' && dashboard && (
+    {!dataLoaded && (
+      <section className="panel staff-loading" role="status" aria-live="polite">
+        <span className="spinner" aria-hidden="true" />
+        <div>
+          <strong>Loading {tab}…</strong>
+          <p className="muted">Fetching club rosters from uma.moe. The first load can take a little while.</p>
+        </div>
+      </section>
+    )}
+    {dataLoaded && tab === 'overview' && dashboard && (
       <>
         <ClubSummary clubs={byClubOrder(dashboard.clubs)} />
         <MemberTable
@@ -2317,7 +2332,7 @@ function StaffPage() {
         <PublicApplicants applicants={dashboard.applicants} clubs={dashboard.clubs} />
       </>
     )}
-    {tab === 'applicants' && (
+    {dataLoaded && tab === 'applicants' && (
       <StaffApplicants
         applicants={applicants}
         clubs={clubs}
@@ -2325,7 +2340,7 @@ function StaffPage() {
         refreshApplicants={refreshApplicants}
       />
     )}
-    {tab === 'planner' && (
+    {dataLoaded && tab === 'planner' && (
       <StaffPlanner
         clubs={clubs}
         members={members}
@@ -2336,10 +2351,10 @@ function StaffPage() {
         directory={directory}
       />
     )}
-    {tab === 'blacklist' && (
+    {dataLoaded && tab === 'blacklist' && (
       <StaffBlacklist entries={blacklist} reload={safeReload} />
     )}
-    {tab === 'settings' && (
+    {dataLoaded && tab === 'settings' && (
       <div className="settings-stack">
         <StaffNetworkSettings
           members={members}

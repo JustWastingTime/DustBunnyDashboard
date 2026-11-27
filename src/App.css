@@ -894,3 +894,19 @@ dt { color: var(--muted); font-size: .68rem; }dd { margin: 3px 0 0; font-weight:
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 1.6s; }
 }
+.staff-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 9rem;
+  justify-content: center;
+  text-align: left;
+}
+.staff-loading .spinner {
+  width: 1.8rem;
+  height: 1.8rem;
+  margin: 0;
+  border-width: 3px;
+  color: var(--accent);
+}
+.staff-loading p { margin: 0.2rem 0 0; }
