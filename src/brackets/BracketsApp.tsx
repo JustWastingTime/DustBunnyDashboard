@@ -87,12 +87,12 @@ function ListPage({ navigate }: { navigate: Nav }) {
   return <div className="bx-page">
     <section className="bx-hero">
       <div>
-        <p className="bx-kicker"><span className="bx-free-tag">Free pick'em</span> Not a bet</p>
+        <p className="bx-kicker"><span className="bx-free-tag">Free pick'em</span></p>
         <h1>Call the whole bracket before it starts.</h1>
         <p className="bx-lede">Pick a winner for every match. Your picks carry forward on their own, losers drop into the lower bracket, and you score as the real results come in.</p>
       </div>
       <ol className="bx-steps">
-        <li><strong>Pick every match</strong><span>Tap who wins. Later matches fill in from your picks.</span></li>
+        <li><strong>Pick every match</strong><span>Pick who you think wins the match ups.</span></li>
         <li><strong>Picks lock</strong><span>Once the tournament starts, brackets are final and everyone's picks show up.</span></li>
         <li><strong>Score as it plays</strong><span>Points for each correct pick, plus bonus carrots where a match has them.</span></li>
       </ol>
@@ -286,7 +286,7 @@ function DetailPage({ navigate, bracketId, tab }: { navigate: Nav; bracketId: st
         <a className="bx-btn primary" href={loginHref(base)}>Log in with Discord</a>
       </div>}
       {viewer.loggedIn && open && <div className="bx-callout">
-        <p>Tap the team you think wins each match. Winners move right; losers from the upper bracket drop into the lower one. Change an early pick and any later pick that no longer fits clears itself.</p>
+        <p>Winners move right; losers from the upper bracket drop into the lower bracket.</p>
       </div>}
       {viewer.loggedIn && !open && !mine && <div className="bx-callout"><p>You didn't fill out this bracket before picks locked. Follow along in the live bracket.</p></div>}
       {viewer.loggedIn && !open && mine && <ScoreStrip entry={mine} total={total} />}
@@ -354,10 +354,10 @@ function Standings({ data, navigate }: { data: BracketDetail; navigate: Nav }) {
         <tr>
           <th scope="col">#</th>
           <th scope="col">Player</th>
-          <th scope="col" className="num">Points</th>
-          <th scope="col" className="num hide-sm">Correct</th>
-          <th scope="col" className="num hide-sm">Possible</th>
-          <th scope="col" className="num">Carrots</th>
+          <th scope="col" className="bx-n">Points</th>
+          <th scope="col" className="bx-n hide-sm">Correct</th>
+          <th scope="col" className="bx-n hide-sm">Possible</th>
+          <th scope="col" className="bx-n">Carrots</th>
           <th scope="col" className="hide-sm">{open ? 'Picked' : 'Champion pick'}</th>
         </tr>
       </thead>
@@ -369,10 +369,10 @@ function Standings({ data, navigate }: { data: BracketDetail; navigate: Nav }) {
           return <tr key={row.discordId} className={me ? 'me' : ''}>
             <td>{row.rank}</td>
             <td>{canOpen ? <a href={href} onClick={link(href)}>{row.name}</a> : row.name}{me && <span className="bx-you">you</span>}</td>
-            <td className="num strong">{row.points}</td>
-            <td className="num hide-sm">{row.correct}</td>
-            <td className="num hide-sm">{row.maxPoints}</td>
-            <td className="num">{row.carrots.toLocaleString('en-US')}</td>
+            <td className="bx-n strong">{row.points}</td>
+            <td className="bx-n hide-sm">{row.correct}</td>
+            <td className="bx-n hide-sm">{row.maxPoints}</td>
+            <td className="bx-n">{row.carrots.toLocaleString('en-US')}</td>
             <td className="hide-sm">{open ? `${row.picked} of ${bracket.matchCount}` : teamName(row.champion)}</td>
           </tr>
         })}
