@@ -73,7 +73,7 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
   const [picked, setPicked] = useState<string[]>([])
   const [newLabel, setNewLabel] = useState('')
   const [newId, setNewId] = useState('')
-  const [posted, setPosted] = useState<Array<{ id: string; name: string; status: string }>>([])
+  const [posted, setPosted] = useState<Array<{ id: string; name: string; status: string; phase: string; startsAt: string | null }>>([])
   const [editing, setEditing] = useState<{ id: string; file: string; blobSha: string | null; status: string } | null>(null)
   const [pasted, setPasted] = useState('')
   const [problem, setProblem] = useState('')
@@ -82,7 +82,7 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
 
   const loadPosted = () => {
     adminApi.gambaEvents()
-      .then((payload) => setPosted(payload.events.map((event) => ({ id: event.id, name: event.name, status: event.status }))))
+      .then((payload) => setPosted(payload.events.map((event) => ({ id: event.id, name: event.name, status: event.status, phase: event.phase || event.status, startsAt: event.startsAt }))))
       .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The posted races could not load.'))
   }
 
@@ -342,7 +342,7 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
   return <div className="paddock-main">
     <div className="race-form">
       <h1>{editing ? 'Edit race' : 'Post a race'}</h1>
-      <p className="when">{tournament ? 'This race stays on the tournament page. Discord does not get a horse card for it.' : 'Players see this race on the card once you post it.'}</p>
+      <p className="when">{tournament ? 'This race stays on the tournament page. Discord does not get a horse card for it.' : 'Players see this race on the Races page once you post it.'}</p>
       {problem && <p className="problem">{problem}</p>}
       <label>Name
         <input value={name} onChange={(event) => setName(event.target.value)} />
@@ -374,7 +374,6 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
           ))}
         </select>
       </label>}
-      <p className="when">{tournament ? 'This race stays on that tournament. Discord does not get a horse card for it.' : 'Players see this race on the Races page once you post it.'}</p>
       {!tournament && <>
       <h2>Guilds</h2>
       <p className="when">A name stays on this bot, so the next race can pick the same guild.</p>
@@ -466,21 +465,33 @@ export function NewRace({ owner, eventId = null, tournamentId = null, roundId = 
       ))}
       <div className="form-actions">
         <button type="button" className="quiet" onClick={() => setHorses((current) => [...current, blankHorse(current.length + 1)])}>Add a horse</button>
+      </div>
+      <div className="submit-row">
         <button type="button" className="place" disabled={busy} onClick={() => void save()}>{busy ? 'Posting…' : editing ? 'Save race' : 'Post race'}</button>
         {editing && <button type="button" className="quiet" onClick={() => { openedId.current = null; reset(); navigate('/gamba/new') }}>New race</button>}
       </div>
+    </div>
+    <div className="race-form posted-races">
       <h2>Posted races</h2>
       {!posted.length && <p className="when">No races posted yet.</p>}
       <ul className="posted">
         {posted.map((race) => (
           <li key={race.id}>
-            {race.status === 'settled'
+            {race.phase === 'settled'
               ? <span>{race.name}</span>
               : <button type="button" className="quiet" onClick={() => navigate(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>{race.name}</button>}
-            <span className="when">{({ open: 'Open', closed: 'Expired', scheduled: 'Soon', settled: 'Settled' } as Record<string, string>)[race.status] || race.status}</span>
+            <span className="when">{postedLabel(race)}</span>
           </li>
         ))}
       </ul>
     </div>
   </div>
+}
+
+function postedLabel(race: { phase: string; startsAt: string | null }) {
+  if (race.phase === 'scheduled') {
+    const start = Date.parse(race.startsAt || '')
+    return Number.isFinite(start) && start < Date.now() ? 'Not posted' : 'Soon'
+  }
+  return ({ open: 'Open', closed: 'Closed', settled: 'Settled' } as Record<string, string>)[race.phase] || race.phase
 }

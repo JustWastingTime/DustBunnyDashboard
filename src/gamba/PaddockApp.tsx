@@ -31,6 +31,29 @@ type Pick = {
 
 const loginHref = `/api/auth/login?returnTo=${encodeURIComponent('/gamba')}`
 
+type Notice = { title: string; detail: string }
+type Notify = (title: string, detail: string) => void
+
+function Toast({ notice }: { notice: Notice | null }) {
+  // Keep the last text while the toast fades out.
+  const last = useRef<Notice | null>(notice)
+  if (notice) last.current = notice
+  const shown = notice || last.current
+  return <div className={notice ? 'toast show' : 'toast'} role="status">
+    <span aria-hidden="true">✨</span>
+    <span>
+      <strong>{shown?.title || ''}</strong>
+      <span>{shown?.detail || ''}</span>
+    </span>
+  </div>
+}
+
+function placedNotice(picks: Pick[], carrots: number): Notice {
+  const pick = picks[0]
+  const what = picks.length > 1 ? `${picks.length} picks` : pick ? `#${pick.entryNumber} ${pick.entryName}` : 'Your ticket'
+  return { title: 'Ticket placed', detail: `${what} · ${coins.format(carrots)} carrots left` }
+}
+
 function SlipTabs({
   label,
   value,
@@ -93,7 +116,7 @@ function when(iso: string | null) {
 
 function statusLabel(phase: Race['phase']) {
   if (phase === 'open') return 'Open'
-  if (phase === 'closed') return 'Expired'
+  if (phase === 'closed') return 'Closed'
   if (phase === 'scheduled') return 'Soon'
   return 'Settled'
 }
@@ -101,7 +124,7 @@ function statusLabel(phase: Race['phase']) {
 function raceNote(race: Race) {
   if (race.phase === 'open') return when(race.endsAt) ? `Closes ${when(race.endsAt)}` : 'Still open'
   if (race.phase === 'scheduled') return when(race.startsAt) ? `Opens ${when(race.startsAt)}` : 'Not open yet'
-  if (race.phase === 'closed') return when(race.endsAt) ? `Expired ${when(race.endsAt)}` : 'Expired'
+  if (race.phase === 'closed') return when(race.endsAt) ? `Betting closed ${when(race.endsAt)}. Waiting on the result.` : 'Betting closed. Waiting on the result.'
   if (race.winnerName) return `Winner #${race.winner} ${race.winnerName}${race.winnerOdds != null ? ` ${oddsLabel(race.winnerOdds)}` : ''}`
   return 'Settled'
 }
@@ -118,6 +141,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   const [gate, setGate] = useState<'loading' | 'in' | 'out'>('loading')
   const [problem, setProblem] = useState('')
   const [picks, setPicks] = useState<Pick[]>([])
+  const [notice, setNotice] = useState<Notice | null>(null)
   const navRef = useRef<HTMLElement>(null)
   const [slider, setSlider] = useState({ x: 0, width: 0, on: false })
   const racesOn = clean === '/gamba' || clean.startsWith('/gamba/race/') || clean.startsWith('/gamba/meet/')
@@ -140,6 +164,13 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     root.style.background = '#121526'
     return () => { root.style.background = previous }
   }, [])
+
+  useEffect(() => {
+    if (!notice) return
+    const id = window.setTimeout(() => setNotice(null), 3200)
+    return () => window.clearTimeout(id)
+  }, [notice])
+  const notify: Notify = (title, detail) => setNotice({ title, detail })
 
   const reload = () => gambaApi.me().then((next) => {
     setMe(next)
@@ -188,11 +219,12 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     if (!pick) return me.carrots
     const result = await gambaApi.bet({ eventId: pick.eventId, entryNumber: pick.entryNumber, amount: stake })
     setPicks([])
+    setNotice(placedNotice([pick], result.carrots))
     await reload()
     return result.carrots
   }
 
-  let body: ReactNode = <CardPage me={me} picks={picks} setPicks={setPicks} onPlace={placePicks} navigate={navigate} />
+  let body: ReactNode = <CardPage me={me} picks={picks} setPicks={setPicks} onPlace={placePicks} notify={notify} navigate={navigate} />
   if (clean === '/gamba/board') body = <BoardPage me={me} navigate={navigate} />
   else if (clean.startsWith('/gamba/trainer/')) body = <TrainerPage discordId={decodeURIComponent(clean.slice('/gamba/trainer/'.length))} navigate={navigate} />
   else if (clean === '/gamba/new') {
@@ -200,7 +232,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     body = <NewRace key={`${params.get('race') || ''}-${params.get('tournament') || ''}-${params.get('round') || ''}`} owner={Boolean(me.owner)} eventId={params.get('race')} tournamentId={params.get('tournament')} roundId={params.get('round')} navigate={navigate} />
   }
   else if (clean === '/gamba/tournaments') body = <TournamentsPage owner={Boolean(me.owner)} navigate={navigate} />
-  else if (clean.startsWith('/gamba/tournament/')) body = <TournamentPage tournamentId={decodeURIComponent(clean.slice('/gamba/tournament/'.length))} me={me} reload={reload} navigate={navigate} />
+  else if (clean.startsWith('/gamba/tournament/')) body = <TournamentPage tournamentId={decodeURIComponent(clean.slice('/gamba/tournament/'.length))} me={me} reload={reload} notify={notify} navigate={navigate} />
   else if (clean.startsWith('/gamba/race/')) {
     body = <RacePage
       eventId={decodeURIComponent(clean.slice('/gamba/race/'.length))}
@@ -250,6 +282,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
       </div>
     </header>
     <main className="paddock-body">{body}</main>
+    <Toast notice={notice} />
     <footer className="pad-foot">
       <div>
         <span className="foot-brand">🥕 Tazuna Paddock</span>
@@ -285,7 +318,13 @@ function openDay(iso: string | null) {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const year = date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+  return date.toLocaleString(undefined, { year, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function startStamp(race: Race) {
+  const stamp = Date.parse(race.startsAt || '')
+  return Number.isFinite(stamp) ? stamp : Number.POSITIVE_INFINITY
 }
 
 function finishStamp(race: Race) {
@@ -297,18 +336,20 @@ function horseCount(count: number, word: 'runners' | 'horses') {
   return `${count} ${count === 1 ? word.replace(/s$/, '') : word}`
 }
 
-function CardPage({ me, picks, setPicks, onPlace, navigate }: {
+function CardPage({ me, picks, setPicks, onPlace, notify, navigate }: {
   me: Me
   picks: Pick[]
   setPicks: (next: Pick[]) => void
   onPlace: (stake: number) => Promise<number>
+  notify: Notify
   navigate: (to: string) => void
 }) {
   const [events, setEvents] = useState<Race[]>([])
   const [problem, setProblem] = useState('')
   const [loaded, setLoaded] = useState(false)
-  const [toast, setToast] = useState('')
   const [showSettled, setShowSettled] = useState(false)
+  const [showSoon, setShowSoon] = useState(false)
+  const [showOverdue, setShowOverdue] = useState(false)
   const blocked = blockedEvents(me)
   useEffect(() => {
     gambaApi.events()
@@ -316,11 +357,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
       .catch((reason) => setProblem(reason instanceof Error ? reason.message : 'The board could not load.'))
       .finally(() => setLoaded(true))
   }, [])
-  useEffect(() => {
-    if (!toast) return
-    const id = window.setTimeout(() => setToast(''), 2600)
-    return () => window.clearTimeout(id)
-  }, [toast])
   const go = (href: string) => (event: { preventDefault: () => void }) => {
     event.preventDefault()
     navigate(href)
@@ -335,10 +371,18 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
       entryName: fav.name,
       odds: fav.odds,
     }])
-    setToast(`Quick bet on #${fav.number} ${fav.name}`)
+    notify(`Quick bet on #${fav.number} ${fav.name}`, 'Stake it on the ticket.')
   }
   const open = events.filter((race) => race.phase === 'open')
-  const soon = events.filter((race) => race.phase === 'scheduled')
+  // Scheduled races only open when someone posts them, so a start date in the
+  // past means it was never posted. Keep those out of "Starting Soon".
+  const now = Date.now()
+  const scheduled = events
+    .filter((race) => race.phase === 'scheduled')
+    .sort((a, b) => startStamp(a) - startStamp(b) || a.name.localeCompare(b.name))
+  const soon = scheduled.filter((race) => startStamp(race) >= now)
+  const overdue = scheduled.filter((race) => startStamp(race) < now).reverse()
+  const soonShown = showSoon ? soon : soon.slice(0, 6)
   const expired = events.filter((race) => race.phase === 'closed')
   const settled = events
     .filter((race) => race.phase === 'settled')
@@ -387,6 +431,7 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           })}
         </div>
       </section>
+      <OpenSlips me={me} navigate={navigate} />
       {soon.length > 0 && <section className="race-lane">
         <div className="race-lane-head">
           <div className="race-lane-title">
@@ -394,9 +439,11 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
             <h2>Starting Soon</h2>
             <span className="count amber">{soon.length} scheduled</span>
           </div>
-          <p className="live">Gate draws in progress</p>
+          {soon.length > 6 && <button type="button" className="view-all" onClick={() => setShowSoon((current) => !current)}>
+            {showSoon ? 'Show fewer' : `Show all ${soon.length}`}
+          </button>}
         </div>
-        {soon.map((race) => (
+        {soonShown.map((race) => (
           <article className="soon-card" key={race.id}>
             <div>
               <div className="soon-meta">
@@ -412,11 +459,37 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           </article>
         ))}
       </section>}
+      {me.owner && overdue.length > 0 && <section className="race-lane">
+        <div className="race-lane-head">
+          <div className="race-lane-title">
+            <span aria-hidden="true">📭</span>
+            <h2>Never Posted</h2>
+            <span className="count">{overdue.length}</span>
+          </div>
+          <button type="button" className="view-all" onClick={() => setShowOverdue((current) => !current)}>
+            {showOverdue ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <p className="when">Only you see these. Their open time passed and they were never posted, so players can't bet on them.</p>
+        {showOverdue && overdue.map((race) => (
+          <article className="soon-card" key={race.id}>
+            <div>
+              <div className="soon-meta">
+                <span className="pill closed">Not posted</span>
+                <span>🐴 {horseCount(race.entries.length, 'horses')}</span>
+                {race.startsAt && <span className="soon-when">Was due {openDay(race.startsAt)}</span>}
+              </div>
+              <h3><a href={`/gamba/race/${race.id}`} onClick={go(`/gamba/race/${race.id}`)}>{race.name}</a></h3>
+            </div>
+            <a className="edit-view" href={`/gamba/new?race=${encodeURIComponent(race.id)}`} onClick={go(`/gamba/new?race=${encodeURIComponent(race.id)}`)}>Edit / View</a>
+          </article>
+        ))}
+      </section>}
       {expired.length > 0 && <section className="race-lane">
         <div className="race-lane-head">
           <div className="race-lane-title">
             <span aria-hidden="true">🎀</span>
-            <h2>Expired</h2>
+            <h2>Waiting on Results</h2>
             <span className="count">{expired.length}</span>
           </div>
         </div>
@@ -424,7 +497,7 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           <article className="soon-card" key={race.id}>
             <div>
               <div className="soon-meta">
-                <span className="pill closed">Expired</span>
+                <span className="pill closed">Closed</span>
                 <span>🐴 {horseCount(race.entries.length, 'horses')}</span>
                 {race.endsAt && <span className="soon-when">Closed {openDay(race.endsAt)}</span>}
               </div>
@@ -465,7 +538,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
           ))}
         </div>
       </section>}
-      <OpenSlips me={me} navigate={navigate} />
     </div>
     {picks.length > 0 && <TicketSlip
       title="Your ticket"
@@ -475,13 +547,6 @@ function CardPage({ me, picks, setPicks, onPlace, navigate }: {
       onRemove={(pick) => setPicks(picks.filter((item) => item !== pick))}
       onPlace={onPlace}
     />}
-    <div className={toast ? 'toast show' : 'toast'} role="status">
-      <span aria-hidden="true">✨</span>
-      <span>
-        <strong>{toast || 'Ticket ready'}</strong>
-        <span>Stake it on the ticket.</span>
-      </span>
-    </div>
   </div>
 }
 
@@ -798,10 +863,11 @@ function AdvanceConfirm({ tournamentId, round, onSaved }: {
   </section>
 }
 
-function TournamentPage({ tournamentId, me, reload, navigate }: {
+function TournamentPage({ tournamentId, me, reload, notify, navigate }: {
   tournamentId: string
   me: Me
   reload: () => Promise<void>
+  notify: Notify
   navigate: (to: string) => void
 }) {
   const [tournament, setTournament] = useState<TournamentDetail | null>(null)
@@ -892,6 +958,8 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
           const pick = picks[0]
           const result = await gambaApi.bet({ eventId: pick.eventId, entryNumber: pick.entryNumber, amount: stake })
           setPicks([])
+          const placed = placedNotice([pick], result.carrots)
+          notify(placed.title, placed.detail)
           await reload()
           return result.carrots
         }
@@ -901,7 +969,9 @@ function TournamentPage({ tournamentId, me, reload, navigate }: {
             : { kind: 'match', eventId: pick.eventId, entryNumber: pick.entryNumber }
         ))
         const result = await gambaApi.tournamentPickem(tournament.id, { roundId: pickemRound?.id || '', stake, legs })
+        const placed = placedNotice(picks, result.carrots)
         setPicks([])
+        notify(placed.title, placed.detail)
         await reload()
         return result.carrots
       }}
@@ -1021,8 +1091,13 @@ function OpenSlips({ me, navigate }: { me: Me; navigate: (to: string) => void })
     navigate(href)
   }
   if (!singles.length && !me.openParlays.length) return null
-  return <section>
-    <h2>Your tickets</h2>
+  return <section className="race-lane">
+    <div className="race-lane-head">
+      <div className="race-lane-title">
+        <span aria-hidden="true">🎟️</span>
+        <h2>Your Tickets</h2>
+      </div>
+    </div>
     <div className="mosaic">
       {singles.map((ticket) => (
         <a className="tile press" key={`${ticket.eventId}-${ticket.entryNumber}`} href={`/gamba/race/${ticket.eventId}`} onClick={go(`/gamba/race/${ticket.eventId}`)}>

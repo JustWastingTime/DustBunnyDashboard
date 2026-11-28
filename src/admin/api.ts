@@ -65,6 +65,29 @@ export type AdminMe = {
   user?: { discordId: string; username: string; globalName: string | null; avatar: string | null }
 }
 
+export type PremiumGuild = {
+  guildId: string
+  /** Server name from Discord or a saved label; older bots don't send it. */
+  name?: string | null
+  premium: boolean
+  fromEnv: boolean
+  stored: boolean
+  note: string
+  endsAt: string | null
+  slug?: string | null
+  clubCount?: number
+}
+
+export type ClubGuild = {
+  guildId: string
+  name?: string | null
+  slug: string | null
+  siteName: string | null
+  premium: boolean
+  fromEnv?: boolean
+  clubs: Array<{ circleId: string; circleName: string | null }>
+}
+
 export const adminApi = {
   me: () => adminFetch<AdminMe>('/api/admin/me'),
   publicList: (dataset: string, q = '', limit = 5000) =>
@@ -92,12 +115,12 @@ export const adminApi = {
       '/api/admin/public/skill-preview',
       { method: 'POST', body: JSON.stringify(body) },
     ),
-  premium: () => adminFetch<{ guilds: Array<{ guildId: string; premium: boolean; fromEnv: boolean; stored: boolean; note: string; endsAt: string | null }> }>('/api/admin/premium'),
+  premium: () => adminFetch<{ guilds: PremiumGuild[] }>('/api/admin/premium'),
   setPremium: (guildId: string, body: { enabled?: boolean; note?: string; endsAt?: string | null; extendMonth?: boolean }) =>
     adminFetch<{ guildId: string; premium: boolean; note: string; endsAt: string | null }>(`/api/admin/premium/${guildId}`, { method: 'PUT', body: JSON.stringify(body) }),
-  clubs: () => adminFetch<{ guilds: Array<{ guildId: string; slug: string | null; siteName: string | null; premium: boolean; clubs: Array<{ circleId: string; circleName: string | null }> }> }>('/api/admin/clubs'),
+  clubs: () => adminFetch<{ guilds: ClubGuild[] }>('/api/admin/clubs'),
   refreshCache: () => adminFetch<{ ok: true; events?: number }>('/api/admin/cache/refresh', { method: 'POST', body: '{}' }),
-  gambaEvents: () => adminFetch<{ events: Array<{ id: string; name: string; status: string; startsAt: string | null; endsAt: string | null; file: string; entryCount: number; availability?: string; listing?: string }> }>('/api/admin/gamba-events'),
+  gambaEvents: () => adminFetch<{ events: Array<{ id: string; name: string; status: string; phase?: string; startsAt: string | null; endsAt: string | null; file: string; entryCount: number; availability?: string; listing?: string }> }>('/api/admin/gamba-events'),
   gambaEvent: (key: string) => adminFetch<{ event: GambaEvent; file: string; blobSha: string | null }>(`/api/admin/gamba-events/entry?key=${encodeURIComponent(key)}`),
   saveGambaEvent: (body: { event: GambaEvent; file?: string; creating?: boolean; message: string; baseBlobSha?: string | null }) =>
     adminFetch<{ id: string; file: string; commitSha: string; blobSha: string }>('/api/admin/gamba-events/entry', { method: 'PUT', body: JSON.stringify(body) }),
