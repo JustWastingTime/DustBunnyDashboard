@@ -87,12 +87,12 @@ function ListPage({ navigate }: { navigate: Nav }) {
   return <div className="bx-page">
     <section className="bx-hero">
       <div>
-        <p className="bx-kicker"><span className="bx-free-tag">Free pick'em</span> Not a bet</p>
+        <p className="bx-kicker"><span className="bx-free-tag">Free pick'em</span></p>
         <h1>Call the whole bracket before it starts.</h1>
         <p className="bx-lede">Pick a winner for every match. Your picks carry forward on their own, losers drop into the lower bracket, and you score as the real results come in.</p>
       </div>
       <ol className="bx-steps">
-        <li><strong>Pick every match</strong><span>Tap who wins. Later matches fill in from your picks.</span></li>
+        <li><strong>Pick every match</strong><span>Pick who you think wins the match ups.</span></li>
         <li><strong>Picks lock</strong><span>Once the tournament starts, brackets are final and everyone's picks show up.</span></li>
         <li><strong>Score as it plays</strong><span>Points for each correct pick, plus bonus carrots where a match has them.</span></li>
       </ol>
@@ -286,7 +286,7 @@ function DetailPage({ navigate, bracketId, tab }: { navigate: Nav; bracketId: st
         <a className="bx-btn primary" href={loginHref(base)}>Log in with Discord</a>
       </div>}
       {viewer.loggedIn && open && <div className="bx-callout">
-        <p>Tap the team you think wins each match. Winners move right; losers from the upper bracket drop into the lower one. Change an early pick and any later pick that no longer fits clears itself.</p>
+        <p>Winners move right; losers from the upper bracket drop into the lower bracket.</p>
       </div>}
       {viewer.loggedIn && !open && !mine && <div className="bx-callout"><p>You didn't fill out this bracket before picks locked. Follow along in the live bracket.</p></div>}
       {viewer.loggedIn && !open && mine && <ScoreStrip entry={mine} total={total} />}
