@@ -17,6 +17,7 @@ import {
 } from './api'
 import { adminApi, type GambaTournament } from '../admin/api'
 import { NewRace } from './NewRace'
+import { BRACKETS_ROOT, BracketsSection } from '../brackets/BracketsApp'
 import './gamba.css'
 
 type Pick = {
@@ -147,6 +148,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
   const racesOn = clean === '/gamba' || clean.startsWith('/gamba/race/') || clean.startsWith('/gamba/meet/')
   const tournamentsOn = clean === '/gamba/tournaments' || clean.startsWith('/gamba/tournament/')
   const boardOn = clean === '/gamba/board'
+  const bracketsOn = clean === BRACKETS_ROOT || clean.startsWith(`${BRACKETS_ROOT}/`)
   useLayoutEffect(() => {
     const nav = navRef.current
     const current = nav?.querySelector<HTMLElement>('[aria-current="page"]')
@@ -231,6 +233,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
     const params = new URLSearchParams(path.includes('?') ? path.slice(path.indexOf('?') + 1) : '')
     body = <NewRace key={`${params.get('race') || ''}-${params.get('tournament') || ''}-${params.get('round') || ''}`} owner={Boolean(me.owner)} eventId={params.get('race')} tournamentId={params.get('tournament')} roundId={params.get('round')} navigate={navigate} />
   }
+  else if (bracketsOn) body = <BracketsSection path={path} navigate={navigate} />
   else if (clean === '/gamba/tournaments') body = <TournamentsPage owner={Boolean(me.owner)} navigate={navigate} />
   else if (clean.startsWith('/gamba/tournament/')) body = <TournamentPage tournamentId={decodeURIComponent(clean.slice('/gamba/tournament/'.length))} me={me} reload={reload} notify={notify} navigate={navigate} />
   else if (clean.startsWith('/gamba/race/')) {
@@ -256,6 +259,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
             <span className={slider.on ? 'nav-slider on' : 'nav-slider'} style={{ transform: `translateX(${slider.x}px)`, width: slider.width }} />
             <a href="/gamba" aria-current={racesOn ? 'page' : undefined} onClick={go('/gamba')}><span aria-hidden="true">🍀</span> Races</a>
             <a href="/gamba/tournaments" aria-current={tournamentsOn ? 'page' : undefined} onClick={go('/gamba/tournaments')}><span aria-hidden="true">🏁</span> Tournaments</a>
+            <a href={BRACKETS_ROOT} aria-current={bracketsOn ? 'page' : undefined} onClick={go(BRACKETS_ROOT)}><span aria-hidden="true">🧩</span> Brackets</a>
             <a href="/gamba/board" aria-current={boardOn ? 'page' : undefined} onClick={go('/gamba/board')}><span aria-hidden="true">🏆</span> Leaderboard</a>
           </nav>
           {me.owner && <a className="host-race" href="/gamba/new" aria-current={clean === '/gamba/new' ? 'page' : undefined} onClick={go('/gamba/new')}>Host race</a>}
@@ -291,6 +295,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
       <nav aria-label="Paddock footer">
         <a href="/gamba" onClick={go('/gamba')}>Board</a>
         <a href="/gamba/board" onClick={go('/gamba/board')}>Leaderboard</a>
+        <a href="/gamba/brackets" onClick={go('/gamba/brackets')}>Brackets</a>
       </nav>
     </footer>
   </div>
