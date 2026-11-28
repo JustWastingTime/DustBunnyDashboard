@@ -1263,21 +1263,3 @@
   .paddock button.scope-choice { transition: none; }
 }
 
-/* Signpost to Bracket Challenge, a separate free game with its own look. */
-.paddock .bracket-elsewhere {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  margin-bottom: 18px;
-  border-radius: 14px;
-  background: #f3efe6;
-  color: #17202e;
-  border-left: 6px solid #b7791f;
-}
-.paddock .bracket-elsewhere > span:first-child { font-size: 1.6rem; }
-.paddock .bracket-elsewhere strong { display: block; color: #17202e; }
-.paddock .bracket-elsewhere span span { color: #5b6475; font-size: 0.92rem; }
-.paddock .bracket-elsewhere-go { font-size: 1.3rem; font-weight: 800; color: #0f766e; }
-.paddock .bracket-elsewhere:hover { box-shadow: 0 0 0 2px #b7791f; }

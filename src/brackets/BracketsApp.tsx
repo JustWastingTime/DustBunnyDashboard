@@ -42,23 +42,12 @@ function useLink(navigate: Nav) {
   }
 }
 
-export function BracketsApp({ path, navigate }: { path: string; navigate: Nav }) {
-  const clean = path.split('?')[0].replace(/\/+$/, '') || '/brackets'
-  const parts = clean.split('/').filter(Boolean).slice(1).map(decodeURIComponent)
-  const [viewer, setViewer] = useState<Viewer | null>(null)
-  const link = useLink(navigate)
+export const BRACKETS_ROOT = '/gamba/brackets'
 
-  useEffect(() => {
-    document.title = 'Bracket Challenge'
-    const root = document.documentElement
-    const previous = root.style.background
-    root.style.background = '#f3efe6'
-    return () => { root.style.background = previous }
-  }, [])
-
-  useEffect(() => {
-    bracketApi.list().then((payload) => setViewer(payload.viewer)).catch(() => setViewer(null))
-  }, [])
+/** The Brackets tab inside the Paddock: /gamba/brackets and everything under it. */
+export function BracketsSection({ path, navigate }: { path: string; navigate: Nav }) {
+  const clean = path.split('?')[0].replace(/\/+$/, '')
+  const parts = clean.slice(BRACKETS_ROOT.length).split('/').filter(Boolean).map(decodeURIComponent)
 
   let body: ReactNode
   if (!parts.length) body = <ListPage navigate={navigate} />
@@ -67,32 +56,12 @@ export function BracketsApp({ path, navigate }: { path: string; navigate: Nav })
   else if (parts[1] === 'player' && parts[2]) body = <PlayerPage navigate={navigate} bracketId={parts[0]} discordId={parts[2]} />
   else body = <DetailPage navigate={navigate} bracketId={parts[0]} tab={parts[1] || 'picks'} />
 
-  return <div className="bx-app">
-    <header className="bx-top">
-      <div className="bx-top-bar">
-        <a className="bx-brand" href="/brackets" onClick={link('/brackets')}>
-          <span className="bx-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 4h5v4H5v3h3v2H3V4Zm13 0h5v9h-5v-2h3V8h-3V4ZM8 6h3v12H8v-2h1V8H8V6Zm5 0h3v2h-1v8h1v2h-3V6Z" /></svg>
-          </span>
-          <span className="bx-brand-text">
-            <strong>Bracket Challenge</strong>
-            <small>Free pick'em · not a bet</small>
-          </span>
-        </a>
-        <div className="bx-top-end">
-          {viewer?.loggedIn
-            ? <span className="bx-who">{viewer.name || 'Trainer'}</span>
-            : <a className="bx-btn primary small" href={loginHref(clean)}>Log in with Discord</a>}
-          <a className="bx-elsewhere" href="/gamba" onClick={link('/gamba')} title="Race betting lives in the Paddock">
-            Race betting is in the Paddock <span aria-hidden="true">→</span>
-          </a>
-        </div>
-      </div>
-    </header>
-    <main className="bx-main">{body}</main>
-    <footer className="bx-foot">
-      <p>Bracket Challenge is free. Nothing you pick here is a wager, and you can't lose carrots. Correct picks earn points, and some matches pay bonus carrots.</p>
-    </footer>
+  return <div className="paddock-main bx-zone">
+    {body}
+    <p className="bx-free-note">
+      <span className="bx-free-tag">Free pick'em</span>
+      Brackets are not bets. Entering is free, you can't lose carrots here, and correct picks earn points plus any bonus carrots on that match.
+    </p>
   </div>
 }
 
@@ -118,7 +87,7 @@ function ListPage({ navigate }: { navigate: Nav }) {
   return <div className="bx-page">
     <section className="bx-hero">
       <div>
-        <p className="bx-kicker">Tournament pick'em</p>
+        <p className="bx-kicker"><span className="bx-free-tag">Free pick'em</span> Not a bet</p>
         <h1>Call the whole bracket before it starts.</h1>
         <p className="bx-lede">Pick a winner for every match. Your picks carry forward on their own, losers drop into the lower bracket, and you score as the real results come in.</p>
       </div>
@@ -131,13 +100,13 @@ function ListPage({ navigate }: { navigate: Nav }) {
 
     <div className="bx-list-head">
       <h2>Brackets</h2>
-      {viewer?.owner && <a className="bx-btn primary" href="/brackets/new" onClick={link('/brackets/new')}>New bracket</a>}
+      {viewer?.owner && <a className="bx-btn primary" href={`${BRACKETS_ROOT}/new`} onClick={link(`${BRACKETS_ROOT}/new`)}>New bracket</a>}
     </div>
     {problem && <p className="bx-problem">{problem}</p>}
     {loaded && !problem && !brackets.length && <p className="bx-empty">No brackets yet. When a tournament is set up, it shows here.</p>}
     <div className="bx-cards">
       {brackets.map((item) => (
-        <a key={item.id} className="bx-card" href={`/brackets/${item.id}`} onClick={link(`/brackets/${item.id}`)}>
+        <a key={item.id} className="bx-card" href={`${BRACKETS_ROOT}/${item.id}`} onClick={link(`${BRACKETS_ROOT}/${item.id}`)}>
           <div className="bx-card-top">
             <span className={`bx-pill ${item.status}`}>{statusText(item.status)}</span>
             {item.joined && <span className="bx-pill mine">You're in</span>}
@@ -203,7 +172,7 @@ function DetailPage({ navigate, bracketId, tab }: { navigate: Nav; bracketId: st
   const myChampion = final ? draft[final.id] : null
   const teamName = (id: string | null | undefined) => bracket.teams.find((team) => team.id === id)?.name || ''
   const current = tab === 'live' || tab === 'standings' ? tab : 'picks'
-  const base = `/brackets/${bracket.id}`
+  const base = `${BRACKETS_ROOT}/${bracket.id}`
 
   const savePicks = async () => {
     setBusy(true)
@@ -268,10 +237,11 @@ function DetailPage({ navigate, bracketId, tab }: { navigate: Nav; bracketId: st
   ]
 
   return <div className="bx-page wide">
-    <a className="bx-back" href="/brackets" onClick={link('/brackets')}>← All brackets</a>
+    <a className="bx-back" href={BRACKETS_ROOT} onClick={link(BRACKETS_ROOT)}>← All brackets</a>
     <div className="bx-title-row">
       <div>
         <div className="bx-title-pills">
+          <span className="bx-free-tag">Free pick'em</span>
           <span className={`bx-pill ${bracket.status}`}>{statusText(bracket.status)}</span>
           <span className="bx-pill plain">Double elimination · {bracket.teamCount} teams</span>
         </div>
@@ -394,7 +364,7 @@ function Standings({ data, navigate }: { data: BracketDetail; navigate: Nav }) {
       <tbody>
         {standings.map((row) => {
           const me = row.discordId === viewer.discordId
-          const href = `/brackets/${bracket.id}/player/${row.discordId}`
+          const href = `${BRACKETS_ROOT}/${bracket.id}/player/${row.discordId}`
           const canOpen = !open || me
           return <tr key={row.discordId} className={me ? 'me' : ''}>
             <td>{row.rank}</td>
@@ -426,7 +396,7 @@ function PlayerPage({ navigate, bracketId, discordId }: { navigate: Nav; bracket
       })
       .catch((reason) => setProblem(errorText(reason, 'Those picks could not load.')))
   }, [bracketId, discordId])
-  const back = `/brackets/${bracketId}/standings`
+  const back = `${BRACKETS_ROOT}/${bracketId}/standings`
   return <div className="bx-page wide">
     <a className="bx-back" href={back} onClick={link(back)}>← Standings</a>
     {problem && <p className="bx-problem">{problem}</p>}
@@ -510,7 +480,7 @@ function EditPage({ navigate, bracketId }: { navigate: Nav; bracketId: string | 
     }
     try {
       const saved = existing ? await bracketApi.update(existing.bracket.id, input) : await bracketApi.create(input)
-      navigate(`/brackets/${saved.bracket.id}`)
+      navigate(`${BRACKETS_ROOT}/${saved.bracket.id}`)
     } catch (reason) {
       setProblem(errorText(reason, 'The bracket did not save.'))
       setBusy(false)
@@ -526,14 +496,14 @@ function EditPage({ navigate, bracketId }: { navigate: Nav; bracketId: string | 
     setBusy(true)
     try {
       await bracketApi.remove(existing.bracket.id)
-      navigate('/brackets')
+      navigate(BRACKETS_ROOT)
     } catch (reason) {
       setProblem(errorText(reason, 'That did not delete.'))
       setBusy(false)
     }
   }
 
-  const back = existing ? `/brackets/${existing.bracket.id}` : '/brackets'
+  const back = existing ? `${BRACKETS_ROOT}/${existing.bracket.id}` : BRACKETS_ROOT
   return <div className="bx-page">
     <a className="bx-back" href={back} onClick={link(back)}>← Back</a>
     <h1>{existing ? 'Edit bracket' : 'New bracket'}</h1>
