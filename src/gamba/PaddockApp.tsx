@@ -291,6 +291,7 @@ export function PaddockApp({ path, navigate }: { path: string; navigate: (to: st
       <nav aria-label="Paddock footer">
         <a href="/gamba" onClick={go('/gamba')}>Board</a>
         <a href="/gamba/board" onClick={go('/gamba/board')}>Leaderboard</a>
+        <a href="/brackets" onClick={go('/brackets')}>Bracket Challenge</a>
       </nav>
     </footer>
   </div>
@@ -683,6 +684,14 @@ function TournamentsPage({ owner, navigate }: { owner: boolean; navigate: (to: s
   return <div className="paddock-main">
     <div className="board-stack">
       {problem && <p className="problem">{problem}</p>}
+      <a className="bracket-elsewhere" href="/brackets" onClick={go('/brackets')}>
+        <span aria-hidden="true">🏆</span>
+        <span>
+          <strong>Looking for bracket pick'em?</strong>
+          <span>Filling out a whole tournament bracket is a separate free game, not a bet. It lives in Bracket Challenge.</span>
+        </span>
+        <span className="bracket-elsewhere-go" aria-hidden="true">→</span>
+      </a>
       <section className="race-lane">
         <div className="race-lane-head">
           <div className="race-lane-title">
