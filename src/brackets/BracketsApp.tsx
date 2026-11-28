@@ -354,10 +354,10 @@ function Standings({ data, navigate }: { data: BracketDetail; navigate: Nav }) {
         <tr>
           <th scope="col">#</th>
           <th scope="col">Player</th>
-          <th scope="col" className="num">Points</th>
-          <th scope="col" className="num hide-sm">Correct</th>
-          <th scope="col" className="num hide-sm">Possible</th>
-          <th scope="col" className="num">Carrots</th>
+          <th scope="col" className="bx-n">Points</th>
+          <th scope="col" className="bx-n hide-sm">Correct</th>
+          <th scope="col" className="bx-n hide-sm">Possible</th>
+          <th scope="col" className="bx-n">Carrots</th>
           <th scope="col" className="hide-sm">{open ? 'Picked' : 'Champion pick'}</th>
         </tr>
       </thead>
@@ -369,10 +369,10 @@ function Standings({ data, navigate }: { data: BracketDetail; navigate: Nav }) {
           return <tr key={row.discordId} className={me ? 'me' : ''}>
             <td>{row.rank}</td>
             <td>{canOpen ? <a href={href} onClick={link(href)}>{row.name}</a> : row.name}{me && <span className="bx-you">you</span>}</td>
-            <td className="num strong">{row.points}</td>
-            <td className="num hide-sm">{row.correct}</td>
-            <td className="num hide-sm">{row.maxPoints}</td>
-            <td className="num">{row.carrots.toLocaleString('en-US')}</td>
+            <td className="bx-n strong">{row.points}</td>
+            <td className="bx-n hide-sm">{row.correct}</td>
+            <td className="bx-n hide-sm">{row.maxPoints}</td>
+            <td className="bx-n">{row.carrots.toLocaleString('en-US')}</td>
             <td className="hide-sm">{open ? `${row.picked} of ${bracket.matchCount}` : teamName(row.champion)}</td>
           </tr>
         })}
